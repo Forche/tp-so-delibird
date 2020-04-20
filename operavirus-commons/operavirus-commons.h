@@ -22,13 +22,13 @@ typedef enum
 
 typedef struct
 {
-	int size;
+	uint32_t size;
 	void* payload;
 } t_buffer;
 
 typedef struct
 {
-	event_code codigo_operacion;
+	event_code event_code;
 	uint32_t id;
 	uint32_t correlative_id;
 	t_buffer* buffer;
