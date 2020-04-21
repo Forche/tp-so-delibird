@@ -24,7 +24,7 @@ void* recibir_buffer(int*, int);
 
 void server_init(void);
 void wait_for_client(uint32_t);
-void* receive_message(uint32_t client_socket, uint32_t* size);
+t_buffer* receive_new_pokemon_message(uint32_t client_socket);
 int recibir_operacion(uint32_t);
 void process_request(uint32_t event_code, uint32_t client_fd);
 void serve_client(uint32_t *socket);
