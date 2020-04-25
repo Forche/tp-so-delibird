@@ -73,4 +73,7 @@ typedef struct {
 } t_localized_pokemon;
 
 
-#endif /* UTILS_H_ */
+int connect_to(char* ip, char* port);
+
+
+#endif
