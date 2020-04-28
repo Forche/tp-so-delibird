@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int main(void) {
+int main(int argc, char* argv[]) {
 
 	int conexion = connect_to(IP, PORT);
 
@@ -12,3 +12,4 @@ int main(void) {
 
 	return EXIT_SUCCESS;
 }
+
