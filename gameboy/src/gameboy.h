@@ -15,7 +15,11 @@
 #include<pthread.h>
 #include<signal.h>
 
-#define IP "127.0.0.1"
-#define PORT "7777"
+#define BROKER_IP "127.0.0.1"
+#define BROKER_PORT "7776"
+#define TEAM_IP "127.0.0.1"
+#define TEAM_PORT "7777"
+#define GAMECARD_IP "127.0.0.1"
+#define GAMECARD_PORT "7778"
 
 #endif

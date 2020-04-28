@@ -75,15 +75,16 @@ typedef struct {
 
 int connect_to(char* ip, char* port);
 
-void send_message(uint32_t client_socket, event_code event_code, uint32_t correlative_id, t_buffer* buffer);
+void send_message(uint32_t client_socket, event_code event_code, uint32_t id, uint32_t correlative_id, t_buffer* buffer);
 t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count, char* payload_content[]);
+void* serialize_message(t_message* message, uint32_t* bytes_to_send);
 
-t_new_pokemon* serialize_new_pokemon_message(char* payload_content[]);
-t_appeared_pokemon* serialize_appeared_pokemon_message(char* payload_content[]);
-t_catch_pokemon* serialize_catch_pokemon_message(char* payload_content[]);
-t_caught_pokemon* serialize_caught_pokemon_message(char* payload_content[]);
-t_get_pokemon* serialize_get_pokemon_message(char* payload_content[]);
-t_localized_pokemon* serialize_localized_pokemon_message(char* payload_content[]);
+t_buffer* serialize_new_pokemon_message(char* payload_content[]);
+t_buffer* serialize_appeared_pokemon_message(char* payload_content[]);
+t_buffer* serialize_catch_pokemon_message(char* payload_content[]);
+t_buffer* serialize_caught_pokemon_message(char* payload_content[]);
+t_buffer* serialize_get_pokemon_message(char* payload_content[]);
+t_buffer* serialize_localized_pokemon_message(char* payload_content[]);
 
 t_message* receive_message(uint32_t client_socket);
 t_message* deserialize_message(event_code event_code, t_buffer* buffer);
