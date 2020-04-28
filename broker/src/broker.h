@@ -26,7 +26,6 @@ void wait_for_client(uint32_t);
 t_buffer* receive_new_pokemon_message(uint32_t client_socket);
 void process_request(uint32_t event_code, uint32_t client_fd);
 void serve_client(uint32_t *socket);
-void* serialize_message(t_message* message, uint32_t bytes);
 void return_message(void* payload, uint32_t size, uint32_t client_socket);
 
 #endif

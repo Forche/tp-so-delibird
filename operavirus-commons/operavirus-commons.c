@@ -138,6 +138,39 @@ t_buffer* serialize_new_pokemon_message(char* payload_content[]) {
 	return buffer;
 }
 
+
+t_buffer* serialize_appeared_pokemon_message(char* payload_content[])
+{
+	return NULL;
+}
+
+t_buffer* serialize_catch_pokemon_message(char* payload_content[])
+{
+	return NULL;
+}
+
+t_buffer* serialize_caught_pokemon_message(char* payload_content[])
+{
+	return NULL;
+}
+
+t_buffer* serialize_get_pokemon_message(char* payload_content[])
+{
+	return NULL;
+}
+
+t_buffer* serialize_localized_pokemon_message(char* payload_content[])
+{
+	return NULL;
+}
+
+
+
+t_new_pokemon* deserialize_new_pokemon_message(t_buffer* buffer)
+{
+	return NULL;
+}
+
 t_catch_pokemon* deserialize_catch_pokemon_message(t_buffer* buffer)
 {
 	return NULL;

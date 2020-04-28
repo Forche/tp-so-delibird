@@ -74,6 +74,8 @@ void process_request(uint32_t event_code, uint32_t client_fd) {
 	switch (event_code) {
 	case NEW_POKEMON:
 		msg = receive_new_pokemon_message(client_fd);
+		t_log* logger = iniciar_logger();
+		log_info(logger, msg->size);
 		//return_message(msg, size, client_fd);
 		free(msg);
 		break;
@@ -108,29 +110,15 @@ t_buffer* receive_new_pokemon_message(uint32_t client_socket) {
 	recv(client_socket, &(new_pokemon->pos_y), sizeof(uint32_t), MSG_WAITALL);
 	recv(client_socket, &(new_pokemon->count), sizeof(uint32_t), MSG_WAITALL);
 
+	t_log* logger = iniciar_logger();
+	log_info(logger, buffer->size);
+	log_info(logger, new_pokemon->pokemon_len);
+	log_info(logger, new_pokemon->pokemon);
+	log_info(logger, new_pokemon->pos_x);
+	log_info(logger, new_pokemon->pos_y);
+	log_info(logger, new_pokemon->count);
+
 	return buffer;
-}
-
-void* serialize_message(t_message* message, uint32_t bytes) {
-	void* memory_position = malloc(bytes);
-	uint32_t offset = 0;
-
-	memcpy(memory_position + offset, &(message->event_code),
-			sizeof(event_code));
-	offset += sizeof(uint32_t);
-	memcpy(memory_position + offset, &(message->id), sizeof(uint32_t));
-	offset += sizeof(uint32_t);
-	memcpy(memory_position + offset, &(message->correlative_id),
-			sizeof(uint32_t));
-	offset += sizeof(uint32_t);
-	memcpy(memory_position + offset, &(message->buffer->size),
-			sizeof(uint32_t));
-	offset += sizeof(uint32_t);
-	memcpy(memory_position + offset, message->buffer->payload,
-			message->buffer->size);
-	offset += message->buffer->size;
-
-	return memory_position;
 }
 
 void return_message(void* payload, uint32_t size, uint32_t socket_cliente) {
