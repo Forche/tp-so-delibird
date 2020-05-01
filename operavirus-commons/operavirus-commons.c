@@ -30,7 +30,8 @@ int connect_to(char* ip, char* port) {
 	return client_socket;
 }
 
-void send_message(uint32_t client_socket, event_code event_code, uint32_t id, uint32_t correlative_id, t_buffer* buffer) {
+void send_message(uint32_t client_socket, event_code event_code, uint32_t id,
+		uint32_t correlative_id, t_buffer* buffer) {
 	t_message* message = malloc(sizeof(t_message));
 	message->event_code = event_code;
 	message->correlative_id = correlative_id;
@@ -70,7 +71,8 @@ void validate_arg_count(uint32_t arg_count, uint32_t payload_args) {
 	//TODO: Throw exception if arg_count != payload_args
 }
 
-t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count, char* payload_content[]) {
+t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count,
+		char* payload_content[]) {
 	switch (event_code) {
 	case NEW_POKEMON:
 		validate_arg_count(arg_count, 4);
@@ -121,7 +123,7 @@ t_buffer* serialize_new_pokemon_message(char* payload_content[]) {
 
 	memcpy(payload + offset, &new_pokemon_msg.pokemon_len, sizeof(uint32_t));
 	offset += sizeof(uint32_t);
-	memcpy(payload + offset, &new_pokemon_msg.pokemon,
+	memcpy(payload + offset, new_pokemon_msg.pokemon,
 			new_pokemon_msg.pokemon_len);
 	offset += new_pokemon_msg.pokemon_len;
 	memcpy(payload + offset, &new_pokemon_msg.pos_x, sizeof(uint32_t));
@@ -138,55 +140,60 @@ t_buffer* serialize_new_pokemon_message(char* payload_content[]) {
 	return buffer;
 }
 
-
-t_buffer* serialize_appeared_pokemon_message(char* payload_content[])
-{
+t_buffer* serialize_appeared_pokemon_message(char* payload_content[]) {
 	return NULL;
 }
 
-t_buffer* serialize_catch_pokemon_message(char* payload_content[])
-{
+t_buffer* serialize_catch_pokemon_message(char* payload_content[]) {
 	return NULL;
 }
 
-t_buffer* serialize_caught_pokemon_message(char* payload_content[])
-{
+t_buffer* serialize_caught_pokemon_message(char* payload_content[]) {
 	return NULL;
 }
 
-t_buffer* serialize_get_pokemon_message(char* payload_content[])
-{
+t_buffer* serialize_get_pokemon_message(char* payload_content[]) {
 	return NULL;
 }
 
-t_buffer* serialize_localized_pokemon_message(char* payload_content[])
-{
+t_buffer* serialize_localized_pokemon_message(char* payload_content[]) {
 	return NULL;
 }
 
-
-
-t_new_pokemon* deserialize_new_pokemon_message(t_buffer* buffer)
-{
+t_new_pokemon* deserialize_new_pokemon_message(t_buffer* buffer) {
 	return NULL;
 }
 
-t_catch_pokemon* deserialize_catch_pokemon_message(t_buffer* buffer)
-{
+t_catch_pokemon* deserialize_catch_pokemon_message(t_buffer* buffer) {
 	return NULL;
 }
 
-t_caught_pokemon* deserialize_caught_pokemon_message(t_buffer* buffer)
-{
+t_caught_pokemon* deserialize_caught_pokemon_message(t_buffer* buffer) {
 	return NULL;
 }
 
-t_get_pokemon* deserialize_get_pokemon_message(t_buffer* buffer)
-{
+t_get_pokemon* deserialize_get_pokemon_message(t_buffer* buffer) {
 	return NULL;
 }
 
-t_localized_pokemon* deserialize_localized_pokemon_message(t_buffer* buffer)
-{
+t_localized_pokemon* deserialize_localized_pokemon_message(t_buffer* buffer) {
 	return NULL;
+}
+
+event_code string_to_event_code(char* code) {
+	if (string_equals_ignore_case(code, "NEW_POKEMON")) {
+		return NEW_POKEMON;
+	} else if (string_equals_ignore_case(code, "APPEARED_POKEMON")) {
+		return APPEARED_POKEMON;
+	} else if (string_equals_ignore_case(code, "CATCH_POKEMON")) {
+		return CATCH_POKEMON;
+	} else if (string_equals_ignore_case(code, "CAUGHT_POKEMON")) {
+		return CAUGHT_POKEMON;
+	} else if (string_equals_ignore_case(code, "GET_POKEMON")) {
+		return GET_POKEMON;
+	} else if (string_equals_ignore_case(code, "LOCALIZED_POKEMON")) {
+		return LOCALIZED_POKEMON;
+	} else {
+		return -1;
+	}
 }

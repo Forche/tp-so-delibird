@@ -7,15 +7,15 @@ int main(int argc, char* argv[]) {
 
 	int conexion;
 
-	if (string_equals_ignore_case(argv[0], "BROKER"))
+	if (string_equals_ignore_case(argv[1], "BROKER"))
 	{
 		conexion = connect_to(BROKER_IP, BROKER_PORT);
 	}
-	else if (string_equals_ignore_case(argv[0], "TEAM"))
+	else if (string_equals_ignore_case(argv[1], "TEAM"))
 	{
 		conexion = connect_to(TEAM_IP, TEAM_PORT);
 	}
-	else if (string_equals_ignore_case(argv[0], "GAMECARD"))
+	else if (string_equals_ignore_case(argv[1], "GAMECARD"))
 	{
 		conexion = connect_to(GAMECARD_IP, GAMECARD_PORT);
 	}
@@ -24,18 +24,20 @@ int main(int argc, char* argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	char* payload_content[argc - 2];
+	char* payload_content[argc - 3];
 
 	get_payload_content(argc, argv, payload_content);
 
-	t_buffer* buffer = serialize_buffer(atoi(argv[1]), argc - 2, payload_content);
-	send_message((uint32_t) conexion, (event_code) atoi(argv[1]), 0, 0, buffer);
+	event_code code = string_to_event_code(argv[2]);
+
+	t_buffer* buffer = serialize_buffer(code, argc - 3, payload_content);
+	send_message((uint32_t) conexion, code, 0, 0, buffer);
 
 	return EXIT_SUCCESS;
 }
 
 void get_payload_content(int argc, char* argv[], char* payload_content[]) {
-	for (int i = 2; i < argc; i++) {
-		payload_content[i - 2] = argv[i];
+	for (int i = 3; i < argc; i++) {
+		payload_content[i - 3] = argv[i];
 	}
 }

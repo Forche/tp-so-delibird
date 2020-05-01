@@ -9,6 +9,7 @@
 #include<sys/socket.h>
 #include<netdb.h>
 #include<string.h>
+#include<commons/string.h>
 
 typedef enum
 {
@@ -98,5 +99,7 @@ t_localized_pokemon* deserialize_localized_pokemon_message(t_buffer* buffer);
 
 void delete_message(t_message* message);
 void free_connection(uint32_t client_socket);
+
+event_code string_to_event_code(char* code);
 
 #endif
