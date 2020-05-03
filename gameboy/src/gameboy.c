@@ -7,20 +7,13 @@ int main(int argc, char* argv[]) {
 
 	int conexion;
 
-	if (string_equals_ignore_case(argv[1], "BROKER"))
-	{
+	if (string_equals_ignore_case(argv[1], "BROKER")) {
 		conexion = connect_to(BROKER_IP, BROKER_PORT);
-	}
-	else if (string_equals_ignore_case(argv[1], "TEAM"))
-	{
+	} else if (string_equals_ignore_case(argv[1], "TEAM")) {
 		conexion = connect_to(TEAM_IP, TEAM_PORT);
-	}
-	else if (string_equals_ignore_case(argv[1], "GAMECARD"))
-	{
+	} else if (string_equals_ignore_case(argv[1], "GAMECARD")) {
 		conexion = connect_to(GAMECARD_IP, GAMECARD_PORT);
-	}
-	else
-	{
+	} else {
 		return EXIT_FAILURE;
 	}
 
@@ -31,7 +24,14 @@ int main(int argc, char* argv[]) {
 	event_code code = string_to_event_code(argv[2]);
 
 	t_buffer* buffer = serialize_buffer(code, argc - 3, payload_content);
-	send_message((uint32_t) conexion, code, 0, 0, buffer);
+
+	if (code == APPEARED_POKEMON) {
+		send_message((uint32_t) conexion, code, 0, payload_content[3], buffer);
+	} else if (code == CAUGHT_POKEMON) {
+		send_message((uint32_t) conexion, code, 0, payload_content[0], buffer);
+	} else {
+		send_message((uint32_t) conexion, code, 0, 0, buffer);
+	}
 
 	return EXIT_SUCCESS;
 }
