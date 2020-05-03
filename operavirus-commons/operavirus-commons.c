@@ -7,6 +7,10 @@ int main(void) {
 	return EXIT_SUCCESS;
 }
 
+t_log* logger_init(void) {
+	return log_create("operavirus-commons.log", "operavirus-commons", true, LOG_LEVEL_INFO);
+}
+
 int connect_to(char* ip, char* port) {
 	struct addrinfo hints;
 	struct addrinfo *server_info;
@@ -99,8 +103,7 @@ t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count,
 		return serialize_localized_pokemon_message(payload_content);
 
 	default:
-		//TODO: Throw exception.
-		break;
+		return NULL;
 	}
 
 	return NULL;
@@ -160,23 +163,63 @@ t_buffer* serialize_localized_pokemon_message(char* payload_content[]) {
 	return NULL;
 }
 
-t_new_pokemon* deserialize_new_pokemon_message(t_buffer* buffer) {
+t_message* receive_message(uint32_t event_code, uint32_t socket) {
+	t_buffer* buffer;
+	t_message* message = malloc(sizeof(t_message));
+	message->event_code = event_code;
+
+	recv(socket, &(message->id), sizeof(uint32_t), MSG_WAITALL);
+	recv(socket, &(message->correlative_id), sizeof(uint32_t),
+			MSG_WAITALL);
+	uint32_t size;
+	recv(socket, &size, sizeof(uint32_t), MSG_WAITALL);
+	buffer = malloc(sizeof(uint32_t) + size);
+	buffer->size = size;
+	message->buffer = buffer;
+
+	return message;
+}
+
+t_new_pokemon* deserialize_new_pokemon_message(uint32_t socket) {
+	uint32_t pokemon_len;
+	recv(socket, &(pokemon_len), sizeof(uint32_t),
+			MSG_WAITALL);
+
+	t_new_pokemon* new_pokemon = malloc(4 * sizeof(uint32_t) + pokemon_len);
+	new_pokemon->pokemon_len = pokemon_len;
+
+	new_pokemon->pokemon = malloc(new_pokemon->pokemon_len);
+	recv(socket, new_pokemon->pokemon, new_pokemon->pokemon_len,
+			MSG_WAITALL);
+
+	recv(socket, &(new_pokemon->pos_x), sizeof(uint32_t), MSG_WAITALL);
+	recv(socket, &(new_pokemon->pos_y), sizeof(uint32_t), MSG_WAITALL);
+	recv(socket, &(new_pokemon->count), sizeof(uint32_t), MSG_WAITALL);
+
+	t_log* logger = logger_init();
+	log_info(logger, new_pokemon->pokemon);
+	log_destroy(logger);
+
+	return new_pokemon;
+}
+
+t_appeared_pokemon* deserialize_appeared_pokemon_message(uint32_t socket) {
 	return NULL;
 }
 
-t_catch_pokemon* deserialize_catch_pokemon_message(t_buffer* buffer) {
+t_catch_pokemon* deserialize_catch_pokemon_message(uint32_t socket) {
 	return NULL;
 }
 
-t_caught_pokemon* deserialize_caught_pokemon_message(t_buffer* buffer) {
+t_caught_pokemon* deserialize_caught_pokemon_message(uint32_t socket) {
 	return NULL;
 }
 
-t_get_pokemon* deserialize_get_pokemon_message(t_buffer* buffer) {
+t_get_pokemon* deserialize_get_pokemon_message(uint32_t socket) {
 	return NULL;
 }
 
-t_localized_pokemon* deserialize_localized_pokemon_message(t_buffer* buffer) {
+t_localized_pokemon* deserialize_localized_pokemon_message(uint32_t socket) {
 	return NULL;
 }
 

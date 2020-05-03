@@ -10,6 +10,7 @@
 #include<netdb.h>
 #include<string.h>
 #include<commons/string.h>
+#include<commons/log.h>
 
 typedef enum
 {
@@ -87,15 +88,15 @@ t_buffer* serialize_caught_pokemon_message(char* payload_content[]);
 t_buffer* serialize_get_pokemon_message(char* payload_content[]);
 t_buffer* serialize_localized_pokemon_message(char* payload_content[]);
 
-t_message* receive_message(uint32_t client_socket);
+t_message* receive_message(uint32_t event_code, uint32_t socket);
 t_message* deserialize_message(event_code event_code, t_buffer* buffer);
 
-t_new_pokemon* deserialize_new_pokemon_message(t_buffer* buffer);
-t_appeared_pokemon* deserialize_appeared_pokemon_message(t_buffer* buffer);
-t_catch_pokemon* deserialize_catch_pokemon_message(t_buffer* buffer);
-t_caught_pokemon* deserialize_caught_pokemon_message(t_buffer* buffer);
-t_get_pokemon* deserialize_get_pokemon_message(t_buffer* buffer);
-t_localized_pokemon* deserialize_localized_pokemon_message(t_buffer* buffer);
+t_new_pokemon* deserialize_new_pokemon_message(uint32_t socket);
+t_appeared_pokemon* deserialize_appeared_pokemon_message(uint32_t socket);
+t_catch_pokemon* deserialize_catch_pokemon_message(uint32_t socket);
+t_caught_pokemon* deserialize_caught_pokemon_message(uint32_t socket);
+t_get_pokemon* deserialize_get_pokemon_message(uint32_t socket);
+t_localized_pokemon* deserialize_localized_pokemon_message(uint32_t socket);
 
 void delete_message(t_message* message);
 void free_connection(uint32_t client_socket);

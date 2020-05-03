@@ -63,55 +63,18 @@ void serve_client(uint32_t* socket) {
 	process_request(code, *socket);
 }
 
-void process_request(uint32_t event_code, uint32_t client_fd) {
-	t_buffer* msg;
+void process_request(uint32_t event_code, uint32_t client_socket) {
+	t_message* msg = receive_message(event_code, client_socket);
 
 	switch (event_code) {
 	case NEW_POKEMON:
-		msg = receive_new_pokemon_message(client_fd);
+		msg->buffer->payload = deserialize_new_pokemon_message(client_socket);
 		break;
 	case 0:
 		pthread_exit(NULL);
 	case -1:
 		pthread_exit(NULL);
 	}
-}
-
-t_buffer* receive_new_pokemon_message(uint32_t client_socket) {
-	t_buffer* buffer;
-	t_message* message = malloc(sizeof(t_message));
-	message->event_code = NEW_POKEMON;
-
-	recv(client_socket, &(message->id), sizeof(uint32_t), MSG_WAITALL);
-	recv(client_socket, &(message->correlative_id), sizeof(uint32_t),
-			MSG_WAITALL);
-	uint32_t size;
-	recv(client_socket, &size, sizeof(uint32_t), MSG_WAITALL);
-	buffer = malloc(sizeof(uint32_t) + size);
-	buffer->size = size;
-	message->buffer = buffer;
-
-	uint32_t pokemon_len;
-	recv(client_socket, &(pokemon_len), sizeof(uint32_t),
-			MSG_WAITALL);
-
-	t_new_pokemon* new_pokemon = malloc(4 * sizeof(uint32_t) + pokemon_len);
-	new_pokemon->pokemon_len = pokemon_len;
-
-	new_pokemon->pokemon = malloc(new_pokemon->pokemon_len);
-	recv(client_socket, new_pokemon->pokemon, new_pokemon->pokemon_len,
-			MSG_WAITALL);
-
-	recv(client_socket, &(new_pokemon->pos_x), sizeof(uint32_t), MSG_WAITALL);
-	recv(client_socket, &(new_pokemon->pos_y), sizeof(uint32_t), MSG_WAITALL);
-	recv(client_socket, &(new_pokemon->count), sizeof(uint32_t), MSG_WAITALL);
-
-	buffer->payload = new_pokemon;
-
-	t_log* logger = iniciar_logger();
-	log_info(logger, new_pokemon->pokemon);
-
-	return buffer;
 }
 
 void return_message(void* payload, uint32_t size, uint32_t socket_cliente) {
