@@ -14,10 +14,7 @@
 #include<string.h>
 #include<pthread.h>
 #include<signal.h>
-
-#define IP "127.0.0.1"
-#define PORT "7777"
-
+#include<commons/config.h>
 
 pthread_t thread;
 

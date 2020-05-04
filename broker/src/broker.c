@@ -8,6 +8,9 @@ int main(void) {
 
 void server_init(void) {
 	int sv_socket;
+	t_config* config = config_create("broker.config");
+	char* IP = config_get_string_value(config, "IP_BROKER");
+	char* PORT = config_get_string_value(config, "PUERTO_BROKER");
 
 	struct addrinfo hints, *servinfo, *p;
 

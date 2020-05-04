@@ -14,13 +14,8 @@
 #include<string.h>
 #include<pthread.h>
 #include<signal.h>
+#include<commons/config.h>
 
-#define BROKER_IP "127.0.0.1"
-#define BROKER_PORT "7777"
-#define TEAM_IP "127.0.0.1"
-#define TEAM_PORT "7776"
-#define GAMECARD_IP "127.0.0.1"
-#define GAMECARD_PORT "7778"
 
 void get_payload_content(int argc, char* argv[], char* payload_content[]);
 

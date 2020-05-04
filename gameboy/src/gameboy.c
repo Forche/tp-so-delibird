@@ -6,6 +6,15 @@
 int main(int argc, char* argv[]) {
 
 	int conexion;
+	t_config* config = config_create("gameboy.config");
+
+	char* BROKER_IP = config_get_string_value(config, "IP_BROKER");
+	char* BROKER_PORT = config_get_string_value(config, "PUERTO_BROKER");
+	char* TEAM_IP = config_get_string_value(config, "IP_TEAM");
+	char* TEAM_PORT = config_get_string_value(config, "PUERTO_TEAM");
+	char* GAMECARD_IP = config_get_string_value(config, "IP_GAMECARD");
+	char* GAMECARD_PORT = config_get_string_value(config, "PUERTO_GAMECARD");
+
 
 	if (string_equals_ignore_case(argv[1], "BROKER")) {
 		conexion = connect_to(BROKER_IP, BROKER_PORT);
