@@ -31,7 +31,7 @@ typedef struct
 typedef struct
 {
 	queue_message* messages[];
-	uint32_t subscriptor_sockets[];
+	subscriptor_socket* subscriptor_socket;
 } queue;
 
 typedef struct
@@ -39,6 +39,12 @@ typedef struct
 	uint32_t id;
 	answered_message* next_message;
 } answered_message;
+
+typedef struct
+{
+	uint32_t socket;
+	subscriptor_socket next_subscriptor_socket;
+} subscriptor_socket;
 
 
 pthread_t thread;
