@@ -35,7 +35,7 @@ int main(int argc, char* argv[]) {
 	t_buffer* buffer = serialize_buffer(code, argc - 3, payload_content);
 
 	if (code == APPEARED_POKEMON) {
-		send_message((uint32_t) conexion, code, 0, payload_content[3], buffer);
+		send_message((uint32_t) conexion, code, 0, (uint32_t) payload_content[3], buffer);
 	} else if (code == CAUGHT_POKEMON) {
 		send_message((uint32_t) conexion, code, 0, payload_content[0], buffer);
 	} else {
