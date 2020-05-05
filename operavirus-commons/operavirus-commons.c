@@ -349,7 +349,7 @@ t_caught_pokemon* deserialize_caught_pokemon_message(uint32_t socket) {
 
 	t_log* logger = logger_init();
 	char* str_result = malloc(1);
-	itoa(caught_pokemon->result, str_result, 10);
+	sprintf(str_result,"%d",caught_pokemon->result);
 	log_info(logger, str_result);
 	log_destroy(logger);
 	free(str_result);
