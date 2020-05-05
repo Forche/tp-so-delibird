@@ -16,6 +16,31 @@
 #include<signal.h>
 #include<commons/config.h>
 
+typedef struct
+{
+	uint32_t receiver_socket;
+	uint32_t received; // 1: received, 0: not received
+} receiver;
+
+typedef struct
+{
+	t_message* message;
+	receiver receivers[];
+} queue_message;
+
+typedef struct
+{
+	queue_message* messages[];
+	uint32_t subscriptor_sockets[];
+} queue;
+
+typedef struct
+{
+	uint32_t id;
+	answered_message* next_message;
+} answered_message;
+
+
 pthread_t thread;
 
 void server_init(void);

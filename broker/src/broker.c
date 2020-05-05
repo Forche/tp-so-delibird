@@ -3,6 +3,14 @@
 int main(void) {
 	server_init();
 
+	answered_message* answered_messages; // Lista dinamica de mensajes recibidos
+	queue queue_new_pokemon;
+	queue queue_appeared_pokemon;
+	queue queue_catch_pokemon;
+	queue queue_caught_pokemon;
+	queue queue_get_pokemon;
+	queue queue_localized_pokemon;
+
 	return EXIT_SUCCESS;
 }
 
