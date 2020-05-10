@@ -275,12 +275,13 @@ t_message* receive_message(uint32_t event_code, uint32_t socket) {
 	return message;
 }
 
-t_new_pokemon* deserialize_new_pokemon_message(uint32_t socket) {
+t_new_pokemon* deserialize_new_pokemon_message(uint32_t socket, uint32_t* size) {
 	uint32_t pokemon_len;
 	recv(socket, &(pokemon_len), sizeof(uint32_t),
 	MSG_WAITALL);
 
-	t_new_pokemon* new_pokemon = malloc(4 * sizeof(uint32_t) + pokemon_len);
+	*size = 4 * sizeof(uint32_t) + pokemon_len;
+	t_new_pokemon* new_pokemon = malloc(*size);
 	new_pokemon->pokemon_len = pokemon_len;
 
 	new_pokemon->pokemon = malloc(new_pokemon->pokemon_len);
@@ -298,13 +299,13 @@ t_new_pokemon* deserialize_new_pokemon_message(uint32_t socket) {
 	return new_pokemon;
 }
 
-t_appeared_pokemon* deserialize_appeared_pokemon_message(uint32_t socket) {
+t_appeared_pokemon* deserialize_appeared_pokemon_message(uint32_t socket, uint32_t* size) {
 	uint32_t pokemon_len;
 	recv(socket, &(pokemon_len), sizeof(uint32_t),
 	MSG_WAITALL);
 
-	t_appeared_pokemon* appeared_pokemon = malloc(
-			3 * sizeof(uint32_t) + pokemon_len);
+	*size = 3 * sizeof(uint32_t) + pokemon_len;
+	t_appeared_pokemon* appeared_pokemon = malloc(*size);
 	appeared_pokemon->pokemon_len = pokemon_len;
 
 	appeared_pokemon->pokemon = malloc(appeared_pokemon->pokemon_len);
@@ -321,12 +322,13 @@ t_appeared_pokemon* deserialize_appeared_pokemon_message(uint32_t socket) {
 	return appeared_pokemon;
 }
 
-t_catch_pokemon* deserialize_catch_pokemon_message(uint32_t socket) {
+t_catch_pokemon* deserialize_catch_pokemon_message(uint32_t socket, uint32_t* size) {
 	uint32_t pokemon_len;
 	recv(socket, &(pokemon_len), sizeof(uint32_t),
 	MSG_WAITALL);
 
-	t_catch_pokemon* catch_pokemon = malloc(3 * sizeof(uint32_t) + pokemon_len);
+	*size = 3 * sizeof(uint32_t) + pokemon_len;
+	t_catch_pokemon* catch_pokemon = malloc(*size);
 	catch_pokemon->pokemon_len = pokemon_len;
 
 	catch_pokemon->pokemon = malloc(catch_pokemon->pokemon_len);
@@ -343,12 +345,13 @@ t_catch_pokemon* deserialize_catch_pokemon_message(uint32_t socket) {
 	return catch_pokemon;
 }
 
-t_caught_pokemon* deserialize_caught_pokemon_message(uint32_t socket) {
+t_caught_pokemon* deserialize_caught_pokemon_message(uint32_t socket, uint32_t* size) {
 	t_caught_pokemon* caught_pokemon = malloc(sizeof(uint32_t));
 	recv(socket, &(caught_pokemon->result), sizeof(uint32_t), MSG_WAITALL);
 
 	t_log* logger = logger_init();
-	char* str_result = malloc(1);
+	*size = 1;
+	char* str_result = malloc(*size);
 	sprintf(str_result,"%d",caught_pokemon->result);
 	log_info(logger, str_result);
 	log_destroy(logger);
@@ -357,12 +360,13 @@ t_caught_pokemon* deserialize_caught_pokemon_message(uint32_t socket) {
 	return caught_pokemon;
 }
 
-t_get_pokemon* deserialize_get_pokemon_message(uint32_t socket) {
+t_get_pokemon* deserialize_get_pokemon_message(uint32_t socket, uint32_t* size) {
 	uint32_t pokemon_len;
 	recv(socket, &(pokemon_len), sizeof(uint32_t),
 	MSG_WAITALL);
 
-	t_get_pokemon* get_pokemon = malloc(sizeof(uint32_t) + pokemon_len);
+	*size = sizeof(uint32_t) + pokemon_len;
+	t_get_pokemon* get_pokemon = malloc(*size);
 	get_pokemon->pokemon_len = pokemon_len;
 
 	get_pokemon->pokemon = malloc(get_pokemon->pokemon_len);
@@ -376,7 +380,7 @@ t_get_pokemon* deserialize_get_pokemon_message(uint32_t socket) {
 	return get_pokemon;
 }
 
-t_localized_pokemon* deserialize_localized_pokemon_message(uint32_t socket) {
+t_localized_pokemon* deserialize_localized_pokemon_message(uint32_t socket, uint32_t* size) {
 	return NULL;
 }
 
