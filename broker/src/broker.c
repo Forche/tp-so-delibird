@@ -68,11 +68,33 @@ void serve_client(uint32_t* socket) {
 
 void process_request(uint32_t event_code, uint32_t client_socket) {
 	t_message* msg = receive_message(event_code, client_socket);
+	uint32_t size;
 
 	switch (event_code) {
 	case NEW_POKEMON:
-		msg->buffer->payload = deserialize_new_pokemon_message(client_socket);
-		break;
+			msg->buffer->payload = deserialize_new_pokemon_message(client_socket, &size);
+			msg->buffer->size = size;
+			break;
+	case APPEARED_POKEMON:
+			msg->buffer->payload = deserialize_appeared_pokemon_message(client_socket, &size);
+			msg->buffer->size = size;
+			break;
+	case CATCH_POKEMON:
+			msg->buffer->payload = deserialize_catch_pokemon_message(client_socket, &size);
+			msg->buffer->size = size;
+			break;
+	case CAUGHT_POKEMON:
+			msg->buffer->payload = deserialize_caught_pokemon_message(client_socket, &size);
+			msg->buffer->size = size;
+			break;
+	case GET_POKEMON:
+			msg->buffer->payload = deserialize_get_pokemon_message(client_socket, &size);
+			msg->buffer->size = size;
+			break;
+	case LOCALIZED_POKEMON:
+			msg->buffer->payload = deserialize_localized_pokemon_message(client_socket, &size);
+			msg->buffer->size = size;
+			break;
 	case 0:
 		pthread_exit(NULL);
 	case -1:
