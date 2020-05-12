@@ -8,6 +8,7 @@ int main(void) {
 
 void server_init(void) {
 	answered_messages = list_create(); // Answered messages list
+	message_count = 0;
 	queues_init();
 	int sv_socket;
 	t_config* config = config_create("broker.config");
@@ -41,6 +42,11 @@ void server_init(void) {
 
 	while (1)
 		wait_for_client(sv_socket);
+}
+
+uint32_t get_message_id() {
+	message_count++;
+	return message_count;
 }
 
 void queues_init() {

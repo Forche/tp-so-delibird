@@ -34,11 +34,19 @@ int main(int argc, char* argv[]) {
 
 	t_buffer* buffer = serialize_buffer(code, argc - 3, payload_content);
 
-	if (code == APPEARED_POKEMON) {
+	if (code == APPEARED_POKEMON && string_equals_ignore_case(argv[1], "BROKER")) {
 		send_message((uint32_t) conexion, code, 0, atoi(payload_content[3]), buffer);
 	} else if (code == CAUGHT_POKEMON) {
 		send_message((uint32_t) conexion, code, 0, atoi(payload_content[0]), buffer);
-	} else {
+	} else if (code == NEW_POKEMON && string_equals_ignore_case(argv[1], "GAMECARD")) {
+		send_message((uint32_t) conexion, code, atoi(payload_content[4]), 0, buffer);
+	} else if (code == CATCH_POKEMON && string_equals_ignore_case(argv[1], "GAMECARD")) {
+		send_message((uint32_t) conexion, code, atoi(payload_content[3]), 0, buffer);
+	} else if (code == GET_POKEMON && string_equals_ignore_case(argv[1], "GAMECARD")) {
+		send_message((uint32_t) conexion, code, atoi(payload_content[1]), 0, buffer);
+	}
+	else
+	{
 		send_message((uint32_t) conexion, code, 0, 0, buffer);
 	}
 

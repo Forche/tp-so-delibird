@@ -84,7 +84,7 @@ t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count,
 		return serialize_new_pokemon_message(payload_content);
 
 	case APPEARED_POKEMON:
-		validate_arg_count(arg_count, 3);
+		validate_arg_count(arg_count, 4);
 		return serialize_appeared_pokemon_message(payload_content);
 
 	case CATCH_POKEMON:
@@ -208,7 +208,17 @@ t_buffer* serialize_catch_pokemon_message(char* payload_content[]) {
 
 t_buffer* serialize_caught_pokemon_message(char* payload_content[]) {
 	t_caught_pokemon* caught_pokemon_ptr = malloc(sizeof(t_caught_pokemon));
-	caught_pokemon_ptr->result = atoi(payload_content[1]);
+	uint32_t status;
+	if (payload_content[1] == 'OK')
+	{
+		status = 1;
+	}
+	else
+	{
+		status = 0;
+	}
+
+	caught_pokemon_ptr->result = status;
 
 	t_caught_pokemon caught_pokemon_msg = (*caught_pokemon_ptr);
 
