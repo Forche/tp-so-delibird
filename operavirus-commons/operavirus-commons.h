@@ -84,6 +84,7 @@ void* serialize_message(t_message* message, uint32_t* bytes_to_send);
 t_buffer* serialize_new_pokemon_message(char* payload_content[]);
 t_buffer* serialize_appeared_pokemon_message(char* payload_content[]);
 t_buffer* serialize_catch_pokemon_message(char* payload_content[]);
+t_buffer* serialize_t_catch_pokemon_message(t_catch_pokemon* catch_pokemon);
 t_buffer* serialize_caught_pokemon_message(char* payload_content[]);
 t_buffer* serialize_get_pokemon_message(char* payload_content[]);
 t_buffer* serialize_localized_pokemon_message(char* payload_content[]);
