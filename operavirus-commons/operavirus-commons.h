@@ -12,8 +12,7 @@
 #include<commons/string.h>
 #include<commons/log.h>
 
-typedef enum
-{
+typedef enum {
 	NEW_POKEMON = 1,
 	APPEARED_POKEMON = 2,
 	CATCH_POKEMON = 3,
@@ -23,14 +22,12 @@ typedef enum
 	NEW_SUBSCRIPTOR = 7
 } event_code;
 
-typedef struct
-{
+typedef struct {
 	uint32_t size;
 	void* payload;
 } t_buffer;
 
-typedef struct
-{
+typedef struct {
 	event_code event_code;
 	uint32_t id;
 	uint32_t correlative_id;
@@ -75,11 +72,33 @@ typedef struct {
 	uint32_t* positions;
 } t_localized_pokemon;
 
+typedef struct {
+	uint32_t subscriptor_len;
+	char* subscriptor_id;
+	event_code queue;
+	uint32_t ip_len;
+	char* ip;
+	uint32_t port;
+	uint32_t duration; // If duration is -1, it's for an undefined amount of time. Otherwise, 'duration' seconds.
+} t_subscription_petition;
+
+typedef struct {
+	t_subscription_petition* subscriptor_info;
+	uint32_t socket;
+} t_subscriptor;
+
+typedef struct {
+	pthread_t thread;
+	uint32_t socket;
+} t_thread;
 
 int connect_to(char* ip, char* port);
 
-void send_message(uint32_t client_socket, event_code event_code, uint32_t id, uint32_t correlative_id, t_buffer* buffer);
-t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count, char* payload_content[]);
+void send_message(uint32_t client_socket, event_code event_code, uint32_t id,
+		uint32_t correlative_id, t_buffer* buffer);
+t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count,
+		char* payload_content[], char* sender_id, char* sender_ip,
+		uint32_t sender_port);
 void* serialize_message(t_message* message, uint32_t* bytes_to_send);
 
 t_buffer* serialize_new_pokemon_message(char* payload_content[]);
@@ -88,16 +107,21 @@ t_buffer* serialize_catch_pokemon_message(char* payload_content[]);
 t_buffer* serialize_caught_pokemon_message(char* payload_content[]);
 t_buffer* serialize_get_pokemon_message(char* payload_content[]);
 t_buffer* serialize_localized_pokemon_message(char* payload_content[]);
+t_buffer* serialize_new_subscriptor_message(char* payload_content[], char* sender_id, char* sender_ip, uint32_t sender_port);
 
 t_message* receive_message(uint32_t event_code, uint32_t socket);
 t_message* deserialize_message(event_code event_code, t_buffer* buffer);
 
 t_new_pokemon* deserialize_new_pokemon_message(uint32_t socket, uint32_t* size);
-t_appeared_pokemon* deserialize_appeared_pokemon_message(uint32_t socket, uint32_t* size);
-t_catch_pokemon* deserialize_catch_pokemon_message(uint32_t socket, uint32_t* size);
-t_caught_pokemon* deserialize_caught_pokemon_message(uint32_t socket, uint32_t* size);
+t_appeared_pokemon* deserialize_appeared_pokemon_message(uint32_t socket,
+		uint32_t* size);
+t_catch_pokemon* deserialize_catch_pokemon_message(uint32_t socket,
+		uint32_t* size);
+t_caught_pokemon* deserialize_caught_pokemon_message(uint32_t socket,
+		uint32_t* size);
 t_get_pokemon* deserialize_get_pokemon_message(uint32_t socket, uint32_t* size);
-t_localized_pokemon* deserialize_localized_pokemon_message(uint32_t socket, uint32_t* size);
+t_localized_pokemon* deserialize_localized_pokemon_message(uint32_t socket,
+		uint32_t* size);
 
 void delete_message(t_message* message);
 void free_connection(uint32_t client_socket);

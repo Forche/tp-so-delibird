@@ -8,6 +8,7 @@ int main(void) {
 
 void server_init(void) {
 	answered_messages = list_create(); // Answered messages list
+	threads = list_create(); // Subscriptor threads list
 	message_count = 0;
 	queues_init();
 	int sv_socket;
@@ -50,23 +51,23 @@ uint32_t get_message_id() {
 }
 
 void queues_init() {
-	queue_new_pokemon->messages = list_create();
-	queue_new_pokemon->subscriptor_sockets = list_create();
+	queue_new_pokemon.messages = list_create();
+	queue_new_pokemon.subscriptors = list_create();
 
-	queue_appeared_pokemon->messages = list_create();
-	queue_appeared_pokemon->subscriptor_sockets = list_create();
+	queue_appeared_pokemon.messages = list_create();
+	queue_appeared_pokemon.subscriptors = list_create();
 
-	queue_catch_pokemon->messages = list_create();
-	queue_catch_pokemon->subscriptor_sockets = list_create();
+	queue_catch_pokemon.messages = list_create();
+	queue_catch_pokemon.subscriptors = list_create();
 
-	queue_caught_pokemon->messages = list_create();
-	queue_caught_pokemon->subscriptor_sockets = list_create();
+	queue_caught_pokemon.messages = list_create();
+	queue_caught_pokemon.subscriptors = list_create();
 
-	queue_get_pokemon->messages = list_create();
-	queue_get_pokemon->subscriptor_sockets = list_create();
+	queue_get_pokemon.messages = list_create();
+	queue_get_pokemon.subscriptors = list_create();
 
-	queue_localized_pokemon->messages = list_create();
-	queue_localized_pokemon->subscriptor_sockets = list_create();
+	queue_localized_pokemon.messages = list_create();
+	queue_localized_pokemon.subscriptors = list_create();
 }
 
 t_log* iniciar_logger(void) {
@@ -83,7 +84,6 @@ void wait_for_client(uint32_t sv_socket) {
 
 	pthread_create(&thread, NULL, (void*) serve_client, &client_socket);
 	pthread_detach(thread);
-
 }
 
 void serve_client(uint32_t* socket) {
@@ -101,42 +101,154 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 
 	switch (event_code) {
 	case NEW_POKEMON:
-			msg->buffer->payload = deserialize_new_pokemon_message(client_socket, &size);
-			msg->buffer->size = size;
-			//TODO: Return message_id to message sender
+		msg->buffer->payload = deserialize_new_pokemon_message(client_socket,
+				&size);
+		msg->buffer->size = size;
+		//TODO: Return message_id to message sender
 
-			uint32_t i;
-			for (i = 0; i < list_size(queue_new_pokemon.subscriptor_sockets); i++)
-			{
-				uint32_t socket = list_get(queue_new_pokemon.subscriptor_sockets, i);
-				send_message(socket, event_code, msg->id, msg->correlative_id, msg->buffer);
-			}
+		uint32_t i;
+		for (i = 0; i < list_size(queue_new_pokemon.subscriptors); i++) {
+			t_subscriptor* subscriptor = list_get(
+					queue_new_pokemon.subscriptors, i);
+			send_message(subscriptor->socket, event_code, msg->id,
+					msg->correlative_id, msg->buffer);
+		}
 
-			break;
+		break;
 	case APPEARED_POKEMON:
-			msg->buffer->payload = deserialize_appeared_pokemon_message(client_socket, &size);
-			msg->buffer->size = size;
-			break;
+		msg->buffer->payload = deserialize_appeared_pokemon_message(
+				client_socket, &size);
+		msg->buffer->size = size;
+		break;
 	case CATCH_POKEMON:
-			msg->buffer->payload = deserialize_catch_pokemon_message(client_socket, &size);
-			msg->buffer->size = size;
-			break;
+		msg->buffer->payload = deserialize_catch_pokemon_message(client_socket,
+				&size);
+		msg->buffer->size = size;
+		break;
 	case CAUGHT_POKEMON:
-			msg->buffer->payload = deserialize_caught_pokemon_message(client_socket, &size);
-			msg->buffer->size = size;
-			break;
+		msg->buffer->payload = deserialize_caught_pokemon_message(client_socket,
+				&size);
+		msg->buffer->size = size;
+		break;
 	case GET_POKEMON:
-			msg->buffer->payload = deserialize_get_pokemon_message(client_socket, &size);
-			msg->buffer->size = size;
-			break;
+		msg->buffer->payload = deserialize_get_pokemon_message(client_socket,
+				&size);
+		msg->buffer->size = size;
+		break;
 	case LOCALIZED_POKEMON:
-			msg->buffer->payload = deserialize_localized_pokemon_message(client_socket, &size);
-			msg->buffer->size = size;
-			break;
-	case 0:
+		msg->buffer->payload = deserialize_localized_pokemon_message(
+				client_socket, &size);
+		msg->buffer->size = size;
+		break;
+	case NEW_SUBSCRIPTOR:
+		process_new_subscription(client_socket);
+		break;
+	default:
 		pthread_exit(NULL);
-	case -1:
+	}
+}
+
+void process_new_subscription(uint32_t socket) {
+	uint32_t subscriptor_len;
+	recv(socket, &(subscriptor_len), sizeof(uint32_t), MSG_WAITALL);
+
+	event_code queue_type;
+	recv(socket, &(queue_type), sizeof(event_code),
+	MSG_WAITALL);
+
+	uint32_t ip_len;
+	recv(socket, &(ip_len), sizeof(uint32_t), MSG_WAITALL);
+
+	t_subscription_petition* subcription_petition = malloc(
+			subscriptor_len + ip_len + 4 * sizeof(uint32_t)
+					+ sizeof(event_code));
+	subcription_petition->subscriptor_len = subscriptor_len;
+
+	subcription_petition->subscriptor_id = malloc(
+			subcription_petition->subscriptor_len);
+	recv(socket, subcription_petition->subscriptor_id,
+			subcription_petition->subscriptor_len,
+			MSG_WAITALL);
+
+	subcription_petition->queue = queue_type;
+
+	subcription_petition->ip = malloc(subcription_petition->ip_len);
+	recv(socket, subcription_petition->ip, subcription_petition->ip_len,
+	MSG_WAITALL);
+
+	recv(socket, &(subcription_petition->ip), sizeof(uint32_t), MSG_WAITALL);
+	recv(socket, &(subcription_petition->port), sizeof(uint32_t), MSG_WAITALL);
+
+	recv(socket, &(subcription_petition->duration), sizeof(uint32_t),
+			MSG_WAITALL);
+
+	t_subscriptor* subscriptor = malloc(
+			sizeof(t_subscription_petition) + sizeof(uint32_t));
+	subscriptor->subscriptor_info = subcription_petition;
+
+	uint32_t connection;
+	switch (subcription_petition->queue) {
+	case NEW_POKEMON:
+		connection = connect_to(subcription_petition->ip,
+				string_itoa(subcription_petition->port));
+		subscriptor->socket = connection;
+		list_add(queue_new_pokemon.subscriptors, subscriptor);
+		break;
+	case APPEARED_POKEMON:
+		connection = connect_to(subcription_petition->ip,
+				string_itoa(subcription_petition->port));
+		subscriptor->socket = connection;
+		list_add(queue_appeared_pokemon.subscriptors, subscriptor);
+		break;
+	case CATCH_POKEMON:
+		connection = connect_to(subcription_petition->ip,
+				string_itoa(subcription_petition->port));
+		subscriptor->socket = connection;
+		list_add(queue_catch_pokemon.subscriptors, subscriptor);
+		break;
+	case CAUGHT_POKEMON:
+		connection = connect_to(subcription_petition->ip,
+				string_itoa(subcription_petition->port));
+		subscriptor->socket = connection;
+		list_add(queue_caught_pokemon.subscriptors, subscriptor);
+		break;
+	case GET_POKEMON:
+		connection = connect_to(subcription_petition->ip,
+				string_itoa(subcription_petition->port));
+		subscriptor->socket = connection;
+		list_add(queue_get_pokemon.subscriptors, subscriptor);
+		break;
+	case LOCALIZED_POKEMON:
+		connection = connect_to(subcription_petition->ip,
+				string_itoa(subcription_petition->port));
+		subscriptor->socket = connection;
+		list_add(queue_localized_pokemon.subscriptors, subscriptor);
+		break;
+	default:
 		pthread_exit(NULL);
+	}
+
+	t_thread* new_thread = malloc(sizeof(t_thread));
+	new_thread->socket = subscriptor->socket;
+	pthread_create(&(new_thread->thread), NULL, (void*) process_subscriptor,
+			&(new_thread->socket));
+	list_add(threads, new_thread);
+
+	t_log* logger = logger_init();
+	log_info(logger, subcription_petition->subscriptor_id);
+	log_destroy(logger);
+}
+
+void process_subscriptor(uint32_t* socket) {
+	//TODO: Add logic to send all messages in the queue of the new subscription
+	//TODO: Add logic to subscribe for 'duration' seconds.
+	event_code code;
+
+	while (1) {
+		if (recv(*socket, &code, sizeof(event_code), MSG_WAITALL) == -1)
+			code = -1;
+
+		process_request(code, *socket);
 	}
 }
 

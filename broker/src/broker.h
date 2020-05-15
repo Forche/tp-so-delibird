@@ -31,13 +31,14 @@ typedef struct
 typedef struct
 {
 	t_list* messages; // Type: queue_message*
-	t_list* subscriptor_sockets; // Type: uint32_t*
+	t_list* subscriptors; // Type: t_subscriptor*
 } queue;
 
 
 pthread_t thread;
 uint32_t message_count;
 t_list* answered_messages;
+t_list* threads;
 queue queue_new_pokemon;
 queue queue_appeared_pokemon;
 queue queue_catch_pokemon;
@@ -48,9 +49,11 @@ queue queue_localized_pokemon;
 void server_init(void);
 void queues_init();
 void wait_for_client(uint32_t);
-void process_request(uint32_t event_code, uint32_t client_socket);
+void process_request(uint32_t event_code, uint32_t socket);
+void process_new_subscription(uint32_t client_socket);
 void serve_client(uint32_t* socket);
 void return_message(void* payload, uint32_t size, uint32_t client_socket);
+void process_subscriptor(uint32_t* socket);
 
 uint32_t get_message_id();
 
