@@ -10,6 +10,6 @@
 
 #include<commons/collections/list.h>
 
-void* planning_catch(t_list* pokemon_to_catch);
+void* planning_catch();
 
 #endif /* SRC_PLANNER_H_ */

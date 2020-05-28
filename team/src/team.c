@@ -4,8 +4,11 @@ int main(void) {
 
 	uint32_t conection;
 	t_config* config = config_create("team.config");
-	t_list* pokemon_received_to_catch = list_create();
-	t_list* trainers = list_create();
+	pokemon_received_to_catch = list_create();
+	trainers = list_create();
+	matches = list_create();
+	pthread_mutex_init(sem_existing_pokemon, NULL);
+
 
 	char* POSICIONES_ENTRENADORES = config_get_string_value(config, "POSICIONES_ENTRENADORES");
 	char* POKEMON_ENTRENADORES = config_get_string_value(config, "POKEMON_ENTRENADORES");
@@ -15,9 +18,11 @@ int main(void) {
 
 	t_dictionary* global_objective = build_global_objective(OBJETIVOS_ENTRENADORES);
 
-	create_trainers(POSICIONES_ENTRENADORES, POKEMON_ENTRENADORES,OBJETIVOS_ENTRENADORES, trainers);
+	create_trainers(POSICIONES_ENTRENADORES, POKEMON_ENTRENADORES,OBJETIVOS_ENTRENADORES);
+	sem_init(sem_trainer_available, 0, list_size(trainers));
+	create_planner();
+	create_matcher();
 
-	create_planner(pokemon_received_to_catch);
 
 	conection = connect_to(IP_BROKER, PUERTO_BROKER);
 
@@ -26,6 +31,7 @@ int main(void) {
 		t_appeared_pokemon* appeared_pokemon = deserialize_appeared_pokemon_message(conection, &size);
 		if(dictionary_get(global_objective, appeared_pokemon->pokemon)) {
 			list_add(pokemon_received_to_catch, appeared_pokemon);
+			pthread_mutex_unlock(sem_existing_pokemon);
 		}
 	}
 
@@ -39,13 +45,17 @@ t_dictionary* build_global_objective(char* objectives) {
 	return generate_dictionary_by_string(flat_objectives, ",");
 }
 
-void create_planner(t_list* pokemon_received_to_catch) {
+void create_planner() {
 	pthread_t thread;
-	pthread_create(&thread, NULL, planning_catch, pokemon_received_to_catch);
+	pthread_create(&thread, NULL, planning_catch, NULL);
 }
 
-void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, char* OBJETIVOS_ENTRENADORES,
-		t_list* trainers) {
+void create_matcher() {
+	pthread_t thread;
+	pthread_create(&thread, NULL, match_pokemon_with_trainer, NULL);
+}
+
+void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, char* OBJETIVOS_ENTRENADORES) {
 	remove_square_braquets(POSICIONES_ENTRENADORES);
 	remove_square_braquets(POKEMON_ENTRENADORES);
 	remove_square_braquets(OBJETIVOS_ENTRENADORES);
