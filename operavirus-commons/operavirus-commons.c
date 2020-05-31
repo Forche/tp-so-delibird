@@ -7,12 +7,12 @@ int main(void) {
 	return EXIT_SUCCESS;
 }
 
-t_log* logger_init(void) {
-	return log_create("operavirus-commons.log", "operavirus-commons", true,
+t_log* logger_init() {
+	return log_create("operavirus.log", "operavirus", true,
 			LOG_LEVEL_INFO);
 }
 
-int connect_to(char* ip, char* port) {
+uint32_t connect_to(char* ip, char* port) {
 	struct addrinfo hints;
 	struct addrinfo *server_info;
 
@@ -23,7 +23,7 @@ int connect_to(char* ip, char* port) {
 
 	getaddrinfo(ip, port, &hints, &server_info);
 
-	int client_socket = socket(server_info->ai_family, server_info->ai_socktype,
+	uint32_t client_socket = socket(server_info->ai_family, server_info->ai_socktype,
 			server_info->ai_protocol);
 
 	if (connect(client_socket, server_info->ai_addr, server_info->ai_addrlen)
@@ -54,6 +54,14 @@ void send_message(uint32_t client_socket, event_code event_code, uint32_t id,
 	free(message->buffer->payload);
 	free(message->buffer);
 	free(message);
+}
+
+void return_message_id(uint32_t client_socket, uint32_t id) {
+	void* to_send = malloc(sizeof(uint32_t));
+	memcpy(to_send, &(id), sizeof(uint32_t));
+	send(client_socket, to_send, sizeof(uint32_t), 0);
+
+	free(to_send);
 }
 
 void* serialize_message(t_message* message, uint32_t* bytes_to_send) {
@@ -117,7 +125,7 @@ t_buffer* serialize_new_subscriptor_message(char* payload_content[],
 			sizeof(t_subscription_petition));
 	subscription_petition_ptr->subscriptor_len = strlen(sender_id) + 1;
 	subscription_petition_ptr->subscriptor_id = sender_id;
-	subscription_petition_ptr->queue = atoi(payload_content[0]);
+	subscription_petition_ptr->queue = string_to_event_code(payload_content[0]);
 	subscription_petition_ptr->ip_len = strlen(sender_ip) + 1;
 	subscription_petition_ptr->ip = sender_ip;
 	subscription_petition_ptr->port = sender_port;
@@ -144,9 +152,10 @@ t_buffer* serialize_new_subscriptor_message(char* payload_content[],
 	offset += sizeof(event_code);
 	memcpy(payload + offset, &subscription_petition_msg.ip_len,
 				sizeof(uint32_t));
-		offset += sizeof(uint32_t);
-		memcpy(payload + offset, subscription_petition_msg.ip,
-				subscription_petition_msg.ip_len);
+	offset += sizeof(uint32_t);
+	memcpy(payload + offset, subscription_petition_msg.ip,
+			subscription_petition_msg.ip_len);
+	offset += subscription_petition_msg.ip_len;
 	memcpy(payload + offset, &subscription_petition_msg.port, sizeof(uint32_t));
 	offset += sizeof(uint32_t);
 	memcpy(payload + offset, &subscription_petition_msg.duration, sizeof(uint32_t));

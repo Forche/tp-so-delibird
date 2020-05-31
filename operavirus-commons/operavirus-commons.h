@@ -89,10 +89,10 @@ typedef struct {
 
 typedef struct {
 	pthread_t thread;
-	uint32_t socket;
+	t_subscriptor subscriptor;
 } t_thread;
 
-int connect_to(char* ip, char* port);
+uint32_t connect_to(char* ip, char* port);
 
 void send_message(uint32_t client_socket, event_code event_code, uint32_t id,
 		uint32_t correlative_id, t_buffer* buffer);
@@ -111,6 +111,7 @@ t_buffer* serialize_new_subscriptor_message(char* payload_content[], char* sende
 
 t_message* receive_message(uint32_t event_code, uint32_t socket);
 t_message* deserialize_message(event_code event_code, t_buffer* buffer);
+void return_message_id(uint32_t client_socket, uint32_t id);
 
 t_new_pokemon* deserialize_new_pokemon_message(uint32_t socket, uint32_t* size);
 t_appeared_pokemon* deserialize_appeared_pokemon_message(uint32_t socket,
@@ -127,5 +128,6 @@ void delete_message(t_message* message);
 void free_connection(uint32_t client_socket);
 
 event_code string_to_event_code(char* code);
+t_log* logger_init();
 
 #endif
