@@ -1,8 +1,7 @@
 #include "util.h"
 
-void remove_square_braquets(char* text) {
-	text = replace_word(text, "[", "");
-	text = replace_word(text, "]", "");
+char* remove_square_braquets(char* text) {
+	return replace_word(replace_word(text, "[", ""), "]", "");
 }
 
 

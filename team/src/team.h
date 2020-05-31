@@ -24,12 +24,21 @@ t_list* pokemon_received_to_catch;
 t_list* trainers;
 t_list* matches;
 
-pthread_mutex_t* sem_existing_pokemon;
-sem_t* sem_trainer_available;
+pthread_mutex_t mutex_pokemon_received_to_catch;
+pthread_mutex_t mutex_trainers;
+pthread_mutex_t mutex_matches;
+pthread_mutex_t mutex_planning;
+
+sem_t sem_appeared_pokemon;
+sem_t sem_trainer_available;
+sem_t sem_count_matches;
+
+t_log* logger;
 
 t_dictionary* build_global_objective(char* objectives);
-void handle_trainer(t_trainer* trainer);
 void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, char* OBJETIVOS_ENTRENADORES);
 void create_planner();
 void create_matcher();
+void init_sem();
+t_appeared_pokemon* mock_t_appeared_pokemon();
 #endif /* TEAM_H_ */

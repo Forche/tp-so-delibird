@@ -7,7 +7,6 @@
 #include<stdio.h>
 #include<operavirus-commons.h>
 #include "team.h"
-#include "trainer.h"
 
 typedef struct {
 	uint32_t shortest_distance;
@@ -17,5 +16,8 @@ typedef struct {
 
 void* match_pokemon_with_trainer();
 t_match_pokemon_trainer* distance_to_pokemon(t_trainer* trainer, t_match_pokemon_trainer* closest);
+t_match_pokemon_trainer* match_closest_trainer();
+int get_distance(t_trainer* trainer, t_appeared_pokemon* pokemon);
+t_trainer* get_closest_trainer(t_appeared_pokemon* appeared_pokemon);
 
 #endif

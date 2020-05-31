@@ -2,9 +2,20 @@
 
 void handle_trainer(t_trainer* trainer) {
 	trainer->thread = pthread_self();
+	pthread_mutex_init(&trainer->sem, NULL);
+	pthread_mutex_lock(&trainer->sem); // Para que quede en 0.
+
 
 	while(1) {
+		pthread_mutex_lock(&trainer->sem);
 
+		log_info(logger, "Ejecutado entrenador en: Pos x: %d, Pos y: %d", trainer->pos_x, trainer->pos_y);
+
+		//Atrapa el pokemon o resuelve deadlock
+
+		change_status_to(trainer, BLOCK);
+		sem_post(&sem_trainer_available);
+		pthread_mutex_unlock(&mutex_planning);
 	}
 }
 

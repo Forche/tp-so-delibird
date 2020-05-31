@@ -9,6 +9,7 @@
 #define SRC_PLANNER_H_
 
 #include<commons/collections/list.h>
+#include "team.h"
 
 void* planning_catch();
 
