@@ -35,10 +35,14 @@ sem_t sem_count_matches;
 
 t_log* logger;
 
+t_dictionary* global_objective;
+
 t_dictionary* build_global_objective(char* objectives);
 void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, char* OBJETIVOS_ENTRENADORES);
 void create_planner();
 void create_matcher();
 void init_sem();
 t_appeared_pokemon* mock_t_appeared_pokemon();
+void wait_for_appeared_pokemon(uint32_t sv_socket);
+void serve_client(uint32_t* socket);
 #endif /* TEAM_H_ */

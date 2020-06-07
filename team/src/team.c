@@ -20,7 +20,7 @@ int main(void) {
 	OBJETIVOS_ENTRENADORES = remove_square_braquets(OBJETIVOS_ENTRENADORES);
 
 
-	t_dictionary* global_objective = build_global_objective(OBJETIVOS_ENTRENADORES);
+	global_objective = build_global_objective(OBJETIVOS_ENTRENADORES);
 
 	create_trainers(POSICIONES_ENTRENADORES, POKEMON_ENTRENADORES,OBJETIVOS_ENTRENADORES);
 	create_planner();
@@ -30,30 +30,72 @@ int main(void) {
 
 	conection = connect_to(IP_BROKER, PUERTO_BROKER);
 
-	while(1) {
-		uint32_t size;
-		t_appeared_pokemon* appeared_pokemon = deserialize_appeared_pokemon_message(conection, &size);
-		//t_appeared_pokemon* appeared_pokemon = mock_t_appeared_pokemon();
-		if(dictionary_get(global_objective, appeared_pokemon->pokemon)) {
-			pthread_mutex_lock(&mutex_pokemon_received_to_catch);
-			list_add(pokemon_received_to_catch, appeared_pokemon);
-			pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
-			sem_post(&sem_appeared_pokemon);
+	int sv_socket;
+	char* IP = config_get_string_value(config, "IP");
+	char* PORT = config_get_string_value(config, "PUERTO");
+
+	struct addrinfo hints, *servinfo, *p;
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE;
+
+	getaddrinfo(IP, PORT, &hints, &servinfo);
+
+	for (p = servinfo; p != NULL; p = p->ai_next) {
+		if ((sv_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol))
+				== -1)
+			continue;
+
+		if (bind(sv_socket, p->ai_addr, p->ai_addrlen) == -1) {
+			close(sv_socket);
+			continue;
 		}
+		break;
+	}
+
+	listen(sv_socket, SOMAXCONN);
+
+	freeaddrinfo(servinfo);
+
+	while(1) {
+		wait_for_appeared_pokemon(sv_socket);
 	}
 
 	return EXIT_SUCCESS;
 }
 
-t_appeared_pokemon* mock_t_appeared_pokemon() {
-	sleep(3);
-	t_appeared_pokemon* appeared_pokemon = malloc(3 * sizeof(uint32_t) + 7);
-	appeared_pokemon->pokemon_len = 7;
-	appeared_pokemon->pokemon = "Pidgey";
-	appeared_pokemon->pos_x = 6;
-	appeared_pokemon->pos_y = 6;
-	return appeared_pokemon;
+void wait_for_appeared_pokemon(uint32_t sv_socket) {
+	struct sockaddr_in client_addr;
+	pthread_t thread;
+	uint32_t addr_size = sizeof(struct sockaddr_in);
+
+	uint32_t client_socket;
+
+	if ((client_socket = accept(sv_socket, (void*) &client_addr, &addr_size))
+			!= -1) {
+		pthread_create(&thread, NULL, (void*) serve_client, &client_socket);
+		pthread_detach(thread);
+	}
 }
+
+void serve_client(uint32_t* socket) {
+	event_code code;
+	if (recv(*socket, &code, sizeof(event_code), MSG_WAITALL) == -1)
+		code = -1;
+
+	uint32_t size;
+	t_message* msg = receive_message(code, *socket);
+	t_appeared_pokemon* appeared_pokemon = deserialize_appeared_pokemon_message(*socket, &size);
+	if(dictionary_get(global_objective, appeared_pokemon->pokemon)) {
+		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
+		list_add(pokemon_received_to_catch, appeared_pokemon);
+		pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
+		sem_post(&sem_appeared_pokemon);
+	}
+}
+
 
 void init_sem() {
 	sem_init(&sem_trainer_available, 0, list_size(trainers));
