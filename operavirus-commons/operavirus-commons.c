@@ -7,12 +7,12 @@ int main(void) {
 	return EXIT_SUCCESS;
 }
 
-t_log* logger_init(void) {
-	return log_create("operavirus-commons.log", "operavirus-commons", true,
+t_log* logger_init() {
+	return log_create("operavirus.log", "operavirus", true,
 			LOG_LEVEL_INFO);
 }
 
-int connect_to(char* ip, char* port) {
+uint32_t connect_to(char* ip, char* port) {
 	struct addrinfo hints;
 	struct addrinfo *server_info;
 
@@ -23,7 +23,7 @@ int connect_to(char* ip, char* port) {
 
 	getaddrinfo(ip, port, &hints, &server_info);
 
-	int client_socket = socket(server_info->ai_family, server_info->ai_socktype,
+	uint32_t client_socket = socket(server_info->ai_family, server_info->ai_socktype,
 			server_info->ai_protocol);
 
 	if (connect(client_socket, server_info->ai_addr, server_info->ai_addrlen)
@@ -56,6 +56,14 @@ void send_message(uint32_t client_socket, event_code event_code, uint32_t id,
 	free(message);
 }
 
+void return_message_id(uint32_t client_socket, uint32_t id) {
+	void* to_send = malloc(sizeof(uint32_t));
+	memcpy(to_send, &(id), sizeof(uint32_t));
+	send(client_socket, to_send, sizeof(uint32_t), 0);
+
+	free(to_send);
+}
+
 void* serialize_message(t_message* message, uint32_t* bytes_to_send) {
 	void* to_send = malloc(*bytes_to_send);
 	int offset = 0;
@@ -77,14 +85,15 @@ void validate_arg_count(uint32_t arg_count, uint32_t payload_args) {
 }
 
 t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count,
-		char* payload_content[]) {
+		char* payload_content[], char* sender_id, char* sender_ip,
+		uint32_t sender_port) {
 	switch (event_code) {
 	case NEW_POKEMON:
 		validate_arg_count(arg_count, 4);
 		return serialize_new_pokemon_message(payload_content);
 
 	case APPEARED_POKEMON:
-		validate_arg_count(arg_count, 3);
+		validate_arg_count(arg_count, 4);
 		return serialize_appeared_pokemon_message(payload_content);
 
 	case CATCH_POKEMON:
@@ -99,11 +108,64 @@ t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count,
 		validate_arg_count(arg_count, 1);
 		return serialize_get_pokemon_message(payload_content);
 
+	case NEW_SUBSCRIPTOR:
+		validate_arg_count(arg_count, 2);
+		return serialize_new_subscriptor_message(payload_content, sender_id,
+				sender_ip, sender_port);
 	default:
 		return NULL;
 	}
 
 	return NULL;
+}
+
+t_buffer* serialize_new_subscriptor_message(char* payload_content[],
+		char* sender_id, char* sender_ip, uint32_t sender_port) {
+	t_subscription_petition* subscription_petition_ptr = malloc(
+			sizeof(t_subscription_petition));
+	subscription_petition_ptr->subscriptor_len = strlen(sender_id) + 1;
+	subscription_petition_ptr->subscriptor_id = sender_id;
+	subscription_petition_ptr->queue = string_to_event_code(payload_content[0]);
+	subscription_petition_ptr->ip_len = strlen(sender_ip) + 1;
+	subscription_petition_ptr->ip = sender_ip;
+	subscription_petition_ptr->port = sender_port;
+	subscription_petition_ptr->duration = atoi(payload_content[1]);
+
+	t_subscription_petition subscription_petition_msg =
+			(*subscription_petition_ptr);
+
+	t_buffer* buffer = malloc(sizeof(t_buffer));
+	buffer->size = subscription_petition_ptr->subscriptor_len
+			+ subscription_petition_ptr->ip_len + 4 * sizeof(uint32_t)
+			+ sizeof(event_code);
+
+	void* payload = malloc(buffer->size);
+	int offset = 0;
+
+	memcpy(payload + offset, &subscription_petition_msg.subscriptor_len,
+			sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+	memcpy(payload + offset, subscription_petition_msg.subscriptor_id,
+			subscription_petition_msg.subscriptor_len);
+	offset += subscription_petition_msg.subscriptor_len;
+	memcpy(payload + offset, &subscription_petition_msg.queue, sizeof(event_code));
+	offset += sizeof(event_code);
+	memcpy(payload + offset, &subscription_petition_msg.ip_len,
+				sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+	memcpy(payload + offset, subscription_petition_msg.ip,
+			subscription_petition_msg.ip_len);
+	offset += subscription_petition_msg.ip_len;
+	memcpy(payload + offset, &subscription_petition_msg.port, sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+	memcpy(payload + offset, &subscription_petition_msg.duration, sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+
+	buffer->payload = payload;
+
+	free(subscription_petition_ptr);
+
+	return buffer;
 }
 
 t_buffer* serialize_new_pokemon_message(char* payload_content[]) {
@@ -208,7 +270,14 @@ t_buffer* serialize_catch_pokemon_message(char* payload_content[]) {
 
 t_buffer* serialize_caught_pokemon_message(char* payload_content[]) {
 	t_caught_pokemon* caught_pokemon_ptr = malloc(sizeof(t_caught_pokemon));
-	caught_pokemon_ptr->result = atoi(payload_content[1]);
+	uint32_t status;
+	if (string_equals_ignore_case(payload_content[1], "OK")) {
+		status = 1;
+	} else {
+		status = 0;
+	}
+
+	caught_pokemon_ptr->result = status;
 
 	t_caught_pokemon caught_pokemon_msg = (*caught_pokemon_ptr);
 
@@ -299,7 +368,8 @@ t_new_pokemon* deserialize_new_pokemon_message(uint32_t socket, uint32_t* size) 
 	return new_pokemon;
 }
 
-t_appeared_pokemon* deserialize_appeared_pokemon_message(uint32_t socket, uint32_t* size) {
+t_appeared_pokemon* deserialize_appeared_pokemon_message(uint32_t socket,
+		uint32_t* size) {
 	uint32_t pokemon_len;
 	recv(socket, &(pokemon_len), sizeof(uint32_t),
 	MSG_WAITALL);
@@ -322,7 +392,8 @@ t_appeared_pokemon* deserialize_appeared_pokemon_message(uint32_t socket, uint32
 	return appeared_pokemon;
 }
 
-t_catch_pokemon* deserialize_catch_pokemon_message(uint32_t socket, uint32_t* size) {
+t_catch_pokemon* deserialize_catch_pokemon_message(uint32_t socket,
+		uint32_t* size) {
 	uint32_t pokemon_len;
 	recv(socket, &(pokemon_len), sizeof(uint32_t),
 	MSG_WAITALL);
@@ -345,14 +416,15 @@ t_catch_pokemon* deserialize_catch_pokemon_message(uint32_t socket, uint32_t* si
 	return catch_pokemon;
 }
 
-t_caught_pokemon* deserialize_caught_pokemon_message(uint32_t socket, uint32_t* size) {
+t_caught_pokemon* deserialize_caught_pokemon_message(uint32_t socket,
+		uint32_t* size) {
 	t_caught_pokemon* caught_pokemon = malloc(sizeof(uint32_t));
 	recv(socket, &(caught_pokemon->result), sizeof(uint32_t), MSG_WAITALL);
 
 	t_log* logger = logger_init();
 	*size = 1;
 	char* str_result = malloc(*size);
-	sprintf(str_result,"%d",caught_pokemon->result);
+	sprintf(str_result, "%d", caught_pokemon->result);
 	log_info(logger, str_result);
 	log_destroy(logger);
 	free(str_result);
@@ -380,7 +452,8 @@ t_get_pokemon* deserialize_get_pokemon_message(uint32_t socket, uint32_t* size) 
 	return get_pokemon;
 }
 
-t_localized_pokemon* deserialize_localized_pokemon_message(uint32_t socket, uint32_t* size) {
+t_localized_pokemon* deserialize_localized_pokemon_message(uint32_t socket,
+		uint32_t* size) {
 	return NULL;
 }
 
@@ -397,6 +470,8 @@ event_code string_to_event_code(char* code) {
 		return GET_POKEMON;
 	} else if (string_equals_ignore_case(code, "LOCALIZED_POKEMON")) {
 		return LOCALIZED_POKEMON;
+	} else if (string_equals_ignore_case(code, "SUSCRIPTOR")) {
+		return NEW_SUBSCRIPTOR;
 	} else {
 		return -1;
 	}
