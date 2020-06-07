@@ -243,10 +243,15 @@ t_buffer* serialize_catch_pokemon_message(char* payload_content[]) {
 	catch_pokemon_ptr->pos_x = atoi(payload_content[1]);
 	catch_pokemon_ptr->pos_y = atoi(payload_content[2]);
 
-	t_catch_pokemon catch_pokemon_msg = (*catch_pokemon_ptr);
+	return serialize_t_catch_pokemon_message(catch_pokemon_ptr);
+}
+
+t_buffer* serialize_t_catch_pokemon_message(t_catch_pokemon* catch_pokemon) {
+
+	t_catch_pokemon catch_pokemon_msg = (*catch_pokemon);
 
 	t_buffer* buffer = malloc(sizeof(t_buffer));
-	buffer->size = sizeof(uint32_t) * 3 + catch_pokemon_ptr->pokemon_len;
+	buffer->size = sizeof(uint32_t) * 3 + catch_pokemon->pokemon_len;
 
 	void* payload = malloc(buffer->size);
 	int offset = 0;
@@ -263,7 +268,7 @@ t_buffer* serialize_catch_pokemon_message(char* payload_content[]) {
 
 	buffer->payload = payload;
 
-	free(catch_pokemon_ptr);
+	free(catch_pokemon);
 
 	return buffer;
 }

@@ -11,6 +11,7 @@
 #include<string.h>
 #include<commons/string.h>
 #include<commons/log.h>
+#include<commons/collections/dictionary.h>
 
 typedef enum {
 	NEW_POKEMON = 1,
@@ -92,6 +93,25 @@ typedef struct {
 	t_subscriptor subscriptor;
 } t_thread;
 
+typedef enum
+{
+       NEW = 1,
+       READY = 2,
+       EXEC = 3,
+       BLOCK = 4,
+       EXIT = 5,
+} status;
+
+typedef struct {
+       uint32_t pos_x;
+       uint32_t pos_y;
+       t_dictionary* objective;
+       t_dictionary* caught;
+       status status;
+       pthread_t thread;
+       pthread_mutex_t sem;
+} t_trainer;
+
 uint32_t connect_to(char* ip, char* port);
 
 void send_message(uint32_t client_socket, event_code event_code, uint32_t id,
@@ -104,6 +124,7 @@ void* serialize_message(t_message* message, uint32_t* bytes_to_send);
 t_buffer* serialize_new_pokemon_message(char* payload_content[]);
 t_buffer* serialize_appeared_pokemon_message(char* payload_content[]);
 t_buffer* serialize_catch_pokemon_message(char* payload_content[]);
+t_buffer* serialize_t_catch_pokemon_message(t_catch_pokemon* catch_pokemon);
 t_buffer* serialize_caught_pokemon_message(char* payload_content[]);
 t_buffer* serialize_get_pokemon_message(char* payload_content[]);
 t_buffer* serialize_localized_pokemon_message(char* payload_content[]);
