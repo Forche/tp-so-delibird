@@ -125,26 +125,72 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		msg->buffer->payload = deserialize_appeared_pokemon_message(
 				client_socket, &size);
 		msg->buffer->size = size;
+
+		return_message_id(client_socket, msg->id);
+
+		uint32_t i;
+		for (i = 0; i < list_size(queue_appeared_pokemon.subscriptors); i++) {
+			t_subscriptor* subscriptor = list_get(
+					queue_appeared_pokemon.subscriptors, i);
+			send_message(subscriptor->socket, event_code, msg->id,
+					msg->correlative_id, msg->buffer);
+		}
 		break;
 	case CATCH_POKEMON:
 		msg->buffer->payload = deserialize_catch_pokemon_message(client_socket,
 				&size);
 		msg->buffer->size = size;
+
+		return_message_id(client_socket, msg->id);
+
+		uint32_t i;
+		for (i = 0; i < list_size(queue_catch_pokemon.subscriptors); i++) {
+			t_subscriptor* subscriptor = list_get(
+					queue_catch_pokemon.subscriptors, i);
+			send_message(subscriptor->socket, event_code, msg->id,
+					msg->correlative_id, msg->buffer);
+		}
 		break;
 	case CAUGHT_POKEMON:
 		msg->buffer->payload = deserialize_caught_pokemon_message(client_socket,
 				&size);
 		msg->buffer->size = size;
+
+		return_message_id(client_socket, msg->id);
+
+		uint32_t i;
+		for (i = 0; i < list_size(queue_caught_pokemon.subscriptors); i++) {
+			t_subscriptor* subscriptor = list_get(
+					queue_caught_pokemon.subscriptors, i);
+			send_message(subscriptor->socket, event_code, msg->id,
+					msg->correlative_id, msg->buffer);
+		}
 		break;
 	case GET_POKEMON:
 		msg->buffer->payload = deserialize_get_pokemon_message(client_socket,
 				&size);
 		msg->buffer->size = size;
+
+		uint32_t i;
+		for (i = 0; i < list_size(queue_get_pokemon.subscriptors); i++) {
+			t_subscriptor* subscriptor = list_get(
+					queue_get_pokemon.subscriptors, i);
+			send_message(subscriptor->socket, event_code, msg->id,
+					msg->correlative_id, msg->buffer);
+		}
 		break;
 	case LOCALIZED_POKEMON:
 		msg->buffer->payload = deserialize_localized_pokemon_message(
 				client_socket, &size);
 		msg->buffer->size = size;
+
+		uint32_t i;
+		for (i = 0; i < list_size(queue_localized_pokemon.subscriptors); i++) {
+			t_subscriptor* subscriptor = list_get(
+					queue_localized_pokemon.subscriptors, i);
+			send_message(subscriptor->socket, event_code, msg->id,
+					msg->correlative_id, msg->buffer);
+		}
 		break;
 	case NEW_SUBSCRIPTOR:
 		process_new_subscription(client_socket);
