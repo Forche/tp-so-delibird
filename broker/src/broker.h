@@ -24,7 +24,7 @@ typedef struct
 
 typedef struct
 {
-	t_message* message;
+	t_memory_message* message;
 	t_list* receivers; // Type: receiver*
 } queue_message;
 
@@ -45,6 +45,10 @@ queue queue_catch_pokemon;
 queue queue_caught_pokemon;
 queue queue_get_pokemon;
 queue queue_localized_pokemon;
+uint32_t TAMANO_MINIMO_PARTICION;
+uint32_t TAMANO_MEMORIA;
+char* ALGORITMO_PARTICION_LIBRE;
+char memory[1];
 
 void server_init(void);
 void queues_init();
@@ -54,6 +58,8 @@ void process_new_subscription(uint32_t client_socket);
 void serve_client(uint32_t* socket);
 void return_message(void* payload, uint32_t size, uint32_t client_socket);
 void process_subscriptor(uint32_t* socket);
+
+void add_message_to_memory(void* payload, uint32_t size);
 
 uint32_t get_message_id();
 
