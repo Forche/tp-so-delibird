@@ -36,14 +36,10 @@ typedef struct {
 } t_message;
 
 typedef struct {
-	uint32_t memory_partition_id;
-} t_memory_buffer;
-
-typedef struct {
 	event_code event_code;
 	uint32_t id;
 	uint32_t correlative_id;
-	t_memory_buffer* buffer;
+	uint32_t memory_partition_id;
 } t_memory_message;
 
 typedef struct {
@@ -122,13 +118,6 @@ typedef struct {
 	pthread_t thread;
 	pthread_mutex_t sem;
 } t_trainer;
-
-typedef struct {
-	uint32_t id;
-	uint32_t begin;
-	uint32_t end;
-	uint64_t lru_time; // Won't be using this by now until we implement compaction
-} t_memory_partition;
 
 uint32_t connect_to(char* ip, char* port);
 

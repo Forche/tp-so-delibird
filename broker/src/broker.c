@@ -19,7 +19,8 @@ void server_init(void) {
 	TAMANO_MEMORIA = config_get_int_value(config, "TAMANO_MEMORIA");
 	TAMANO_MINIMO_PARTICION = config_get_int_value(config, "TAMANO_MINIMO_PARTICION");
 
-	*memory = realloc(memory, TAMANO_MEMORIA);
+	memory_init();
+
 
 	struct addrinfo hints, *servinfo, *p;
 
@@ -48,6 +49,20 @@ void server_init(void) {
 
 	while (1)
 		wait_for_client(sv_socket);
+}
+
+void memory_init() {
+	memory = malloc(TAMANO_MEMORIA);
+	memory_partitions = list_create();
+
+	t_memory_partition* first_memory_partition = malloc(sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(partition_status));
+	first_memory_partition->id = 0;
+	first_memory_partition->begin = 0;
+	first_memory_partition->content_size = TAMANO_MEMORIA;
+	first_memory_partition->lru_time = 0; // We'll use this later for compaction
+	first_memory_partition->status = FREE;
+
+	list_add(memory_partitions, first_memory_partition);
 }
 
 uint32_t get_message_id() {
@@ -103,6 +118,71 @@ void serve_client(uint32_t* socket) {
 	process_request(code, *socket);
 }
 
+void store_message(t_message* message, queue queue) {
+	t_memory_message* memory_message = malloc(sizeof(t_memory_message));
+	memory_message->id = message->id;
+	memory_message->correlative_id = message->correlative_id;
+	memory_message->event_code = message->event_code;
+
+	//Store payload and get its containing partition id
+	memory_message->memory_partition_id = store_payload(message->buffer->payload, message->buffer->size);
+
+	list_add(queue.messages, memory_message);
+}
+
+uint32_t store_payload(void* payload, uint32_t size) {
+	// Search for partition and return it, if no partition is found return a partition with id=-1
+	t_memory_partition* partition = get_free_partition(size);
+
+	// If id==-1: Compact and search again
+	// if no partition is found, delete partition, compact and search again n times
+
+
+	// If id==1, create new partition, store data into it and add it to partitions list
+
+	return -1;
+}
+
+t_memory_partition* get_free_partition(uint32_t size) {
+	if (string_equals_ignore_case(ALGORITMO_PARTICION_LIBRE, "FF"))
+	{
+		return get_free_partition_ff(size);
+	} else {
+		return get_free_partition_lru(size);
+	}
+}
+
+t_memory_partition* get_free_partition_ff(uint32_t size) {
+	uint32_t i = 0;
+
+	if (size <= TAMANO_MINIMO_PARTICION)
+	{
+		size = TAMANO_MINIMO_PARTICION;
+	}
+
+	while (i < list_size(memory_partitions)) {
+		t_memory_partition* partition = list_get(memory_partitions, i);
+		if (partition->status == FREE && partition->content_size <= size)
+		{
+			return partition;
+		}
+
+		i++;
+	}
+
+	t_memory_partition* partition_to_return = malloc(sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(partition_status));
+	partition_to_return->id = -1;
+
+	return partition_to_return;
+}
+
+t_memory_partition* get_free_partition_lru(uint32_t size) {
+	t_memory_partition* partition_to_return = malloc(sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(partition_status));
+	partition_to_return->id = -1;
+
+	return partition_to_return;
+}
+
 void process_request(uint32_t event_code, uint32_t client_socket) {
 	t_message* msg = receive_message(event_code, client_socket);
 	// Implement mutex, critical region:
@@ -125,6 +205,10 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 			send_message(subscriptor->socket, event_code, msg->id,
 					msg->correlative_id, msg->buffer);
 		}
+
+		//Add message to memory
+		store_message(msg, queue_new_pokemon);
+
 		break;
 	case APPEARED_POKEMON:
 		msg->buffer->payload = deserialize_appeared_pokemon_message(

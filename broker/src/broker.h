@@ -34,6 +34,20 @@ typedef struct
 	t_list* subscriptors; // Type: t_subscriptor*
 } queue;
 
+typedef enum
+{
+	FREE,
+	OCCUPED,
+} partition_status;
+
+typedef struct {
+	uint32_t id;
+	uint32_t begin;
+	partition_status status;
+	uint32_t content_size;
+	uint64_t lru_time; // Won't be using this by now until we implement compaction
+} t_memory_partition;
+
 
 pthread_t thread;
 uint32_t message_count;
@@ -48,9 +62,11 @@ queue queue_localized_pokemon;
 uint32_t TAMANO_MINIMO_PARTICION;
 uint32_t TAMANO_MEMORIA;
 char* ALGORITMO_PARTICION_LIBRE;
-char memory[1];
+void* memory;
+t_list* memory_partitions;
 
 void server_init(void);
+void memory_init();
 void queues_init();
 void wait_for_client(uint32_t);
 void process_request(uint32_t event_code, uint32_t socket);
@@ -59,7 +75,11 @@ void serve_client(uint32_t* socket);
 void return_message(void* payload, uint32_t size, uint32_t client_socket);
 void process_subscriptor(uint32_t* socket);
 
-void add_message_to_memory(void* payload, uint32_t size);
+void store_message(t_message* message, queue queue);
+uint32_t store_payload(void* payload, uint32_t size);
+t_memory_partition* get_free_partition(uint32_t size);
+t_memory_partition* get_free_partition_ff(uint32_t size);
+t_memory_partition* get_free_partition_lru(uint32_t size);
 
 uint32_t get_message_id();
 
