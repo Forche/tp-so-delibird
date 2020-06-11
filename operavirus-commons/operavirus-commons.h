@@ -103,6 +103,13 @@ typedef enum
 } status;
 
 typedef struct {
+    t_appeared_pokemon* pokemon_to_catch;
+    uint32_t result_catch;
+    uint32_t id_message;
+    pthread_mutex_t sem_caught;
+} t_pcb_trainer;
+
+typedef struct {
        uint32_t pos_x;
        uint32_t pos_y;
        t_dictionary* objective;
@@ -110,6 +117,7 @@ typedef struct {
        status status;
        pthread_t thread;
        pthread_mutex_t sem;
+       t_pcb_trainer* pcb_trainer;
 } t_trainer;
 
 uint32_t connect_to(char* ip, char* port);

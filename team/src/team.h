@@ -13,6 +13,7 @@
 #include "matcher.h"
 #include "trainer.h"
 #include "util.h"
+#include "connection.h"
 
 typedef struct {
 	uint32_t quantity;
@@ -34,6 +35,10 @@ sem_t sem_trainer_available;
 sem_t sem_count_matches;
 
 t_log* logger;
+uint32_t broker_connection;
+t_config* config;
+char* IP_TEAM;
+char* PUERTO_TEAM;
 
 t_dictionary* global_objective;
 
@@ -42,7 +47,6 @@ void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, 
 void create_planner();
 void create_matcher();
 void init_sem();
-t_appeared_pokemon* mock_t_appeared_pokemon();
-void wait_for_appeared_pokemon(uint32_t sv_socket);
-void serve_client(uint32_t* socket);
+void handle_event(uint32_t* socket);
+
 #endif /* TEAM_H_ */
