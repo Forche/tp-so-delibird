@@ -72,8 +72,8 @@ void wait_for_client(uint32_t);
 void process_request(uint32_t event_code, uint32_t socket);
 void process_new_subscription(uint32_t client_socket);
 void serve_client(uint32_t* socket);
-void return_message(void* payload, uint32_t size, uint32_t client_socket);
-void process_subscriptor(uint32_t* socket);
+void process_subscriptor(uint32_t* socket, t_subscription_petition* subscription_petition, queue queue);
+void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_petition, queue queue);
 
 void store_message(t_message* message, queue queue);
 uint32_t store_payload(void* payload, uint32_t size);
