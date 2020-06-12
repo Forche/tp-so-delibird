@@ -41,8 +41,8 @@ typedef enum
 } partition_status;
 
 typedef struct {
-	uint32_t id;
 	uint32_t begin;
+	uint32_t id;
 	partition_status status;
 	uint32_t content_size;
 	uint64_t lru_time; // Won't be using this by now until we implement compaction
