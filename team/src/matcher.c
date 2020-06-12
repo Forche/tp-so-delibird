@@ -61,7 +61,7 @@ t_trainer* get_closest_trainer(t_appeared_pokemon* appeared_pokemon) {
 }
 
 bool not_exec(t_trainer* trainer) {
-	return trainer->status != EXEC && trainer->status != READY;
+	return trainer->status != EXEC && trainer->status != READY && trainer->pcb_trainer->status == NEW;
 }
 
 int get_distance(t_trainer* trainer, t_appeared_pokemon* pokemon) {

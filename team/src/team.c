@@ -33,12 +33,14 @@ int main(void) {
 
 	broker_connection = connect_to(IP_BROKER, PUERTO_BROKER);
 
+	suscribe_to(APPEARED_POKEMON);
+	suscribe_to(CAUGHT_POKEMON);
+	suscribe_to(LOCALIZED_POKEMON);
 
 	listener(IP_TEAM, PUERTO_TEAM, handle_event);
 
 	return EXIT_SUCCESS;
 }
-
 
 void handle_event(uint32_t* socket) {
 	event_code code;
@@ -54,12 +56,27 @@ void handle_event(uint32_t* socket) {
 
 		//TODO Iterar localized por la cantidad de pokemons para crear structs de appeared_pokemon
 		// y el funcionamiento es el mismo que en appeared
+		uint32_t pos_x;
+		uint32_t pos_y = 1;
+		for(pos_x = 0; pos_x < (localized_pokemon->positions_count * 2); pos_x = pos_x + 2 ) {
+			t_appeared_pokemon* appeared_pokemon = malloc(sizeof(t_appeared_pokemon));
+			appeared_pokemon->pokemon_len = localized_pokemon->pokemon_len;
+			appeared_pokemon->pokemon = localized_pokemon->pokemon;
+			appeared_pokemon->pos_x = localized_pokemon->positions[pos_x];
+			appeared_pokemon->pos_y = localized_pokemon->positions[pos_y];
+			pthread_mutex_lock(&mutex_pokemon_received_to_catch);
+			list_add(pokemon_received_to_catch, appeared_pokemon);
+			pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
+			sem_post(&sem_appeared_pokemon);
+			pos_y = pos_y + 2;
+		}
+
 		break;
 	case CAUGHT_POKEMON:;
 		t_caught_pokemon* caught_pokemon = deserialize_caught_pokemon_message(*socket, &size);
 		msg->buffer = caught_pokemon;
 
-		t_trainer* trainer = list_get(trainers, 0);//obtener_trainer_mensaje(msg);
+		t_trainer* trainer = obtener_trainer_mensaje(msg);
 		trainer->pcb_trainer->result_catch = caught_pokemon->result;
 		pthread_mutex_unlock(&trainer->pcb_trainer->sem_caught);
 
@@ -129,6 +146,20 @@ void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, 
 		i++;
 	}
 
+}
+
+void suscribe_to(event_code code) {
+	t_subscription_petition* suscription_appeared = malloc(sizeof(t_subscription_petition));
+	suscription_appeared->ip_len = string_length(IP_TEAM) + 1;
+	suscription_appeared->ip = IP_TEAM;
+	suscription_appeared->queue = code;
+	suscription_appeared->subscriptor_len = 12;
+	suscription_appeared->subscriptor_id = "TEAM ROCKET";
+	suscription_appeared->port = PUERTO_TEAM;
+	suscription_appeared->duration = -1;
+
+	t_buffer* buffer = serialize_t_new_subscriptor_message(suscription_appeared);
+	send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
 }
 
 

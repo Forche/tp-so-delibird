@@ -48,5 +48,6 @@ void create_planner();
 void create_matcher();
 void init_sem();
 void handle_event(uint32_t* socket);
+void suscribe_to(event_code code);
 
 #endif /* TEAM_H_ */

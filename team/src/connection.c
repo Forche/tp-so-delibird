@@ -3,6 +3,7 @@
 
 void listener(char* ip, char* port, void* handle_event) {
 	int sv_socket;
+	server_socket = &sv_socket;
 	struct addrinfo hints, *servinfo, *p;
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_UNSPEC;

@@ -104,7 +104,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	msg->id = get_message_id();
 	// End of critical region
 	uint32_t size;
-
+	uint32_t i;
 	switch (event_code) {
 	case NEW_POKEMON:
 		msg->buffer->payload = deserialize_new_pokemon_message(client_socket,
@@ -113,7 +113,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 
 		return_message_id(client_socket, msg->id);
 
-		uint32_t i;
+
 		for (i = 0; i < list_size(queue_new_pokemon.subscriptors); i++) {
 			t_subscriptor* subscriptor = list_get(
 					queue_new_pokemon.subscriptors, i);
@@ -128,7 +128,6 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 
 		return_message_id(client_socket, msg->id);
 
-		uint32_t i;
 		for (i = 0; i < list_size(queue_appeared_pokemon.subscriptors); i++) {
 			t_subscriptor* subscriptor = list_get(
 					queue_appeared_pokemon.subscriptors, i);
@@ -140,10 +139,10 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		msg->buffer->payload = deserialize_catch_pokemon_message(client_socket,
 				&size);
 		msg->buffer->size = size;
-
+		t_log* logger = logger_init();
+		log_info(logger, "Devolviendo id %d", msg->id);
 		return_message_id(client_socket, msg->id);
 
-		uint32_t i;
 		for (i = 0; i < list_size(queue_catch_pokemon.subscriptors); i++) {
 			t_subscriptor* subscriptor = list_get(
 					queue_catch_pokemon.subscriptors, i);
@@ -158,7 +157,6 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 
 		return_message_id(client_socket, msg->id);
 
-		uint32_t i;
 		for (i = 0; i < list_size(queue_caught_pokemon.subscriptors); i++) {
 			t_subscriptor* subscriptor = list_get(
 					queue_caught_pokemon.subscriptors, i);
@@ -171,7 +169,6 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 				&size);
 		msg->buffer->size = size;
 
-		uint32_t i;
 		for (i = 0; i < list_size(queue_get_pokemon.subscriptors); i++) {
 			t_subscriptor* subscriptor = list_get(
 					queue_get_pokemon.subscriptors, i);
@@ -184,7 +181,6 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 				client_socket, &size);
 		msg->buffer->size = size;
 
-		uint32_t i;
 		for (i = 0; i < list_size(queue_localized_pokemon.subscriptors); i++) {
 			t_subscriptor* subscriptor = list_get(
 					queue_localized_pokemon.subscriptors, i);

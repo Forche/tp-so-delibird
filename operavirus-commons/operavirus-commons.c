@@ -131,9 +131,11 @@ t_buffer* serialize_new_subscriptor_message(char* payload_content[],
 	subscription_petition_ptr->port = sender_port;
 	subscription_petition_ptr->duration = atoi(payload_content[1]);
 
-	t_subscription_petition subscription_petition_msg =
-			(*subscription_petition_ptr);
+	return serialize_t_new_subscriptor_message(subscription_petition_ptr);
+}
 
+t_buffer* serialize_t_new_subscriptor_message(t_subscription_petition* subscription_petition_ptr) {
+	t_subscription_petition subscription_petition_msg = (*subscription_petition_ptr);
 	t_buffer* buffer = malloc(sizeof(t_buffer));
 	buffer->size = subscription_petition_ptr->subscriptor_len
 			+ subscription_petition_ptr->ip_len + 4 * sizeof(uint32_t)
