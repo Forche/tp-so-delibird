@@ -28,16 +28,23 @@ int main(void) {
 	create_trainers(POSICIONES_ENTRENADORES, POKEMON_ENTRENADORES,OBJETIVOS_ENTRENADORES);
 	create_planner();
 	create_matcher();
+	create_thread_open_socket();
 
 	init_sem();
 
 	broker_connection = connect_to(IP_BROKER, PUERTO_BROKER);
 
+	//send_get_pokemons();
+
 	suscribe_to(APPEARED_POKEMON);
 	suscribe_to(CAUGHT_POKEMON);
 	suscribe_to(LOCALIZED_POKEMON);
 
-	listener(IP_TEAM, PUERTO_TEAM, handle_event);
+	listen(broker_connection, SOMAXCONN);
+
+	while (1) {
+		handle_event(&broker_connection);
+	}
 
 	return EXIT_SUCCESS;
 }
@@ -46,7 +53,7 @@ void handle_event(uint32_t* socket) {
 	event_code code;
 	if (recv(*socket, &code, sizeof(event_code), MSG_WAITALL) == -1)
 		code = -1;
-
+	log_info(logger, "%d", code);
 	t_message* msg = receive_message(code, *socket);
 	uint32_t size;
 	switch (code) {
@@ -103,7 +110,21 @@ void init_sem() {
 	pthread_mutex_init(&mutex_trainers, NULL);
 	pthread_mutex_init(&mutex_matches, NULL);
 	pthread_mutex_init(&mutex_planning, NULL);
+	pthread_mutex_init(&mutex_receiving_id, NULL);
 
+}
+
+void send_get_pokemons() {
+	dictionary_iterator(global_objective, get_pokemon);
+}
+
+void get_pokemon(char* pokemon, uint32_t* cant) {
+	t_get_pokemon* get_pokemon = malloc(strlen(pokemon) + sizeof(uint32_t));
+	get_pokemon->pokemon_len = strlen(pokemon);
+	get_pokemon->pokemon = pokemon;
+
+	t_buffer* buffer = serialize_t_get_pokemon_message(get_pokemon);
+	send_message(broker_connection, GET_POKEMON, NULL, NULL, buffer);
 }
 
 t_dictionary* build_global_objective(char* objectives) {
@@ -117,6 +138,14 @@ void create_planner() {
 
 void create_matcher() {
 	create_thread(match_pokemon_with_trainer, "match_pokemon_with_trainer");
+}
+
+void create_thread_open_socket() {
+	create_thread(team_listener, "match_pokemon_with_trainer");
+}
+
+void team_listener() {
+	listener(IP_TEAM, PUERTO_TEAM, handle_event);
 }
 
 void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, char* OBJETIVOS_ENTRENADORES) {

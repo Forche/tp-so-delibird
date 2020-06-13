@@ -19,8 +19,6 @@ void handle_trainer(t_trainer* trainer) {
 		catch_pokemon(trainer, pcb_trainer->pokemon_to_catch);
 		log_info(logger, "Send catch, bloqueado trainer pos x: %d pos y: %d", trainer->pos_x, trainer->pos_y);
 
-		trainer->pcb_trainer->id_message = 10;
-
 		change_status_to(trainer, BLOCK);
 		pthread_mutex_unlock(&mutex_planning);
 
@@ -65,17 +63,11 @@ void catch_pokemon(t_trainer* trainer, t_appeared_pokemon* appeared_pokemon) {
 	t_buffer* buffer = serialize_t_catch_pokemon_message(pokemon_to_catch);
 
 	send_message(broker_connection, CATCH_POKEMON, NULL, NULL, buffer);
-	struct sockaddr_in client_addr;
-	uint32_t addr_size = sizeof(struct sockaddr_in);
-
-	uint32_t client_socket;
 	uint32_t msg_id;
-	if ((client_socket = accept((*server_socket), (void*) &client_addr, &addr_size))
-			!= -1) {
-		recv(client_socket, &msg_id, sizeof(event_code), MSG_WAITALL);
-		trainer->pcb_trainer->id_message = msg_id;
-		log_info(logger, "Id del mensaje %d", msg_id);
-	}
+	recv(broker_connection, &msg_id, sizeof(uint32_t), MSG_WAITALL);
+
+	trainer->pcb_trainer->id_message = msg_id;
+	log_info(logger, "Id del mensaje %d", msg_id);
 }
 
 

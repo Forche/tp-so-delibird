@@ -3,7 +3,6 @@
 
 void listener(char* ip, char* port, void* handle_event) {
 	int sv_socket;
-	server_socket = &sv_socket;
 	struct addrinfo hints, *servinfo, *p;
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_UNSPEC;
@@ -23,6 +22,7 @@ void listener(char* ip, char* port, void* handle_event) {
 	}
 	listen(sv_socket, SOMAXCONN);
 	freeaddrinfo(servinfo);
+	listen(sv_socket, SOMAXCONN);
 	while (1) {
 		wait_for_message(sv_socket, handle_event);
 	}

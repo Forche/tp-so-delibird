@@ -71,7 +71,7 @@ void queues_init() {
 }
 
 t_log* iniciar_logger(void) {
-	return log_create("operavirus-broker.log", "operavirus-broker", true,
+	return log_create("broker.log", "broker", true,
 			LOG_LEVEL_INFO);
 }
 
@@ -105,6 +105,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	// End of critical region
 	uint32_t size;
 	uint32_t i;
+	t_log* logger = logger_init();
 	switch (event_code) {
 	case NEW_POKEMON:
 		msg->buffer->payload = deserialize_new_pokemon_message(client_socket,
@@ -121,10 +122,9 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 					msg->correlative_id, msg->buffer);
 		}
 		break;
-	case APPEARED_POKEMON:
-		msg->buffer->payload = deserialize_appeared_pokemon_message(
-				client_socket, &size);
-		msg->buffer->size = size;
+	case APPEARED_POKEMON:;
+		t_appeared_pokemon* appeared_pokemon = deserialize_appeared_pokemon_message(client_socket, &size);
+		msg->buffer = serialize_t_appeared_pokemon_message(appeared_pokemon);
 
 		return_message_id(client_socket, msg->id);
 
@@ -139,8 +139,6 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		msg->buffer->payload = deserialize_catch_pokemon_message(client_socket,
 				&size);
 		msg->buffer->size = size;
-		t_log* logger = logger_init();
-		log_info(logger, "Devolviendo id %d", msg->id);
 		return_message_id(client_socket, msg->id);
 
 		for (i = 0; i < list_size(queue_catch_pokemon.subscriptors); i++) {

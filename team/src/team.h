@@ -29,6 +29,7 @@ pthread_mutex_t mutex_pokemon_received_to_catch;
 pthread_mutex_t mutex_trainers;
 pthread_mutex_t mutex_matches;
 pthread_mutex_t mutex_planning;
+pthread_mutex_t mutex_receiving_id;
 
 sem_t sem_appeared_pokemon;
 sem_t sem_trainer_available;
@@ -49,5 +50,9 @@ void create_matcher();
 void init_sem();
 void handle_event(uint32_t* socket);
 void suscribe_to(event_code code);
+void team_listener();
+void create_thread_open_socket();
+void send_get_pokemons();
+void get_pokemon(char* pokemon, uint32_t* cant);
 
 #endif /* TEAM_H_ */
