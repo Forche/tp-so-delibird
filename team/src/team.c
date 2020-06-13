@@ -53,7 +53,6 @@ void handle_event(uint32_t* socket) {
 	event_code code;
 	if (recv(*socket, &code, sizeof(event_code), MSG_WAITALL) == -1)
 		code = -1;
-	log_info(logger, "%d", code);
 	t_message* msg = receive_message(code, *socket);
 	uint32_t size;
 	switch (code) {
