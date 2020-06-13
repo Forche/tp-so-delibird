@@ -36,6 +36,13 @@ typedef struct {
 } t_message;
 
 typedef struct {
+	event_code event_code;
+	uint32_t id;
+	uint32_t correlative_id;
+	uint32_t memory_partition_id;
+} t_memory_message;
+
+typedef struct {
 	uint32_t pokemon_len;
 	char* pokemon;
 	uint32_t pos_x;
@@ -95,11 +102,11 @@ typedef struct {
 
 typedef enum
 {
-       NEW = 1,
-       READY = 2,
-       EXEC = 3,
-       BLOCK = 4,
-       EXIT = 5,
+	NEW = 1,
+	READY = 2,
+	EXEC = 3,
+	BLOCK = 4,
+	EXIT = 5,
 } status;
 
 typedef struct {
