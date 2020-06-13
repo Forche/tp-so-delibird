@@ -252,6 +252,9 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 			send_message(subscriptor->socket, event_code, msg->id,
 					msg->correlative_id, msg->buffer);
 		}
+
+		//Add message to memory
+		store_message(msg, queue_appeared_pokemon, queue_appeared_pokemon.subscriptors);
 		break;
 	case CATCH_POKEMON:
 		msg->buffer->payload = deserialize_catch_pokemon_message(client_socket,
@@ -265,6 +268,8 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 			send_message(subscriptor->socket, event_code, msg->id,
 					msg->correlative_id, msg->buffer);
 		}
+		//Add message to memory
+		store_message(msg, queue_catch_pokemon, queue_catch_pokemon.subscriptors);
 		break;
 	case CAUGHT_POKEMON:
 		msg->buffer->payload = deserialize_caught_pokemon_message(client_socket,
@@ -279,6 +284,9 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 			send_message(subscriptor->socket, event_code, msg->id,
 					msg->correlative_id, msg->buffer);
 		}
+
+		//Add message to memory
+		store_message(msg, queue_caught_pokemon, queue_caught_pokemon.subscriptors);
 		break;
 	case GET_POKEMON:
 		msg->buffer->payload = deserialize_get_pokemon_message(client_socket,
@@ -291,6 +299,9 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 			send_message(subscriptor->socket, event_code, msg->id,
 					msg->correlative_id, msg->buffer);
 		}
+
+		//Add message to memory
+		store_message(msg, queue_get_pokemon, queue_get_pokemon.subscriptors);
 		break;
 	case LOCALIZED_POKEMON:
 		msg->buffer->payload = deserialize_localized_pokemon_message(
@@ -303,6 +314,8 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 			send_message(subscriptor->socket, event_code, msg->id,
 					msg->correlative_id, msg->buffer);
 		}
+		//Add message to memory
+		store_message(msg, queue_localized_pokemon, queue_localized_pokemon.subscriptors);
 		break;
 	case NEW_SUBSCRIPTOR:
 		process_new_subscription(client_socket);
