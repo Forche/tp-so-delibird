@@ -117,7 +117,7 @@ void serve_client(uint32_t* socket) {
 	process_request(code, *socket);
 }
 
-void store_message(t_message* message, queue queue) {
+void store_message(t_message* message, queue queue, t_list* receivers) {
 	t_memory_message* memory_message = malloc(sizeof(t_memory_message));
 	memory_message->id = message->id;
 	memory_message->correlative_id = message->correlative_id;
@@ -126,7 +126,11 @@ void store_message(t_message* message, queue queue) {
 	//Store payload and get its containing partition id
 	memory_message->memory_partition_id = store_payload(message->buffer->payload, message->buffer->size);
 
-	list_add(queue.messages, memory_message);
+	queue_message* queue_message = malloc(sizeof(queue_message));
+	queue_message->receivers = receivers;
+	queue_message->message = memory_message;
+
+	list_add(queue.messages, queue_message);
 }
 
 uint32_t store_payload(void* payload, uint32_t size) {
@@ -144,6 +148,11 @@ uint32_t store_payload(void* payload, uint32_t size) {
 
 		// Create partition to reference the new content
 		t_memory_partition* new_partition = malloc(sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(partition_status));
+
+		if (size <= TAMANO_MINIMO_PARTICION)
+		{
+			size = TAMANO_MINIMO_PARTICION;
+		}
 		new_partition->begin = partition->begin;
 		partition->begin = partition->begin + size;
 
@@ -154,6 +163,7 @@ uint32_t store_payload(void* payload, uint32_t size) {
 		new_partition->lru_time = 0;
 		new_partition->id = list_size(memory_partitions);
 		list_add(memory_partitions, new_partition);
+		return new_partition->id;
 	}
 
 	// If id==1, create new partition, store data into it and add it to partitions list
@@ -182,7 +192,7 @@ t_memory_partition* get_free_partition_ff(uint32_t size) {
 
 	while (i < list_size(memory_partitions)) {
 		t_memory_partition* partition = list_get(memory_partitions, i);
-		if (partition->status == FREE && partition->content_size <= size)
+		if (partition->status == FREE && partition->content_size >= size)
 		{
 			return partition;
 		}
@@ -227,7 +237,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		}
 
 		//Add message to memory
-		store_message(msg, queue_new_pokemon);
+		store_message(msg, queue_new_pokemon, queue_new_pokemon.subscriptors);
 
 		break;
 	case APPEARED_POKEMON:
@@ -425,9 +435,6 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 			buffer->payload = content;
 			send_message(*socket, subscription_petition->queue, message->message->id,
 											message->message->correlative_id, buffer);
-
-			free(buffer);
-			free(content);
 		}
 
 		receiver* receiver = malloc(sizeof(uint32_t) * 2);
@@ -435,6 +442,4 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 		receiver->received = 1;
 		list_add(message->receivers, receiver);
 	}
-
-
 }
