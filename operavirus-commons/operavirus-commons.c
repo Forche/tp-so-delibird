@@ -177,31 +177,36 @@ t_buffer* serialize_new_pokemon_message(char* payload_content[]) {
 	new_pokemon_ptr->pos_x = atoi(payload_content[1]);
 	new_pokemon_ptr->pos_y = atoi(payload_content[2]);
 	new_pokemon_ptr->count = atoi(payload_content[3]);
+
+	return serialize_t_new_pokemon_message(new_pokemon_ptr);
+}
+
+t_buffer* serialize_t_new_pokemon_message(t_new_pokemon* new_pokemon_ptr){
 	t_new_pokemon new_pokemon_msg = (*new_pokemon_ptr);
 
-	t_buffer* buffer = malloc(sizeof(t_buffer));
-	buffer->size = sizeof(uint32_t) * 4 + new_pokemon_ptr->pokemon_len;
+		t_buffer* buffer = malloc(sizeof(t_buffer));
+		buffer->size = sizeof(uint32_t) * 4 + new_pokemon_ptr->pokemon_len;
 
-	void* payload = malloc(buffer->size);
-	int offset = 0;
+		void* payload = malloc(buffer->size);
+		int offset = 0;
 
-	memcpy(payload + offset, &new_pokemon_msg.pokemon_len, sizeof(uint32_t));
-	offset += sizeof(uint32_t);
-	memcpy(payload + offset, new_pokemon_msg.pokemon,
-			new_pokemon_msg.pokemon_len);
-	offset += new_pokemon_msg.pokemon_len;
-	memcpy(payload + offset, &new_pokemon_msg.pos_x, sizeof(uint32_t));
-	offset += sizeof(uint32_t);
-	memcpy(payload + offset, &new_pokemon_msg.pos_y, sizeof(uint32_t));
-	offset += sizeof(uint32_t);
-	memcpy(payload + offset, &new_pokemon_msg.count, sizeof(uint32_t));
-	offset += sizeof(uint32_t);
+		memcpy(payload + offset, &new_pokemon_msg.pokemon_len, sizeof(uint32_t));
+		offset += sizeof(uint32_t);
+		memcpy(payload + offset, new_pokemon_msg.pokemon,
+				new_pokemon_msg.pokemon_len);
+		offset += new_pokemon_msg.pokemon_len;
+		memcpy(payload + offset, &new_pokemon_msg.pos_x, sizeof(uint32_t));
+		offset += sizeof(uint32_t);
+		memcpy(payload + offset, &new_pokemon_msg.pos_y, sizeof(uint32_t));
+		offset += sizeof(uint32_t);
+		memcpy(payload + offset, &new_pokemon_msg.count, sizeof(uint32_t));
+		offset += sizeof(uint32_t);
 
-	buffer->payload = payload;
+		buffer->payload = payload;
 
-	free(new_pokemon_ptr);
+		free(new_pokemon_ptr);
 
-	return buffer;
+		return buffer;
 }
 
 t_buffer* serialize_appeared_pokemon_message(char* payload_content[]) {
@@ -291,6 +296,10 @@ t_buffer* serialize_caught_pokemon_message(char* payload_content[]) {
 
 	caught_pokemon_ptr->result = status;
 
+	return serialize_t_caught_pokemon_message(caught_pokemon_ptr);
+}
+
+t_buffer* serialize_t_caught_pokemon_message(t_caught_pokemon* caught_pokemon_ptr){
 	t_caught_pokemon caught_pokemon_msg = (*caught_pokemon_ptr);
 
 	t_buffer* buffer = malloc(sizeof(t_buffer));

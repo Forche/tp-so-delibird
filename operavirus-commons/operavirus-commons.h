@@ -140,21 +140,20 @@ void* serialize_message(t_message* message, uint32_t* bytes_to_send);
 t_buffer* serialize_t_new_pokemon_message(t_new_pokemon* new_pokemon);
 t_buffer* serialize_new_pokemon_message(char* payload_content[]);
 
-
 t_buffer* serialize_t_appeared_pokemon_message(t_appeared_pokemon* appeared_pokemon);
 t_buffer* serialize_appeared_pokemon_message(char* payload_content[]);
 
-t_buffer* serialize_t_catch_pokemon_message(t_catch_pokemon* catch_pokemon);
 t_buffer* serialize_catch_pokemon_message(char* payload_content[]);
+t_buffer* serialize_t_catch_pokemon_message(t_catch_pokemon* catch_pokemon);
 
-t_buffer* serialize_t_caught_pokemon_message(t_caught_pokemon* appeared_pokemon);
+t_buffer* serialize_t_caught_pokemon_message(t_caught_pokemon* caught_pokemon);
 t_buffer* serialize_caught_pokemon_message(char* payload_content[]);
 
-t_buffer* serialize_t_get_pokemon_message(t_get_pokemon* get_pokemon);
 t_buffer* serialize_get_pokemon_message(char* payload_content[]);
+t_buffer* serialize_t_get_pokemon_message(t_get_pokemon* get_pokemon);
 
-t_buffer* serialize_t_localized_pokemon_message(t_localized_pokemon* get_pokemon);
 t_buffer* serialize_localized_pokemon_message(char* payload_content[]);
+t_buffer* serialize_t_localized_pokemon_message(t_get_pokemon* localized_pokemon);
 
 t_buffer* serialize_new_subscriptor_message(char* payload_content[], char* sender_id, char* sender_ip, uint32_t sender_port);
 t_buffer* serialize_t_new_subscriptor_message(t_subscription_petition* subscription_petition);
