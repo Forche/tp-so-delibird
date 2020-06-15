@@ -1,0 +1,10 @@
+Dump: 14/6/2020 22:17:18
+Particion 0: 73 - 1000.	 [0]	 Size:3981 b	 LRU:0	 Cola:3981	 ID:0
+Particion 1: 0 - 14.	 [1]	 Size:20 b	 LRU:0	 Cola:20	 ID:1
+Particion 2: 14 - 18.	 [1]	 Size:4 b	 LRU:0	 Cola:4	 ID:2
+Particion 3: 18 - 2E.	 [1]	 Size:22 b	 LRU:0	 Cola:22	 ID:3
+Particion 4: 2E - 43.	 [1]	 Size:21 b	 LRU:0	 Cola:21	 ID:4
+Particion 5: 43 - 5A.	 [1]	 Size:23 b	 LRU:0	 Cola:23	 ID:5
+Particion 6: 5A - 5E.	 [1]	 Size:4 b	 LRU:0	 Cola:4	 ID:6
+Particion 7: 5E - 68.	 [1]	 Size:10 b	 LRU:0	 Cola:10	 ID:7
+Particion 8: 68 - 73.	 [1]	 Size:11 b	 LRU:0	 Cola:11	 ID:8
