@@ -291,6 +291,10 @@ t_buffer* serialize_caught_pokemon_message(char* payload_content[]) {
 
 	caught_pokemon_ptr->result = status;
 
+	return serialize_t_caught_pokemon_message(caught_pokemon_ptr);
+}
+
+t_buffer* serialize_t_caught_pokemon_message(t_caught_pokemon* caught_pokemon_ptr) {
 	t_caught_pokemon caught_pokemon_msg = (*caught_pokemon_ptr);
 
 	t_buffer* buffer = malloc(sizeof(t_buffer));
@@ -304,7 +308,6 @@ t_buffer* serialize_caught_pokemon_message(char* payload_content[]) {
 
 	buffer->payload = payload;
 
-	free(caught_pokemon_ptr);
 
 	return buffer;
 }

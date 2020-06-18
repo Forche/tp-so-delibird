@@ -40,6 +40,8 @@ uint32_t broker_connection;
 t_config* config;
 char* IP_TEAM;
 char* PUERTO_TEAM;
+char* IP_BROKER;
+char* PUERTO_BROKER;
 
 t_dictionary* global_objective;
 

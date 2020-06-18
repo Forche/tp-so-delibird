@@ -14,8 +14,8 @@ int main(void) {
 	char* POSICIONES_ENTRENADORES = config_get_string_value(config, "POSICIONES_ENTRENADORES");
 	char* POKEMON_ENTRENADORES = config_get_string_value(config, "POKEMON_ENTRENADORES");
 	char* OBJETIVOS_ENTRENADORES = config_get_string_value(config, "OBJETIVOS_ENTRENADORES");
-	char* IP_BROKER = config_get_string_value(config, "IP_BROKER");
-	char* PUERTO_BROKER = config_get_string_value(config, "PUERTO_BROKER");
+	IP_BROKER = config_get_string_value(config, "IP_BROKER");
+	PUERTO_BROKER = config_get_string_value(config, "PUERTO_BROKER");
 	IP_TEAM = config_get_string_value(config, "IP");
 	PUERTO_TEAM = config_get_string_value(config, "PUERTO");
 	POSICIONES_ENTRENADORES = remove_square_braquets(POSICIONES_ENTRENADORES);
@@ -36,6 +36,7 @@ int main(void) {
 
 	//send_get_pokemons();
 
+	//Hilo por cada cola, e hilo por cada mensaje
 	suscribe_to(APPEARED_POKEMON);
 	suscribe_to(CAUGHT_POKEMON);
 	suscribe_to(LOCALIZED_POKEMON);
@@ -83,8 +84,10 @@ void handle_event(uint32_t* socket) {
 		msg->buffer = caught_pokemon;
 
 		t_trainer* trainer = obtener_trainer_mensaje(msg);
+		if(trainer != NULL) {
 		trainer->pcb_trainer->result_catch = caught_pokemon->result;
 		pthread_mutex_unlock(&trainer->pcb_trainer->sem_caught);
+		}
 
 		break;
 	case APPEARED_POKEMON:;

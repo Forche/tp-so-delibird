@@ -21,8 +21,7 @@ void handle_trainer(t_trainer* trainer) {
 		change_status_to(trainer, BLOCK);
 		pthread_mutex_unlock(&mutex_planning);
 
-		sleep(5);
-		//pthread_mutex_lock(&pcb_trainer->sem_caught);
+		pthread_mutex_lock(&pcb_trainer->sem_caught);
 
 		pthread_mutex_lock(&mutex_planning);
 		change_status_to(trainer, EXEC);
@@ -31,7 +30,7 @@ void handle_trainer(t_trainer* trainer) {
 			add_to_dictionary(trainer->caught, pcb_trainer->pokemon_to_catch->pokemon);
 			log_info(logger, "Atrapado pokemon %s", pcb_trainer->pokemon_to_catch->pokemon);
 		} else {
-			// No se puede atrapar el pokemon
+			log_info(logger, "Error atrapar pokemon %s", pcb_trainer->pokemon_to_catch->pokemon);
 		}
 
 		trainer->pcb_trainer->status = NEW;
@@ -64,14 +63,24 @@ void catch_pokemon(t_trainer* trainer, t_appeared_pokemon* appeared_pokemon) {
 
 	t_buffer* buffer = serialize_t_catch_pokemon_message(pokemon_to_catch);
 
-	//send_message(broker_connection, CATCH_POKEMON, NULL, NULL, buffer);
 	log_info(logger, "Send catch a pokemon %s, bloqueado trainer pos x: %d pos y: %d", appeared_pokemon->pokemon,
 			trainer->pos_x, trainer->pos_y);
+
+	uint32_t broker_msg_connection = connect_to(IP_BROKER, PUERTO_BROKER);
+	trainer->pcb_trainer->msg_connection = broker_msg_connection;
+	send_message(broker_msg_connection, CATCH_POKEMON, NULL, NULL, buffer);
+
+	pthread_t thread = create_thread_with_param(receive_message_id, trainer, "receive_message_id");
+	pthread_detach(thread);
+}
+
+void receive_message_id(t_trainer* trainer) {
+	listen(trainer->pcb_trainer->msg_connection, SOMAXCONN);
 	uint32_t msg_id;
-//	recv(broker_connection, &msg_id, sizeof(uint32_t), MSG_WAITALL);
-//
-//	trainer->pcb_trainer->id_message = msg_id;
-//	log_info(logger, "Id del mensaje %d", msg_id);
+	recv(trainer->pcb_trainer->msg_connection, &msg_id, sizeof(uint32_t), MSG_WAITALL);
+	trainer->pcb_trainer->id_message = msg_id;
+	log_info(logger, "Id del mensaje %d", msg_id);
+	close(trainer->pcb_trainer->msg_connection);
 }
 
 

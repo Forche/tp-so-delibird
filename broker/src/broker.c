@@ -1,6 +1,9 @@
 #include "broker.h"
 
 int main(void) {
+
+	pthread_mutex_init(&mutex_message_id, NULL);
+
 	server_init();
 
 	return EXIT_SUCCESS;
@@ -215,9 +218,9 @@ t_memory_partition* get_free_partition_lru(uint32_t size) {
 
 void process_request(uint32_t event_code, uint32_t client_socket) {
 	t_message* msg = receive_message(event_code, client_socket);
-	// Implement mutex, critical region:
+	pthread_mutex_lock(&mutex_message_id);
 	msg->id = get_message_id();
-	// End of critical region
+	pthread_mutex_unlock(&mutex_message_id);
 	uint32_t size;
 	uint32_t i;
 	
@@ -271,10 +274,10 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		//Add message to memory
 		store_message(msg, queue_catch_pokemon, queue_catch_pokemon.subscriptors);
 		break;
-	case CAUGHT_POKEMON:
-		msg->buffer->payload = deserialize_caught_pokemon_message(client_socket,
+	case CAUGHT_POKEMON:;
+		t_caught_pokemon* caught_pokemon = deserialize_caught_pokemon_message(client_socket,
 				&size);
-		msg->buffer->size = size;
+		msg->buffer = serialize_t_caught_pokemon_message(appeared_pokemon);
 
 		return_message_id(client_socket, msg->id);
 

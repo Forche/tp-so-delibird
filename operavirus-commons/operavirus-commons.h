@@ -115,6 +115,7 @@ typedef struct {
     uint32_t id_message;
     pthread_mutex_t sem_caught;
     status status;
+    uint32_t msg_connection;
 } t_pcb_trainer;
 
 typedef struct {
@@ -147,7 +148,7 @@ t_buffer* serialize_appeared_pokemon_message(char* payload_content[]);
 t_buffer* serialize_t_catch_pokemon_message(t_catch_pokemon* catch_pokemon);
 t_buffer* serialize_catch_pokemon_message(char* payload_content[]);
 
-t_buffer* serialize_t_caught_pokemon_message(t_caught_pokemon* appeared_pokemon);
+t_buffer* serialize_t_caught_pokemon_message(t_caught_pokemon* caught_pokemon);
 t_buffer* serialize_caught_pokemon_message(char* payload_content[]);
 
 t_buffer* serialize_t_get_pokemon_message(t_get_pokemon* get_pokemon);

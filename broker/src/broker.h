@@ -64,6 +64,7 @@ int TAMANO_MEMORIA;
 char* ALGORITMO_PARTICION_LIBRE;
 void* memory;
 t_list* memory_partitions;
+pthread_mutex_t mutex_message_id;
 
 void server_init(void);
 void memory_init();
