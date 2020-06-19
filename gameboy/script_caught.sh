@@ -1,2 +1,2 @@
-./Debug/gameboy TEAM CAUGHT_POKEMON 4 OK && ./Debug/gameboy TEAM CAUGHT_POKEMON 5 OK && ./Debug/gameboy TEAM CAUGHT_POKEMON 6 OK
+./Debug/gameboy BROKER CAUGHT_POKEMON 7 OK && ./Debug/gameboy BROKER CAUGHT_POKEMON 8 OK && ./Debug/gameboy BROKER CAUGHT_POKEMON 9 OK
 

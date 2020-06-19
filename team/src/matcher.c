@@ -5,6 +5,8 @@ void* match_pokemon_with_trainer() {
 		sem_wait(&sem_trainer_available);
 		sem_wait(&sem_appeared_pokemon);
 
+
+		//TODO MANEJAR COLA DE VICTIMAS EN MATCHER
 		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
 		pthread_mutex_lock(&mutex_trainers);
 		t_match_pokemon_trainer* match_pokemon_trainer = match_closest_trainer();

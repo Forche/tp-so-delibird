@@ -71,7 +71,6 @@ void catch_pokemon(t_trainer* trainer, t_appeared_pokemon* appeared_pokemon) {
 	send_message(broker_msg_connection, CATCH_POKEMON, NULL, NULL, buffer);
 
 	pthread_t thread = create_thread_with_param(receive_message_id, trainer, "receive_message_id");
-	pthread_detach(thread);
 }
 
 void receive_message_id(t_trainer* trainer) {

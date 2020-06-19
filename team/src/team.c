@@ -32,20 +32,18 @@ int main(void) {
 
 	init_sem();
 
-	broker_connection = connect_to(IP_BROKER, PUERTO_BROKER);
-
 	//send_get_pokemons();
 
+
+	sem_t sem_objetive_completed;
+	sem_init(&sem_objetive_completed, 0, 0);
+
 	//Hilo por cada cola, e hilo por cada mensaje
-	suscribe_to(APPEARED_POKEMON);
-	suscribe_to(CAUGHT_POKEMON);
-	suscribe_to(LOCALIZED_POKEMON);
+	pthread_t thread_appeared = create_thread_with_param(subscribe_to, APPEARED_POKEMON, "subscribe APPEARED_POKEMON");
+	pthread_t thread_caught = create_thread_with_param(subscribe_to, CAUGHT_POKEMON, "subscribe CAUGHT_POKEMON");
+	pthread_t thread_localized = create_thread_with_param(subscribe_to, LOCALIZED_POKEMON, "subscribe LOCALIZED_POKEMON");
 
-	listen(broker_connection, SOMAXCONN);
-
-	while (1) {
-		handle_event(&broker_connection);
-	}
+	sem_wait(&sem_objetive_completed);
 
 	return EXIT_SUCCESS;
 }
@@ -57,51 +55,65 @@ void handle_event(uint32_t* socket) {
 	t_message* msg = receive_message(code, *socket);
 	uint32_t size;
 	switch (code) {
-	case LOCALIZED_POKEMON:;
-		t_localized_pokemon* localized_pokemon = deserialize_localized_pokemon_message(*socket, &size);
-		msg->buffer = localized_pokemon;
+	case LOCALIZED_POKEMON:
+		msg->buffer = deserialize_localized_pokemon_message(*socket, &size);
+		create_thread_with_param(handle_localized, msg, "handle_localized");
 
-		//TODO Iterar localized por la cantidad de pokemons para crear structs de appeared_pokemon
-		// y el funcionamiento es el mismo que en appeared
+		break;
+	case CAUGHT_POKEMON:
+		msg->buffer = deserialize_caught_pokemon_message(*socket, &size);
+		create_thread_with_param(handle_caught, msg, "handle_caught");
+
+		break;
+	case APPEARED_POKEMON:
+		msg->buffer = deserialize_appeared_pokemon_message(*socket, &size);
+		create_thread_with_param(handle_appeared, msg, "handle_appeared");
+		break;
+	}
+
+}
+
+void handle_localized(t_message* msg) {
+	t_localized_pokemon* localized_pokemon = msg->buffer;
+	if(dictionary_get(global_objective, localized_pokemon->pokemon)) {
 		uint32_t pos_x;
 		uint32_t pos_y = 1;
+		t_list* localized_appeared_pokemon = list_create();
 		for(pos_x = 0; pos_x < (localized_pokemon->positions_count * 2); pos_x = pos_x + 2 ) {
 			t_appeared_pokemon* appeared_pokemon = malloc(sizeof(t_appeared_pokemon));
 			appeared_pokemon->pokemon_len = localized_pokemon->pokemon_len;
 			appeared_pokemon->pokemon = localized_pokemon->pokemon;
 			appeared_pokemon->pos_x = localized_pokemon->positions[pos_x];
 			appeared_pokemon->pos_y = localized_pokemon->positions[pos_y];
-			pthread_mutex_lock(&mutex_pokemon_received_to_catch);
-			list_add(pokemon_received_to_catch, appeared_pokemon);
-			pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
-			sem_post(&sem_appeared_pokemon);
+			list_add(localized_appeared_pokemon, appeared_pokemon);
 			pos_y = pos_y + 2;
 		}
 
-		break;
-	case CAUGHT_POKEMON:;
-		t_caught_pokemon* caught_pokemon = deserialize_caught_pokemon_message(*socket, &size);
-		msg->buffer = caught_pokemon;
+		//TODO MANEJAR COLA DE VICTIMAS EN MATCHER
+		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
+		list_add_all(pokemon_received_to_catch, localized_appeared_pokemon);
+		pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
+		sem_post(&sem_appeared_pokemon);
+	}
+}
 
-		t_trainer* trainer = obtener_trainer_mensaje(msg);
-		if(trainer != NULL) {
+void handle_caught(t_message* msg) {
+	t_caught_pokemon* caught_pokemon = msg->buffer;
+	t_trainer* trainer = obtener_trainer_mensaje(msg);
+	if (trainer != NULL) {
 		trainer->pcb_trainer->result_catch = caught_pokemon->result;
 		pthread_mutex_unlock(&trainer->pcb_trainer->sem_caught);
-		}
-
-		break;
-	case APPEARED_POKEMON:;
-		t_appeared_pokemon* appeared_pokemon = deserialize_appeared_pokemon_message(*socket, &size);
-		msg->buffer = appeared_pokemon;
-		if(dictionary_get(global_objective, appeared_pokemon->pokemon)) {
-			pthread_mutex_lock(&mutex_pokemon_received_to_catch);
-			list_add(pokemon_received_to_catch, appeared_pokemon);
-			pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
-			sem_post(&sem_appeared_pokemon);
-		}
-		break;
 	}
+}
 
+void handle_appeared(t_message* msg) {
+	t_appeared_pokemon* appeared_pokemon = msg->buffer;
+	if (dictionary_get(global_objective, appeared_pokemon->pokemon)) {
+		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
+		list_add(pokemon_received_to_catch, appeared_pokemon);
+		pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
+		sem_post(&sem_appeared_pokemon);
+	}
 }
 
 void init_sem() {
@@ -126,6 +138,7 @@ void get_pokemon(char* pokemon, uint32_t* cant) {
 	get_pokemon->pokemon = pokemon;
 
 	t_buffer* buffer = serialize_t_get_pokemon_message(get_pokemon);
+	uint32_t broker_connection = connect_to(IP_BROKER, PUERTO_BROKER);
 	send_message(broker_connection, GET_POKEMON, NULL, NULL, buffer);
 }
 
@@ -179,7 +192,7 @@ void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, 
 
 }
 
-void suscribe_to(event_code code) {
+void subscribe_to(event_code code) {
 	t_subscription_petition* suscription_appeared = malloc(sizeof(t_subscription_petition));
 	suscription_appeared->ip_len = string_length(IP_TEAM) + 1;
 	suscription_appeared->ip = IP_TEAM;
@@ -190,7 +203,15 @@ void suscribe_to(event_code code) {
 	suscription_appeared->duration = -1;
 
 	t_buffer* buffer = serialize_t_new_subscriptor_message(suscription_appeared);
+
+	uint32_t broker_connection = connect_to(IP_BROKER, PUERTO_BROKER);
+
 	send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
+
+	while(1) {
+		handle_event(&broker_connection);
+	}
+
 }
 
 

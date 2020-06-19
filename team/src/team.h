@@ -36,7 +36,6 @@ sem_t sem_trainer_available;
 sem_t sem_count_matches;
 
 t_log* logger;
-uint32_t broker_connection;
 t_config* config;
 char* IP_TEAM;
 char* PUERTO_TEAM;
@@ -51,10 +50,13 @@ void create_planner();
 void create_matcher();
 void init_sem();
 void handle_event(uint32_t* socket);
-void suscribe_to(event_code code);
+void subscribe_to(event_code code);
 void team_listener();
 void create_thread_open_socket();
 void send_get_pokemons();
 void get_pokemon(char* pokemon, uint32_t* cant);
+void handle_localized(t_message* msg);
+void handle_caught(t_message* msg);
+void handle_appeared(t_message* msg);
 
 #endif /* TEAM_H_ */
