@@ -20,5 +20,6 @@ t_match_pokemon_trainer* match_closest_trainer();
 int get_distance(t_trainer* trainer, t_appeared_pokemon* pokemon);
 t_trainer* get_closest_trainer(t_appeared_pokemon* appeared_pokemon);
 bool not_exec(t_trainer* trainer);
+uint32_t check_remaining_minus_vistima(char* pokemon);
 
 #endif

@@ -25,8 +25,6 @@ int main(int argc, char* argv[]) {
 		connection = connect_to(TEAM_IP, TEAM_PORT);
 	} else if (string_equals_ignore_case(argv[1], "GAMECARD")) {
 		connection = connect_to(GAMECARD_IP, GAMECARD_PORT);
-	} else if (string_equals_ignore_case(argv[1], "SUSCRIPTOR")) {
-		connection = connect_to(GAMECARD_IP, GAMECARD_PORT);
 	} else {
 		return EXIT_FAILURE;
 	}

@@ -1,8 +1,5 @@
 #include "operavirus-commons.h"
 
-#include<stdio.h>
-#include<stdlib.h>
-
 int main(void) {
 	return EXIT_SUCCESS;
 }
@@ -27,8 +24,10 @@ uint32_t connect_to(char* ip, char* port) {
 			server_info->ai_protocol);
 
 	if (connect(client_socket, server_info->ai_addr, server_info->ai_addrlen)
-			== -1)
-		printf("error");
+			== -1) {
+		close(client_socket);
+		client_socket = -1;
+	}
 
 	freeaddrinfo(server_info);
 
@@ -131,9 +130,11 @@ t_buffer* serialize_new_subscriptor_message(char* payload_content[],
 	subscription_petition_ptr->port = sender_port;
 	subscription_petition_ptr->duration = atoi(payload_content[1]);
 
-	t_subscription_petition subscription_petition_msg =
-			(*subscription_petition_ptr);
+	return serialize_t_new_subscriptor_message(subscription_petition_ptr);
+}
 
+t_buffer* serialize_t_new_subscriptor_message(t_subscription_petition* subscription_petition_ptr) {
+	t_subscription_petition subscription_petition_msg = (*subscription_petition_ptr);
 	t_buffer* buffer = malloc(sizeof(t_buffer));
 	buffer->size = subscription_petition_ptr->subscriptor_len
 			+ subscription_petition_ptr->ip_len + 4 * sizeof(uint32_t)
@@ -210,6 +211,11 @@ t_buffer* serialize_appeared_pokemon_message(char* payload_content[]) {
 	appeared_pokemon_ptr->pos_x = atoi(payload_content[1]);
 	appeared_pokemon_ptr->pos_y = atoi(payload_content[2]);
 
+	return serialize_t_appeared_pokemon_message(appeared_pokemon_ptr);
+}
+
+t_buffer* serialize_t_appeared_pokemon_message(t_appeared_pokemon* appeared_pokemon_ptr) {
+
 	t_appeared_pokemon appeared_pokemon_msg = (*appeared_pokemon_ptr);
 
 	t_buffer* buffer = malloc(sizeof(t_buffer));
@@ -284,6 +290,10 @@ t_buffer* serialize_caught_pokemon_message(char* payload_content[]) {
 
 	caught_pokemon_ptr->result = status;
 
+	return serialize_t_caught_pokemon_message(caught_pokemon_ptr);
+}
+
+t_buffer* serialize_t_caught_pokemon_message(t_caught_pokemon* caught_pokemon_ptr) {
 	t_caught_pokemon caught_pokemon_msg = (*caught_pokemon_ptr);
 
 	t_buffer* buffer = malloc(sizeof(t_buffer));
@@ -297,7 +307,6 @@ t_buffer* serialize_caught_pokemon_message(char* payload_content[]) {
 
 	buffer->payload = payload;
 
-	free(caught_pokemon_ptr);
 
 	return buffer;
 }
@@ -306,9 +315,11 @@ t_buffer* serialize_get_pokemon_message(char* payload_content[]) {
 	t_get_pokemon* get_pokemon_ptr = malloc(sizeof(t_get_pokemon));
 	get_pokemon_ptr->pokemon_len = strlen(payload_content[0]) + 1;
 	get_pokemon_ptr->pokemon = payload_content[0];
+	return serialize_t_get_pokemon_message(get_pokemon_ptr);
+}
 
+t_buffer* serialize_t_get_pokemon_message(t_get_pokemon* get_pokemon_ptr) {
 	t_get_pokemon get_pokemon_msg = (*get_pokemon_ptr);
-
 	t_buffer* buffer = malloc(sizeof(t_buffer));
 	buffer->size = sizeof(uint32_t) + get_pokemon_ptr->pokemon_len;
 
