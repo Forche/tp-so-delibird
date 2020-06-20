@@ -16,6 +16,23 @@ uint32_t* add_to_dictionary(t_dictionary* dictionary, char* item) {
 	return quantity;
 }
 
+uint32_t* substract_from_dictionary(t_dictionary* dictionary, char* item) {
+	if (dictionary_has_key(dictionary, item)) {
+		uint32_t* quantity = dictionary_get(dictionary, item);
+		*quantity -= 1;
+		if(*quantity > 0) {
+			dictionary_put(dictionary, item, quantity);
+		} else {
+			dictionary_remove(dictionary, item);
+		}
+		return quantity;
+	} else {
+		return NULL;
+		//No existe, no se hace nada.
+	}
+}
+
+
 t_dictionary* generate_dictionary_by_string(char* text, char* delimiter) {
 	char** splited_text = string_split(text, delimiter);
 	t_dictionary* dictionary = dictionary_create();
@@ -72,4 +89,11 @@ char *replace_word(const char *s, const char *oldW,
 
     result[i] = '\0';
     return result;
+}
+
+void* get_from_dictionary_with_mutex(pthread_mutex_t mutex, t_dictionary* dictionary, void* key) {
+	pthread_mutex_lock(&mutex);
+	uint32_t value = dictionary_get(dictionary, key);
+	pthread_mutex_unlock(&mutex);
+	return value;
 }

@@ -15,18 +15,34 @@ void handle_trainer(t_trainer* trainer) {
 
 		t_pcb_trainer* pcb_trainer = trainer->pcb_trainer;
 		pcb_trainer->status = EXEC;
+
+		//TODO Emular tiempo de CPU
 		move_to_position(trainer, pcb_trainer->pokemon_to_catch->pos_x, pcb_trainer->pokemon_to_catch->pos_y);
 		catch_pokemon(trainer, pcb_trainer->pokemon_to_catch);
 
 		if (pcb_trainer->result_catch) { //Tiene basura y sale por true
 			add_to_dictionary(trainer->caught, pcb_trainer->pokemon_to_catch->pokemon);
+
+			pthread_mutex_lock(&mutex_caught_pokemons);
+			add_to_dictionary(caught_pokemons, pcb_trainer->pokemon_to_catch->pokemon);
+			pthread_mutex_unlock(&mutex_caught_pokemons);
+
+			pthread_mutex_lock(&mutex_caught_pokemons);
+			substract_from_dictionary(remaining_pokemons, pcb_trainer->pokemon_to_catch->pokemon);
+			pthread_mutex_unlock(&mutex_caught_pokemons);
+
+			//TODO Manejar si cumplio objetivo o deadlock
+
 			log_info(logger, "Atrapado pokemon %s", pcb_trainer->pokemon_to_catch->pokemon);
 		} else {
 			log_info(logger, "Error atrapar pokemon %s", pcb_trainer->pokemon_to_catch->pokemon);
 		}
 
+		pthread_mutex_lock(&mutex_being_caught_pokemons);
+		substract_from_dictionary(being_caught_pokemons, pcb_trainer->pokemon_to_catch->pokemon);
+		pthread_mutex_unlock(&mutex_being_caught_pokemons);
+
 		trainer->pcb_trainer->status = NEW;
-		//TODO Manejar deadlock
 
 		change_status_to(trainer, BLOCK);
 		sem_post(&sem_trainer_available);

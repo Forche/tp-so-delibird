@@ -1,6 +1,10 @@
 #include "team.h"
 
 
+void print_pokemons(char* key, int* value) {
+	printf("Pokemon: %s. Cantidad: %d \n", key, *value);
+}
+
 int main(void) {
 
 	config = config_create("team.config");
@@ -9,7 +13,8 @@ int main(void) {
 	matches = list_create();
 	logger = log_create("pruebitaTeam.log", "team", true, LOG_LEVEL_INFO);
 	set_logger_thread(logger);
-
+	being_caught_pokemons = dictionary_create();
+	remaining_pokemons = dictionary_create();
 
 	char* POSICIONES_ENTRENADORES = config_get_string_value(config, "POSICIONES_ENTRENADORES");
 	char* POKEMON_ENTRENADORES = config_get_string_value(config, "POKEMON_ENTRENADORES");
@@ -25,6 +30,11 @@ int main(void) {
 
 
 	global_objective = build_global_objective(OBJETIVOS_ENTRENADORES);
+	caught_pokemons = build_global_objective(POKEMON_ENTRENADORES);
+	build_remaining_pokemons();
+
+	dictionary_iterator(remaining_pokemons, print_pokemons);
+
 
 	create_trainers(POSICIONES_ENTRENADORES, POKEMON_ENTRENADORES,OBJETIVOS_ENTRENADORES);
 	create_planner();
@@ -77,7 +87,12 @@ void handle_event(uint32_t* socket) {
 
 void handle_localized(t_message* msg) {
 	t_localized_pokemon* localized_pokemon = msg->buffer;
-	if(dictionary_get(global_objective, localized_pokemon->pokemon)) {
+
+	pthread_mutex_lock(&mutex_remaining_pokemons);
+	uint32_t cant_catch = dictionary_get(remaining_pokemons, localized_pokemon->pokemon);
+	pthread_mutex_unlock(&mutex_remaining_pokemons);
+
+	if(cant_catch) {
 		uint32_t pos_x;
 		uint32_t pos_y = 1;
 		t_list* localized_appeared_pokemon = list_create();
@@ -95,7 +110,10 @@ void handle_localized(t_message* msg) {
 		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
 		list_add_all(pokemon_received_to_catch, localized_appeared_pokemon);
 		pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
-		sem_post(&sem_appeared_pokemon);
+		uint32_t aux;
+		for(aux = 0; aux < localized_pokemon->positions_count; aux++) {
+			sem_post(&sem_appeared_pokemon);
+		}
 	}
 }
 
@@ -110,7 +128,12 @@ void handle_caught(t_message* msg) {
 
 void handle_appeared(t_message* msg) {
 	t_appeared_pokemon* appeared_pokemon = msg->buffer;
-	if (dictionary_get(global_objective, appeared_pokemon->pokemon)) {
+
+	pthread_mutex_lock(&mutex_remaining_pokemons);
+	uint32_t cant_catch = dictionary_get(remaining_pokemons, appeared_pokemon->pokemon);
+	pthread_mutex_unlock(&mutex_remaining_pokemons);
+
+	if (cant_catch) {
 		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
 		list_add(pokemon_received_to_catch, appeared_pokemon);
 		pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
@@ -126,12 +149,13 @@ void init_sem() {
 	pthread_mutex_init(&mutex_trainers, NULL);
 	pthread_mutex_init(&mutex_matches, NULL);
 	pthread_mutex_init(&mutex_planning, NULL);
-	pthread_mutex_init(&mutex_receiving_id, NULL);
-
+	pthread_mutex_init(&mutex_remaining_pokemons, NULL);
+	pthread_mutex_init(&mutex_caught_pokemons, NULL);
+	pthread_mutex_init(&mutex_being_caught_pokemons, NULL);
 }
 
 void send_get_pokemons() {
-	dictionary_iterator(global_objective, get_pokemon);
+	dictionary_iterator(remaining_pokemons, get_pokemon);
 }
 
 void get_pokemon(char* pokemon, uint32_t* cant) {
@@ -158,6 +182,28 @@ void send_get(char* pokemon) {
 t_dictionary* build_global_objective(char* objectives) {
 	char* flat_objectives = replace_word(replace_word(objectives, "|", ","), "\"", "");
 	return generate_dictionary_by_string(flat_objectives, ",");
+}
+
+void* build_remaining_pokemons() {
+	dictionary_iterator(global_objective, add_remaining);
+}
+
+void* add_remaining(char* pokemon, uint32_t* cant_global) {
+	if(dictionary_has_key(caught_pokemons, pokemon)) {
+		uint32_t* cant_caught = dictionary_get(caught_pokemons, pokemon);
+		uint32_t* cant_remaining = malloc(sizeof(uint32_t));
+		*cant_remaining = (*cant_global) - (*cant_caught);
+		if(*cant_remaining < 0) {
+			log_error(logger, "Configuracion de pokemons erronea");
+			exit(-777);
+		} else if(*cant_remaining > 0){
+			dictionary_put(remaining_pokemons, pokemon, cant_remaining);
+		} else {
+			//Si es 0 ni es error, ni se agrega a los faltantes.
+		}
+	} else {
+		dictionary_put(remaining_pokemons, pokemon, cant_global);
+	}
 }
 
 void create_planner() {
@@ -206,16 +252,16 @@ void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, 
 }
 
 void subscribe_to(event_code code) {
-	t_subscription_petition* suscription_appeared = malloc(sizeof(t_subscription_petition));
-	suscription_appeared->ip_len = string_length(IP_TEAM) + 1;
-	suscription_appeared->ip = IP_TEAM;
-	suscription_appeared->queue = code;
-	suscription_appeared->subscriptor_len = 12;
-	suscription_appeared->subscriptor_id = "TEAM ROCKET";
-	suscription_appeared->port = PUERTO_TEAM;
-	suscription_appeared->duration = -1;
+	t_subscription_petition* suscription = malloc(sizeof(t_subscription_petition));
+	suscription->ip_len = string_length(IP_TEAM) + 1;
+	suscription->ip = IP_TEAM;
+	suscription->queue = code;
+	suscription->subscriptor_len = 12;
+	suscription->subscriptor_id = "TEAM ROCKET";
+	suscription->port = PUERTO_TEAM;
+	suscription->duration = -1;
 
-	t_buffer* buffer = serialize_t_new_subscriptor_message(suscription_appeared);
+	t_buffer* buffer = serialize_t_new_subscriptor_message(suscription);
 
 	uint32_t broker_connection = connect_to(IP_BROKER, PUERTO_BROKER);
 	if(broker_connection == -1) {
@@ -223,6 +269,7 @@ void subscribe_to(event_code code) {
 		sleep(TIEMPO_RECONEXION);
 		subscribe_to(code);
 	} else {
+		log_info(logger, "Conectada cola code %d al broker", code);
 		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
 
 		while(1) {
