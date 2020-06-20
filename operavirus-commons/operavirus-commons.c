@@ -1,8 +1,5 @@
 #include "operavirus-commons.h"
 
-#include<stdio.h>
-#include<stdlib.h>
-
 int main(void) {
 	return EXIT_SUCCESS;
 }
@@ -27,8 +24,10 @@ uint32_t connect_to(char* ip, char* port) {
 			server_info->ai_protocol);
 
 	if (connect(client_socket, server_info->ai_addr, server_info->ai_addrlen)
-			== -1)
-		printf("error");
+			== -1) {
+		close(client_socket);
+		client_socket = -1;
+	}
 
 	freeaddrinfo(server_info);
 

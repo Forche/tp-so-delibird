@@ -21,6 +21,7 @@ int main(void) {
 	POSICIONES_ENTRENADORES = remove_square_braquets(POSICIONES_ENTRENADORES);
 	POKEMON_ENTRENADORES = remove_square_braquets(POKEMON_ENTRENADORES);
 	OBJETIVOS_ENTRENADORES = remove_square_braquets(OBJETIVOS_ENTRENADORES);
+	TIEMPO_RECONEXION = config_get_int_value(config, "TIEMPO_RECONEXION");
 
 
 	global_objective = build_global_objective(OBJETIVOS_ENTRENADORES);
@@ -32,15 +33,16 @@ int main(void) {
 
 	init_sem();
 
-	//send_get_pokemons();
+	send_get_pokemons();
 
 
 	sem_t sem_objetive_completed;
 	sem_init(&sem_objetive_completed, 0, 0);
 
-	//Hilo por cada cola, e hilo por cada mensaje
 	pthread_t thread_appeared = create_thread_with_param(subscribe_to, APPEARED_POKEMON, "subscribe APPEARED_POKEMON");
+	sleep(1);
 	pthread_t thread_caught = create_thread_with_param(subscribe_to, CAUGHT_POKEMON, "subscribe CAUGHT_POKEMON");
+	sleep(1);
 	pthread_t thread_localized = create_thread_with_param(subscribe_to, LOCALIZED_POKEMON, "subscribe LOCALIZED_POKEMON");
 
 	sem_wait(&sem_objetive_completed);
@@ -133,13 +135,24 @@ void send_get_pokemons() {
 }
 
 void get_pokemon(char* pokemon, uint32_t* cant) {
+	create_thread_with_param(send_get, pokemon, "send_get");
+	//FIXME Sacar sleep, hay sindrome de los tres chiflados
+	sleep(1);
+}
+
+void send_get(char* pokemon) {
 	t_get_pokemon* get_pokemon = malloc(strlen(pokemon) + sizeof(uint32_t));
 	get_pokemon->pokemon_len = strlen(pokemon);
 	get_pokemon->pokemon = pokemon;
-
+	log_info(logger, pokemon);
 	t_buffer* buffer = serialize_t_get_pokemon_message(get_pokemon);
 	uint32_t broker_connection = connect_to(IP_BROKER, PUERTO_BROKER);
-	send_message(broker_connection, GET_POKEMON, NULL, NULL, buffer);
+	if(broker_connection == -1) {
+		log_error(logger, "Error de comunicacion con el broker, realizando operacion default");
+	} else {
+		send_message(broker_connection, GET_POKEMON, NULL, NULL, buffer);
+		close(broker_connection);
+	}
 }
 
 t_dictionary* build_global_objective(char* objectives) {
@@ -205,11 +218,16 @@ void subscribe_to(event_code code) {
 	t_buffer* buffer = serialize_t_new_subscriptor_message(suscription_appeared);
 
 	uint32_t broker_connection = connect_to(IP_BROKER, PUERTO_BROKER);
+	if(broker_connection == -1) {
+		log_error(logger, "No se pudo conectar al broker, reintentando en %d seg", TIEMPO_RECONEXION);
+		sleep(TIEMPO_RECONEXION);
+		subscribe_to(code);
+	} else {
+		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
 
-	send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
-
-	while(1) {
-		handle_event(&broker_connection);
+		while(1) {
+			handle_event(&broker_connection);
+		}
 	}
 
 }

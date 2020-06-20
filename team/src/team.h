@@ -13,7 +13,6 @@
 #include "matcher.h"
 #include "trainer.h"
 #include "util.h"
-#include "connection.h"
 
 typedef struct {
 	uint32_t quantity;
@@ -41,6 +40,7 @@ char* IP_TEAM;
 char* PUERTO_TEAM;
 char* IP_BROKER;
 char* PUERTO_BROKER;
+uint32_t TIEMPO_RECONEXION;
 
 t_dictionary* global_objective;
 
@@ -58,5 +58,6 @@ void get_pokemon(char* pokemon, uint32_t* cant);
 void handle_localized(t_message* msg);
 void handle_caught(t_message* msg);
 void handle_appeared(t_message* msg);
+void send_get(char* pokemon);
 
 #endif /* TEAM_H_ */

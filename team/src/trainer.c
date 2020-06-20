@@ -18,14 +18,6 @@ void handle_trainer(t_trainer* trainer) {
 		move_to_position(trainer, pcb_trainer->pokemon_to_catch->pos_x, pcb_trainer->pokemon_to_catch->pos_y);
 		catch_pokemon(trainer, pcb_trainer->pokemon_to_catch);
 
-		change_status_to(trainer, BLOCK);
-		pthread_mutex_unlock(&mutex_planning);
-
-		pthread_mutex_lock(&pcb_trainer->sem_caught);
-
-		pthread_mutex_lock(&mutex_planning);
-		change_status_to(trainer, EXEC);
-
 		if (pcb_trainer->result_catch) { //Tiene basura y sale por true
 			add_to_dictionary(trainer->caught, pcb_trainer->pokemon_to_catch->pokemon);
 			log_info(logger, "Atrapado pokemon %s", pcb_trainer->pokemon_to_catch->pokemon);
@@ -67,10 +59,22 @@ void catch_pokemon(t_trainer* trainer, t_appeared_pokemon* appeared_pokemon) {
 			trainer->pos_x, trainer->pos_y);
 
 	uint32_t broker_msg_connection = connect_to(IP_BROKER, PUERTO_BROKER);
-	trainer->pcb_trainer->msg_connection = broker_msg_connection;
-	send_message(broker_msg_connection, CATCH_POKEMON, NULL, NULL, buffer);
+	if(broker_msg_connection == -1) {
+		log_error(logger, "Trainer: Error de comunicacion con el broker, realizando operacion default");
+		trainer->pcb_trainer->result_catch = 1;
+	} else {
+		trainer->pcb_trainer->msg_connection = broker_msg_connection;
+		send_message(broker_msg_connection, CATCH_POKEMON, NULL, NULL, buffer);
+		pthread_t thread = create_thread_with_param(receive_message_id, trainer, "receive_message_id");
+		change_status_to(trainer, BLOCK);
+		pthread_mutex_unlock(&mutex_planning);
 
-	pthread_t thread = create_thread_with_param(receive_message_id, trainer, "receive_message_id");
+		pthread_mutex_lock(&trainer->pcb_trainer->sem_caught);
+
+		pthread_mutex_lock(&mutex_planning);
+		change_status_to(trainer, EXEC);
+	}
+
 }
 
 void receive_message_id(t_trainer* trainer) {
