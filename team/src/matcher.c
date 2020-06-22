@@ -5,6 +5,8 @@ void* match_pokemon_with_trainer() {
 		sem_wait(&sem_trainer_available);
 		sem_wait(&sem_appeared_pokemon);
 
+
+		//TODO MANEJAR COLA DE VICTIMAS EN MATCHER
 		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
 		pthread_mutex_lock(&mutex_trainers);
 		t_match_pokemon_trainer* match_pokemon_trainer = match_closest_trainer();
@@ -26,22 +28,46 @@ t_match_pokemon_trainer* match_closest_trainer() {
 	uint32_t i;
 	uint32_t aux_pos;
 	for (i = 0; i < list_size(pokemon_received_to_catch); i++) {
-		t_match_pokemon_trainer* match_pokemon_trainer_by_pokemon = malloc(sizeof(t_match_pokemon_trainer));
 		t_appeared_pokemon* appeared_pokemon = list_get(pokemon_received_to_catch, i);
-		t_trainer* closest_trainer = get_closest_trainer(appeared_pokemon);
-		match_pokemon_trainer_by_pokemon->closest_pokemon = appeared_pokemon;
-		match_pokemon_trainer_by_pokemon->closest_trainer = closest_trainer;
-		match_pokemon_trainer_by_pokemon->shortest_distance = get_distance(closest_trainer, appeared_pokemon);
-		if (match_pokemon_trainer->shortest_distance < 0
-				|| match_pokemon_trainer_by_pokemon->shortest_distance
-						< match_pokemon_trainer->shortest_distance) {
-			match_pokemon_trainer = match_pokemon_trainer_by_pokemon;
-			aux_pos = i;
+
+		if (check_remaining_minus_vistima(appeared_pokemon->pokemon)) {
+			t_match_pokemon_trainer* match_pokemon_trainer_by_pokemon = malloc(sizeof(t_match_pokemon_trainer));
+			t_trainer* closest_trainer = get_closest_trainer(appeared_pokemon);
+			match_pokemon_trainer_by_pokemon->closest_pokemon = appeared_pokemon;
+			match_pokemon_trainer_by_pokemon->closest_trainer = closest_trainer;
+			match_pokemon_trainer_by_pokemon->shortest_distance = get_distance(closest_trainer, appeared_pokemon);
+			if (match_pokemon_trainer->shortest_distance < 0
+					|| match_pokemon_trainer_by_pokemon->shortest_distance
+							< match_pokemon_trainer->shortest_distance) {
+				match_pokemon_trainer = match_pokemon_trainer_by_pokemon;
+				aux_pos = i;
+			}
 		}
 	}
 
+	pthread_mutex_lock(&mutex_being_caught_pokemons);
+	add_to_dictionary(being_caught_pokemons, match_pokemon_trainer->closest_pokemon->pokemon);
+	pthread_mutex_unlock(&mutex_being_caught_pokemons);
+
 	list_remove(pokemon_received_to_catch, aux_pos);
 	return match_pokemon_trainer;
+}
+
+uint32_t check_remaining_minus_vistima(char* pokemon) {
+	pthread_mutex_lock(&mutex_remaining_pokemons);
+	uint32_t cant_global = dictionary_get(remaining_pokemons, pokemon);
+	pthread_mutex_unlock(&mutex_remaining_pokemons);
+	pthread_mutex_lock(&mutex_being_caught_pokemons);
+	bool has_key = dictionary_has_key(being_caught_pokemons, pokemon);
+	pthread_mutex_unlock(&mutex_being_caught_pokemons);
+	if(has_key) {
+		pthread_mutex_lock(&mutex_being_caught_pokemons);
+		uint32_t cant_vistima = dictionary_get(being_caught_pokemons, pokemon);
+		pthread_mutex_unlock(&mutex_being_caught_pokemons);
+		return cant_global - cant_vistima;
+	} else {
+		return cant_global;
+	}
 }
 
 t_trainer* get_closest_trainer(t_appeared_pokemon* appeared_pokemon) {
@@ -61,7 +87,7 @@ t_trainer* get_closest_trainer(t_appeared_pokemon* appeared_pokemon) {
 }
 
 bool not_exec(t_trainer* trainer) {
-	return trainer->status != EXEC && trainer->status != READY;
+	return trainer->status != EXEC && trainer->status != READY && trainer->pcb_trainer->status == NEW;
 }
 
 int get_distance(t_trainer* trainer, t_appeared_pokemon* pokemon) {
