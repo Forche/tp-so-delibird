@@ -14,8 +14,9 @@
 int main(void) {
 
 	read_config();
-
 	init_loggers();
+
+	log_info(logger, "holis");
 
 	shutdown_gamecard();
 
@@ -23,7 +24,7 @@ int main(void) {
 }
 
 void read_config() {
-	config = config_create("gamecard.config");
+	config = config_create("/home/utnso/workspace/tp-2020-1c-Operavirus/gamecard/gamecard.config");
 
 	TIEMPO_DE_REINTENTO_CONEXION = config_get_int_value(config, "TIEMPO_DE_REINTENTO_CONEXION");
 	TIEMPO_DE_REINTENTO_OPERACION = config_get_int_value(config, "TIEMPO_DE_REINTENTO_OPERACION");
@@ -36,7 +37,7 @@ void read_config() {
 
 void init_loggers() {
 
-	logger = log_create("gamecard.log", "gamecard", true, LOG_LEVEL_INFO);
+	logger = log_create("/home/utnso/workspace/tp-2020-1c-Operavirus/gamecard/gamecard.log", "gamecard", true, LOG_LEVEL_INFO); //true porque escribe tambien la consola
 
 }
 
