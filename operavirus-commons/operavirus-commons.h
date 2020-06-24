@@ -131,6 +131,10 @@ typedef struct {
 
 uint32_t connect_to(char* ip, char* port);
 
+t_subscription_petition* build_new_suscription(event_code code, char* my_ip, char* id, uint32_t my_port);
+void make_subscription_to(t_subscription_petition* suscription, char* broker_ip,
+		char* broker_port, uint32_t reconnect_time, t_log* logger, void handle_event(uint32_t*));
+
 void send_message(uint32_t client_socket, event_code event_code, uint32_t id,
 		uint32_t correlative_id, t_buffer* buffer);
 t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count,
