@@ -15,6 +15,7 @@ int main(void) {
 	set_logger_thread(logger);
 	being_caught_pokemons = dictionary_create();
 	remaining_pokemons = dictionary_create();
+	matched_deadlocks = list_create();
 
 	char* POSICIONES_ENTRENADORES = config_get_string_value(config, "POSICIONES_ENTRENADORES");
 	char* POKEMON_ENTRENADORES = config_get_string_value(config, "POKEMON_ENTRENADORES");
@@ -46,8 +47,7 @@ int main(void) {
 	send_get_pokemons();
 
 
-	sem_t sem_objetive_completed;
-	sem_init(&sem_objetive_completed, 0, 0);
+	sem_init(&sem_all_pokemons_caught, 0, 0);
 
 	pthread_t thread_appeared = create_thread_with_param(subscribe_to, APPEARED_POKEMON, "subscribe APPEARED_POKEMON");
 	sleep(1);
@@ -55,7 +55,11 @@ int main(void) {
 	sleep(1);
 	pthread_t thread_localized = create_thread_with_param(subscribe_to, LOCALIZED_POKEMON, "subscribe LOCALIZED_POKEMON");
 
-	sem_wait(&sem_objetive_completed);
+	sem_wait(&sem_all_pokemons_caught);
+
+	//No se necesitan mas los threads de suscripcion
+
+	proceed_to_finish();
 
 	return EXIT_SUCCESS;
 }
@@ -106,7 +110,6 @@ void handle_localized(t_message* msg) {
 			pos_y = pos_y + 2;
 		}
 
-		//TODO MANEJAR COLA DE VICTIMAS EN MATCHER
 		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
 		list_add_all(pokemon_received_to_catch, localized_appeared_pokemon);
 		pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
@@ -134,6 +137,7 @@ void handle_appeared(t_message* msg) {
 	pthread_mutex_unlock(&mutex_remaining_pokemons);
 
 	if (cant_catch) {
+		log_info(logger, "Agregado para matchear %s", appeared_pokemon->pokemon);
 		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
 		list_add(pokemon_received_to_catch, appeared_pokemon);
 		pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
@@ -196,7 +200,7 @@ void* add_remaining(char* pokemon, uint32_t* cant_global) {
 		if(*cant_remaining < 0) {
 			log_error(logger, "Configuracion de pokemons erronea");
 			exit(-777);
-		} else if(*cant_remaining > 0){
+		} else if(*cant_remaining > 0) {
 			dictionary_put(remaining_pokemons, pokemon, cant_remaining);
 		} else {
 			//Si es 0 ni es error, ni se agrega a los faltantes.

@@ -13,12 +13,22 @@
 #include "matcher.h"
 #include "trainer.h"
 #include "util.h"
+#include "resolver.h"
 
 typedef struct {
 	uint32_t quantity;
 	uint32_t pokemon_len;
 	char* pokemon;
 } t_quantity_pokemon;
+
+typedef struct {
+	t_trainer* trainer1;
+	char* pokemon1; //Pokemon que da el trainer1 y recibe el trainer2
+	t_trainer* trainer2;
+	char* pokemon2; //Pokemon que da el trainer2 y recibe el trainer1
+} t_deadlock_matcher;
+
+t_list* matched_deadlocks;
 
 t_list* pokemon_received_to_catch;
 t_list* trainers;
@@ -35,6 +45,7 @@ pthread_mutex_t mutex_being_caught_pokemons;
 sem_t sem_appeared_pokemon;
 sem_t sem_trainer_available;
 sem_t sem_count_matches;
+sem_t sem_all_pokemons_caught;
 
 t_log* logger;
 t_config* config;

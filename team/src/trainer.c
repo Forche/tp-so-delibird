@@ -11,8 +11,6 @@ void handle_trainer(t_trainer* trainer) {
 	while(1) {
 		pthread_mutex_lock(&trainer->sem);
 
-		//Propuesta para saber si lo que sigue es atrapar o manejar deadlock: trainer->hacer_lo_que_sigue();
-
 		t_pcb_trainer* pcb_trainer = trainer->pcb_trainer;
 		pcb_trainer->status = EXEC;
 
@@ -27,11 +25,9 @@ void handle_trainer(t_trainer* trainer) {
 			add_to_dictionary(caught_pokemons, pcb_trainer->pokemon_to_catch->pokemon);
 			pthread_mutex_unlock(&mutex_caught_pokemons);
 
-			pthread_mutex_lock(&mutex_caught_pokemons);
+			pthread_mutex_lock(&mutex_remaining_pokemons);
 			substract_from_dictionary(remaining_pokemons, pcb_trainer->pokemon_to_catch->pokemon);
-			pthread_mutex_unlock(&mutex_caught_pokemons);
-
-			//TODO Manejar si cumplio objetivo o deadlock
+			pthread_mutex_unlock(&mutex_remaining_pokemons);
 
 			log_info(logger, "Atrapado pokemon %s", pcb_trainer->pokemon_to_catch->pokemon);
 		} else {
@@ -42,11 +38,109 @@ void handle_trainer(t_trainer* trainer) {
 		substract_from_dictionary(being_caught_pokemons, pcb_trainer->pokemon_to_catch->pokemon);
 		pthread_mutex_unlock(&mutex_being_caught_pokemons);
 
-		trainer->pcb_trainer->status = NEW;
+		if(is_trainer_full(trainer)) {
+			change_status_to(trainer, FULL);
+			validate_deadlock(trainer);
 
-		change_status_to(trainer, BLOCK);
-		sem_post(&sem_trainer_available);
+			if(list_size(remaining_pokemons) == 0) {
+				sem_post(&sem_all_pokemons_caught);
+			}
+		} else {
+			trainer->pcb_trainer->status = NEW;
+			change_status_to(trainer, BLOCK);
+			sem_post(&sem_trainer_available);
+		}
+
 		pthread_mutex_unlock(&mutex_planning);
+
+	}
+}
+
+void find_candidate_to_swap(t_list* remaining, t_list* leftovers, t_trainer* trainer) {
+	uint32_t i;
+	t_list* aux = list_create();
+	list_add_all(aux, remaining);
+	for (i = 0; i < list_size(aux); i++) {
+		char* pokemon = list_get(aux, i);
+		t_to_deadlock* has_pokemon_i_need = get_leftover_from_to_deadlock_by_pokemon(pokemon);
+		if (has_pokemon_i_need != NULL) {
+			char* pokemon_he_needs = get_pokemon_he_needs(leftovers, has_pokemon_i_need->remaining);
+			if (pokemon_he_needs != NULL) {
+				t_deadlock_matcher* deadlock_match = malloc(sizeof(t_deadlock_matcher));
+				deadlock_match->trainer1 = trainer;
+				deadlock_match->pokemon1 = pokemon_he_needs;
+				deadlock_match->trainer2 = has_pokemon_i_need->trainer;
+				deadlock_match->pokemon2 = pokemon;
+				log_info(logger, "Deadlock directo entre %s y %s", pokemon, pokemon_he_needs);
+				list_add(matched_deadlocks, deadlock_match);
+				list_remove(leftovers, pokemon_he_needs);
+				list_remove(remaining, pokemon);
+				list_remove(has_pokemon_i_need->leftovers, pokemon);
+				list_remove(has_pokemon_i_need->remaining, pokemon_he_needs);
+			} else {
+				//NO MATCHEO
+			}
+		} else {
+			//NO MATCHEO
+		}
+	}
+}
+
+t_to_deadlock* get_leftover_from_to_deadlock_by_pokemon(char* pokemon) {
+	bool get_by_pokemon(void* element) {
+		return string_equals_ignore_case(pokemon, element);
+	}
+
+	return list_find(to_deadlock, get_by_pokemon);
+}
+
+char* get_pokemon_he_needs(t_list* leftovers, t_list* remaining) {
+	bool i_have_one(void* pokemon_remaining) {
+		bool get_by_pokemon(void* pokemon_leftover) {
+			return string_equals_ignore_case(pokemon_leftover, pokemon_remaining);
+		}
+		return list_find(leftovers, get_by_pokemon);
+	}
+
+	return list_find(remaining, i_have_one);
+}
+
+void validate_deadlock(t_trainer* trainer) {
+	t_dictionary* caught = trainer->caught;
+	t_dictionary* objectives = trainer->objective;
+
+	t_list* leftovers = get_dictionary_difference(caught, objectives);
+	t_list* remaining = get_dictionary_difference(objectives, caught);
+
+	if(list_is_empty(leftovers) && list_is_empty(remaining)) {
+		trainer->status = EXIT;
+		//Y agregar demas cosas cuando termina OK.
+	} else {
+		log_info(logger, "buscando deadlock directos");
+		//ESTA MURIENDO ACA ADENTRO
+		find_candidate_to_swap(remaining, leftovers, trainer);
+		t_to_deadlock* trainer_to_deadlock = malloc(sizeof(t_to_deadlock));
+		trainer_to_deadlock->trainer = trainer;
+		trainer_to_deadlock->leftovers = leftovers;
+		trainer_to_deadlock->remaining = remaining;
+		log_info(logger, "terminado busqueda deadlock directa");
+		list_add(to_deadlock, trainer_to_deadlock);
+	}
+
+}
+
+bool is_trainer_full(t_trainer* trainer) {
+	uint32_t q_caught = dictionary_add_values(trainer->caught);
+	uint32_t q_objective = dictionary_add_values(trainer->objective);
+
+	log_info(logger, "Cantidad atrapados: %d. Cantidad objetivo: %d", q_caught, q_objective);
+
+	if(q_caught - q_objective) {
+		log_info(logger, "Todavia tengo que atrapar");
+		return false;
+	} else {
+		log_info(logger, "Toy lleno");
+		return true;
 	}
 }
 
@@ -113,4 +207,20 @@ t_trainer* obtener_trainer_mensaje(t_message* msg) {
 		}
 	}
 	return NULL;
+}
+
+
+uint32_t dictionary_add_values(t_dictionary *self) {
+	int table_index;
+	uint32_t value = 0;
+	for (table_index = 0; table_index < self->table_max_size; table_index++) {
+		t_hash_element *element = self->elements[table_index];
+
+		while (element != NULL) {
+			uint32_t* data = element->data;
+			value += (*data);
+			element = element->next;
+		}
+	}
+	return value;
 }

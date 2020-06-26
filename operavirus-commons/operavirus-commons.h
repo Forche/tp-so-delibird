@@ -107,6 +107,7 @@ typedef enum
 	EXEC = 3,
 	BLOCK = 4,
 	EXIT = 5,
+	FULL = 6,
 } status;
 
 typedef struct {
