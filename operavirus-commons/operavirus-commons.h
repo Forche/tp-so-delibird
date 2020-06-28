@@ -131,7 +131,7 @@ typedef struct {
 
 uint32_t connect_to(char* ip, char* port);
 
-t_subscription_petition* build_new_suscription(event_code code, char* my_ip, char* id, uint32_t my_port);
+t_subscription_petition* build_new_subscription(event_code code, char* my_ip, char* id, uint32_t my_port);
 void make_subscription_to(t_subscription_petition* suscription, char* broker_ip,
 		char* broker_port, uint32_t reconnect_time, t_log* logger, void handle_event(uint32_t*));
 

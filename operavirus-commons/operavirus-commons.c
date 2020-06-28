@@ -55,7 +55,7 @@ void send_message(uint32_t client_socket, event_code event_code, uint32_t id,
 	free(message);
 }
 
-t_subscription_petition* build_new_suscription(event_code code, char* my_ip, char* id, uint32_t my_port){
+t_subscription_petition* build_new_subscription(event_code code, char* my_ip, char* id, uint32_t my_port){
 	t_subscription_petition* suscription = malloc(sizeof(t_subscription_petition));
 	suscription->ip_len = string_length(my_ip) + 1;
 	suscription->ip = my_ip;
