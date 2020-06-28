@@ -8,16 +8,24 @@
 #ifndef GAMECARD_H_
 #define GAMECARD_H_
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <commons/bitarray.h>
 #include <commons/config.h>
 #include <commons/log.h>
+#include <fcntl.h>
 #include <operavirus-commons.h>
 #include <semaphore.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 
 // ******* DEFINICION DE VARIABLES A UTILIZAR ******* //
 
 t_log* logger;
+
+char* bmap;
+struct stat size_bitmap;
+t_bitarray* bitarray;
 
 t_config* config;
 int TIEMPO_DE_REINTENTO_CONEXION;
@@ -29,6 +37,7 @@ char* PUERTO_BROKER;
 char* IP_GAMECARD;
 char* PUERTO_GAMECARD;
 
+int  block_size, blocks, blocks_available;
 
 // ******* DEFINICION DE FUNCIONES A UTILIZAR ******* //
 void read_config();

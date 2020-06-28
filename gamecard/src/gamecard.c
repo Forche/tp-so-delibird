@@ -50,6 +50,8 @@ void init_loggers() {
 }
 
 void shutdown_gamecard() {
+	munmap(bmap, size_bitmap.st_size);
+	bitarray_destroy(bitarray);
 	log_destroy(logger);
 }
 
@@ -100,4 +102,37 @@ void handle_event(uint32_t* socket) {
 		break;
 	}
 
+}
+
+void tall_grass_metadata_info(){
+
+	char* path_metadata = string_from_format("%s/Metadata/Metadata", PUNTO_MONTAJE_TALLGRASS);
+	t_config* metadata  = config_create(path_metadata);
+	block_size = config_get_int_value(metadata, "BLOCK_SIZE");
+	blocks = config_get_int_value(metadata, "BLOCKS");
+
+	config_destroy(metadata);
+	free(path_metadata);
+}
+
+void open_bitmap(){
+
+	char* nombre_bitmap = string_from_format("%s/Metadata/Bitmap.bin", PUNTO_MONTAJE_TALLGRASS);
+
+	int fd = open(nombre_bitmap, O_RDWR);
+    if (fstat(fd, &size_bitmap) < 0) {
+        printf("Error al establecer fstat\n");
+        close(fd);
+    }
+
+    blocks_available=0;
+    bmap = mmap(NULL, size_bitmap.st_size, PROT_READ | PROT_WRITE, MAP_SHARED,	fd, 0);
+	bitarray = bitarray_create_with_mode(bmap, blocks/8, MSB_FIRST);
+	for(int i=0;i< bitarray_get_max_bit(bitarray);i++){
+		 if(bitarray_test_bit(bitarray, i) == 0){
+			 blocks_available = blocks_available+1;
+		 }
+	}
+	log_info(logger, "Cantidad de bloques disponibles: %d", blocks_available);
+	free(nombre_bitmap);
 }
