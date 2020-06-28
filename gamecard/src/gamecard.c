@@ -16,11 +16,13 @@ int main(void) {
 	read_config();
 	init_loggers();
 
-	sem_init(&kkkk, 0, 0);
+	sem_t sem_gameCard_up;
+	sem_init(&sem_gameCard_up, 0, 0);
+
 	create_listener_thread();
 	create_subscription_threads();
 
-	sem_wait(&kkkk);
+	sem_wait(&sem_gameCard_up);
 
 	shutdown_gamecard();
 

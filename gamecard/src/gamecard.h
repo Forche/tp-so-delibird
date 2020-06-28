@@ -17,8 +17,6 @@
 
 // ******* DEFINICION DE VARIABLES A UTILIZAR ******* //
 
-sem_t kkkk;
-
 t_log* logger;
 
 t_config* config;
