@@ -75,7 +75,7 @@ void make_subscription_to(t_subscription_petition* suscription, char* broker_ip,
 
 	uint32_t broker_connection = connect_to(broker_ip, broker_port);
 	if(broker_connection == -1) {
-		log_error(logger, "No se pudo conectar al broker, reintentando en %d seg", reconnect_time);
+		log_error(logger, "No se pudo conectar al broker, reintentando suscripcion en %d seg", reconnect_time);
 		sleep(reconnect_time);
 		make_subscription_to(suscription, broker_ip, broker_port, reconnect_time, logger, handle_event);
 	} else {
