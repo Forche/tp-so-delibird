@@ -20,9 +20,9 @@ int main(void) {
 	create_listener_thread();
 	create_subscription_threads();
 
-	shutdown_gamecard();
-
 	sem_wait(&kkkk);
+
+	shutdown_gamecard();
 
 	return EXIT_SUCCESS;
 }
@@ -67,7 +67,7 @@ void subscribe_to(event_code code) {
 
 
 void create_listener_thread() {
-	create_thread(gamecard_listener, "match_pokemon_with_trainer");
+	create_thread(gamecard_listener, "events_listener");
 }
 
 void gamecard_listener() {
