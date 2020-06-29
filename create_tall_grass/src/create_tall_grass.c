@@ -1,7 +1,7 @@
 #include "create_tall_grass.h"
 
 int main(int arg_quantity, char* argv[]) {
-	//char* magic_number;
+	char* magic_number;
 	read_config();
 
 	if(arg_quantity != 4){
@@ -10,7 +10,7 @@ int main(int arg_quantity, char* argv[]) {
 	}
 	int blocks = atoi(argv[1]);
 	int block_size = atoi(argv[2]);
-	char* magic_number = argv[3];
+	magic_number = argv[3];
 
 	create_tall_grass_directory();
 
@@ -21,9 +21,9 @@ int main(int arg_quantity, char* argv[]) {
 	char* dir_blocks = string_from_format("%s/Blocks", PUNTO_MONTAJE);
 	mkdir(dir_blocks, 0777);
 
-	//create_bitmap(dir_metadata, blocks, block_size);
-	//create_metadata_file(dir_metadata, blocks, block_size, magic_number);
-	//create_blocks(dir_blocks, blocks, block_size);
+	create_bitmap(dir_metadata, blocks, block_size);
+	create_metadata_file(dir_metadata, blocks, block_size, magic_number);
+	create_blocks(dir_blocks, blocks, block_size);
 
 	free(dir_metadata);
 	free(dir_files);

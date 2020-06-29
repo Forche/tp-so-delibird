@@ -25,7 +25,6 @@ t_config* config;
 char* PUNTO_MONTAJE;
 struct stat mystat;
 
-
 // ******* DEFINICION DE FUNCIONES A UTILIZAR ******* //
 
 void read_config();
