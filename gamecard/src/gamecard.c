@@ -44,9 +44,7 @@ void read_config() {
 }
 
 void init_loggers() {
-
 	logger = log_create("/home/utnso/workspace/tp-2020-1c-Operavirus/gamecard/gamecard.log", "gamecard", true, LOG_LEVEL_INFO); //true porque escribe tambien la consola
-
 }
 
 void shutdown_gamecard() {
@@ -88,17 +86,15 @@ void handle_event(uint32_t* socket) {
 	switch (code) {
 	case NEW_POKEMON:
 		msg->buffer = deserialize_new_pokemon_message(*socket, &size);
-		//create_thread_with_param(handle_localized, msg, "handle_localized");
 
 		break;
 	case CATCH_POKEMON:
 		msg->buffer = deserialize_catch_pokemon_message(*socket, &size);
-		//create_thread_with_param(handle_caught, msg, "handle_caught");
 
 		break;
 	case GET_POKEMON:
 		msg->buffer = deserialize_get_pokemon_message(*socket, &size);
-		//create_thread_with_param(handle_appeared, msg, "handle_appeared");
+
 		break;
 	}
 
