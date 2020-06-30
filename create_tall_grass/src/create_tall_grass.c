@@ -1,7 +1,7 @@
 #include "create_tall_grass.h"
 
 int main(int arg_quantity, char* argv[]) {
-	char* magic_number;
+
 	read_config();
 
 	if(arg_quantity != 4){
@@ -10,7 +10,7 @@ int main(int arg_quantity, char* argv[]) {
 	}
 	int blocks = atoi(argv[1]);
 	int block_size = atoi(argv[2]);
-	magic_number = argv[3];
+	char* magic_number = argv[3];
 
 	create_tall_grass_directory();
 
@@ -30,14 +30,13 @@ int main(int arg_quantity, char* argv[]) {
 	free(dir_blocks);
 
 	printf("Creado Tall-Grass correctamente con %d bloques, de tamaño %d \n", blocks, block_size);
+	config_destroy(config);
 	return EXIT_SUCCESS;
 }
 
 void read_config() {
 	config = config_create("/home/utnso/workspace/tp-2020-1c-Operavirus/gamecard/gamecard.config");
 	PUNTO_MONTAJE = config_get_string_value(config, "PUNTO_MONTAJE_TALLGRASS");
-
-	config_destroy(config);
 }
 
 void create_tall_grass_directory() {
@@ -70,10 +69,12 @@ void create_metadata_file(char* dir_metadata, int blocks, int block_size, char* 
 	FILE* file = fopen(path_metadata_file, "wb+");
 	fclose(file);
 
+	char* magic = string_new();
+	string_append(&magic, magic_number);
 	t_config* metadata = config_create(path_metadata_file);
 	dictionary_put(metadata->properties,"BLOCK_SIZE", string_itoa(block_size) );
 	dictionary_put(metadata->properties, "BLOCKS", string_itoa(blocks));
-	dictionary_put(metadata->properties, "MAGIC_NUMBER", magic_number);
+	dictionary_put(metadata->properties, "MAGIC_NUMBER", magic);
 
 	config_save(metadata);
 	config_destroy(metadata);
@@ -102,7 +103,7 @@ void create_bitmap(char* path_metadata, int blocks_quantity, int blocks_size){
 	t_bitarray* bitarray = bitarray_create_with_mode(bmap, bitarray_size, MSB_FIRST);
 
 
-	for(int cont=0; cont < blocks_quantity*8; cont++){
+	for(int cont=0; cont < blocks_quantity; cont++){
 		bitarray_clean_bit(bitarray, cont);
 	}
 	msync(bmap, sizeof(bitarray), MS_SYNC);
