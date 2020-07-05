@@ -23,6 +23,7 @@ int main(int arg_quantity, char* argv[]) {
 
 	create_bitmap(dir_metadata, blocks, block_size);
 	create_metadata_file(dir_metadata, blocks, block_size, magic_number);
+	create_metadata_in_files_directory(dir_files);
 	create_blocks(dir_blocks, blocks, block_size);
 
 	free(dir_metadata);
@@ -111,6 +112,21 @@ void create_bitmap(char* path_metadata, int blocks_quantity, int blocks_size){
 
 	free(path_bitmap_file);
 	bitarray_destroy(bitarray);
+}
+
+void create_metadata_in_files_directory(char* dir_files){
+	char* path_metadata_file = string_from_format("%s/Metadata.bin", dir_files);
+	FILE* file = fopen(path_metadata_file, "wb+");
+	fclose(file);
+
+	char* is_directory = string_new();
+	string_append(&is_directory, "Y");
+	t_config* metadata = config_create(path_metadata_file);
+	dictionary_put(metadata->properties,"DIRECTORY", is_directory);
+
+	config_save(metadata);
+	config_destroy(metadata);
+	free(path_metadata_file);
 }
 
 void create_blocks(char* dir_blocks, int blocks_quantity, int block_size){
