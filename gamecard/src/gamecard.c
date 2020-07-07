@@ -63,9 +63,30 @@ void create_subscription_threads() {
 }
 
 void subscribe_to(event_code code) {
-	t_subscription_petition* new_subscription = build_new_subscription(code, IP_GAMECARD, "Game Card", PUERTO_GAMECARD);
+	t_subscription_petition* new_subscription = build_new_subscription(code, IP_GAMECARD, "Game Card", atoi(PUERTO_GAMECARD));
 	make_subscription_to(new_subscription, IP_BROKER, PUERTO_BROKER, TIEMPO_DE_REINTENTO_CONEXION, logger, handle_event);
 }
+
+/*void subscribe_to(event_code code) {
+	t_subscription_petition* new_subscription = build_new_subscription(code, IP_GAMECARD, "Game Card", atoi(PUERTO_GAMECARD));
+
+	t_buffer* buffer = serialize_t_new_subscriptor_message(new_subscription);
+
+	uint32_t broker_connection = connect_to(IP_BROKER, PUERTO_BROKER);
+	if(broker_connection == -1) {
+		log_error(logger, "No se pudo conectar al broker, reintentando en %d seg", TIEMPO_DE_REINTENTO_CONEXION);
+		sleep(TIEMPO_DE_REINTENTO_CONEXION);
+		subscribe_to(code);
+	} else {
+		log_info(logger, "Conectada cola code %d al broker", code);
+		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
+
+		while(1) {
+			handle_event(&broker_connection);
+		}
+	}
+
+}*/
 
 
 void create_listener_thread() {

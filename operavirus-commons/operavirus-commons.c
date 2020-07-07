@@ -75,9 +75,17 @@ void make_subscription_to(t_subscription_petition* suscription, char* broker_ip,
 
 	uint32_t broker_connection = connect_to(broker_ip, broker_port);
 	if(broker_connection == -1) {
+		t_subscription_petition* new_subscription = build_new_subscription(suscription->queue, suscription->ip,suscription->subscriptor_id, suscription->port);
 		log_error(logger, "No se pudo conectar al broker, reintentando suscripcion en %d seg", reconnect_time);
+
+		/*t_log* test_logger;
+		test_logger = log_create("/home/utnso/workspace/tp-2020-1c-Operavirus/gamecard/gamecard.log", "gamecard", true, LOG_LEVEL_INFO);
+		log_info(test_logger, "No se pudo conectar al broker, reintentando suscripcion en 3 seg");
+		log_destroy(test_logger);*/
+		printf("Aca esta el logger%d\n", logger->detail);
 		sleep(reconnect_time);
-		make_subscription_to(suscription, broker_ip, broker_port, reconnect_time, logger, handle_event);
+		//t_subscription_petition* new_subscription = build_new_subscription(suscription->queue, suscription->ip,suscription->subscriptor_id, suscription->port);
+		make_subscription_to(new_subscription, broker_ip, broker_port, reconnect_time, logger, handle_event);
 	} else {
 		log_info(logger, "Conectada cola code %d al broker", suscription->queue);
 		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
