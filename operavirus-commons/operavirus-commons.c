@@ -55,6 +55,39 @@ void send_message(uint32_t client_socket, event_code event_code, uint32_t id,
 	free(message);
 }
 
+t_subscription_petition* build_new_subscription(event_code code, char* my_ip, char* id, uint32_t my_port){
+	t_subscription_petition* suscription = malloc(sizeof(t_subscription_petition));
+	suscription->ip_len = string_length(my_ip) + 1;
+	suscription->ip = my_ip;
+	suscription->queue = code;
+	suscription->subscriptor_len = string_length(id) + 1;
+	suscription->subscriptor_id = id;
+	suscription->port = my_port;
+	suscription->duration = -1;
+
+	return suscription;
+}
+
+void make_subscription_to(t_subscription_petition* suscription, char* broker_ip, char* broker_port,
+		uint32_t reconnect_time, t_log* logger, void handle_event(uint32_t*)) {
+
+	t_buffer* buffer = serialize_t_new_subscriptor_message(suscription);
+
+	uint32_t broker_connection = connect_to(broker_ip, broker_port);
+	if(broker_connection == -1) {
+		log_error(logger, "No se pudo conectar al broker, reintentando suscripcion en %d seg", reconnect_time);
+		sleep(reconnect_time);
+		make_subscription_to(suscription, broker_ip, broker_port, reconnect_time, logger, handle_event);
+	} else {
+		log_info(logger, "Conectada cola code %d al broker", suscription->queue);
+		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
+
+		while(1) {
+			handle_event(&broker_connection);
+		}
+	}
+}
+
 void return_message_id(uint32_t client_socket, uint32_t id) {
 	void* to_send = malloc(sizeof(uint32_t));
 	memcpy(to_send, &(id), sizeof(uint32_t));
@@ -176,31 +209,36 @@ t_buffer* serialize_new_pokemon_message(char* payload_content[]) {
 	new_pokemon_ptr->pos_x = atoi(payload_content[1]);
 	new_pokemon_ptr->pos_y = atoi(payload_content[2]);
 	new_pokemon_ptr->count = atoi(payload_content[3]);
+
+	return serialize_t_new_pokemon_message(new_pokemon_ptr);
+}
+
+t_buffer* serialize_t_new_pokemon_message(t_new_pokemon* new_pokemon_ptr){
 	t_new_pokemon new_pokemon_msg = (*new_pokemon_ptr);
 
-	t_buffer* buffer = malloc(sizeof(t_buffer));
-	buffer->size = sizeof(uint32_t) * 4 + new_pokemon_ptr->pokemon_len;
+		t_buffer* buffer = malloc(sizeof(t_buffer));
+		buffer->size = sizeof(uint32_t) * 4 + new_pokemon_ptr->pokemon_len;
 
-	void* payload = malloc(buffer->size);
-	int offset = 0;
+		void* payload = malloc(buffer->size);
+		int offset = 0;
 
-	memcpy(payload + offset, &new_pokemon_msg.pokemon_len, sizeof(uint32_t));
-	offset += sizeof(uint32_t);
-	memcpy(payload + offset, new_pokemon_msg.pokemon,
-			new_pokemon_msg.pokemon_len);
-	offset += new_pokemon_msg.pokemon_len;
-	memcpy(payload + offset, &new_pokemon_msg.pos_x, sizeof(uint32_t));
-	offset += sizeof(uint32_t);
-	memcpy(payload + offset, &new_pokemon_msg.pos_y, sizeof(uint32_t));
-	offset += sizeof(uint32_t);
-	memcpy(payload + offset, &new_pokemon_msg.count, sizeof(uint32_t));
-	offset += sizeof(uint32_t);
+		memcpy(payload + offset, &new_pokemon_msg.pokemon_len, sizeof(uint32_t));
+		offset += sizeof(uint32_t);
+		memcpy(payload + offset, new_pokemon_msg.pokemon,
+				new_pokemon_msg.pokemon_len);
+		offset += new_pokemon_msg.pokemon_len;
+		memcpy(payload + offset, &new_pokemon_msg.pos_x, sizeof(uint32_t));
+		offset += sizeof(uint32_t);
+		memcpy(payload + offset, &new_pokemon_msg.pos_y, sizeof(uint32_t));
+		offset += sizeof(uint32_t);
+		memcpy(payload + offset, &new_pokemon_msg.count, sizeof(uint32_t));
+		offset += sizeof(uint32_t);
 
-	buffer->payload = payload;
+		buffer->payload = payload;
 
-	free(new_pokemon_ptr);
+		free(new_pokemon_ptr);
 
-	return buffer;
+		return buffer;
 }
 
 t_buffer* serialize_appeared_pokemon_message(char* payload_content[]) {
