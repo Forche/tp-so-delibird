@@ -16,6 +16,7 @@ int main(void) {
 	being_caught_pokemons = dictionary_create();
 	remaining_pokemons = dictionary_create();
 	matched_deadlocks = list_create();
+	to_deadlock = list_create();
 
 	char* POSICIONES_ENTRENADORES = config_get_string_value(config, "POSICIONES_ENTRENADORES");
 	char* POKEMON_ENTRENADORES = config_get_string_value(config, "POKEMON_ENTRENADORES");
@@ -270,8 +271,8 @@ void subscribe_to(event_code code) {
 	uint32_t broker_connection = connect_to(IP_BROKER, PUERTO_BROKER);
 	if(broker_connection == -1) {
 		log_error(logger, "No se pudo conectar al broker, reintentando en %d seg", TIEMPO_RECONEXION);
-		sleep(TIEMPO_RECONEXION);
-		subscribe_to(code);
+//		sleep(TIEMPO_RECONEXION);
+//		subscribe_to(code);
 	} else {
 		log_info(logger, "Conectada cola code %d al broker", code);
 		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);

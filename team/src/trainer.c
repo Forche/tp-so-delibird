@@ -42,7 +42,7 @@ void handle_trainer(t_trainer* trainer) {
 			change_status_to(trainer, FULL);
 			validate_deadlock(trainer);
 
-			if(list_size(remaining_pokemons) == 0) {
+			if(dictionary_is_empty(remaining_pokemons)) {
 				sem_post(&sem_all_pokemons_caught);
 			}
 		} else {
@@ -73,10 +73,10 @@ void find_candidate_to_swap(t_list* remaining, t_list* leftovers, t_trainer* tra
 				deadlock_match->pokemon2 = pokemon;
 				log_info(logger, "Deadlock directo entre %s y %s", pokemon, pokemon_he_needs);
 				list_add(matched_deadlocks, deadlock_match);
-				list_remove(leftovers, pokemon_he_needs);
-				list_remove(remaining, pokemon);
-				list_remove(has_pokemon_i_need->leftovers, pokemon);
-				list_remove(has_pokemon_i_need->remaining, pokemon_he_needs);
+				list_remove_by_value(leftovers, pokemon_he_needs);
+				list_remove_by_value(remaining, pokemon);
+				list_remove_by_value(has_pokemon_i_need->leftovers, pokemon);
+				list_remove_by_value(has_pokemon_i_need->remaining, pokemon_he_needs);
 			} else {
 				//NO MATCHEO
 			}
@@ -86,9 +86,23 @@ void find_candidate_to_swap(t_list* remaining, t_list* leftovers, t_trainer* tra
 	}
 }
 
+void list_remove_by_value(t_list* list, char* value) {
+	uint32_t i;
+	 for(i = 0; i< list_size(list); i++) {
+		 char* value_list = list_get(list, i);
+		 if(string_equals_ignore_case(value, value_list)) {
+			 list_remove(list, i);
+			 break;
+		 }
+	 }
+}
+
 t_to_deadlock* get_leftover_from_to_deadlock_by_pokemon(char* pokemon) {
-	bool get_by_pokemon(void* element) {
-		return string_equals_ignore_case(pokemon, element);
+	bool get_by_pokemon(t_to_deadlock* element) {
+		bool get_by_pokemon2(char* pokemon_leftover) {
+			return string_equals_ignore_case(pokemon, pokemon_leftover);
+		}
+		return list_find(element->leftovers, get_by_pokemon2);
 	}
 
 	return list_find(to_deadlock, get_by_pokemon);

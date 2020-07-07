@@ -34,5 +34,6 @@ char* get_pokemon_he_needs(t_list* leftovers, t_list* remaining);
 void validate_deadlock(t_trainer* trainer);
 bool is_trainer_full(t_trainer* trainer);
 uint32_t dictionary_add_values(t_dictionary *self);
+void list_remove_by_value(t_list* list, char* value);
 
 #endif /* SRC_TRAINER_H_ */
