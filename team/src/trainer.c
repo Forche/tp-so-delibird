@@ -86,17 +86,6 @@ void find_candidate_to_swap(t_list* remaining, t_list* leftovers, t_trainer* tra
 	}
 }
 
-void list_remove_by_value(t_list* list, char* value) {
-	uint32_t i;
-	 for(i = 0; i< list_size(list); i++) {
-		 char* value_list = list_get(list, i);
-		 if(string_equals_ignore_case(value, value_list)) {
-			 list_remove(list, i);
-			 break;
-		 }
-	 }
-}
-
 t_to_deadlock* get_leftover_from_to_deadlock_by_pokemon(char* pokemon) {
 	bool get_by_pokemon(t_to_deadlock* element) {
 		bool get_by_pokemon2(char* pokemon_leftover) {
@@ -131,7 +120,6 @@ void validate_deadlock(t_trainer* trainer) {
 		//Y agregar demas cosas cuando termina OK.
 	} else {
 		log_info(logger, "buscando deadlock directos");
-		//ESTA MURIENDO ACA ADENTRO
 		find_candidate_to_swap(remaining, leftovers, trainer);
 		t_to_deadlock* trainer_to_deadlock = malloc(sizeof(t_to_deadlock));
 		trainer_to_deadlock->trainer = trainer;
@@ -223,18 +211,3 @@ t_trainer* obtener_trainer_mensaje(t_message* msg) {
 	return NULL;
 }
 
-
-uint32_t dictionary_add_values(t_dictionary *self) {
-	int table_index;
-	uint32_t value = 0;
-	for (table_index = 0; table_index < self->table_max_size; table_index++) {
-		t_hash_element *element = self->elements[table_index];
-
-		while (element != NULL) {
-			uint32_t* data = element->data;
-			value += (*data);
-			element = element->next;
-		}
-	}
-	return value;
-}
