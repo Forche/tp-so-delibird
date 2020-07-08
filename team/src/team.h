@@ -77,5 +77,6 @@ void handle_appeared(t_message* msg);
 void send_get(char* pokemon);
 void* build_remaining_pokemons();
 void* add_remaining(char* pokemon, uint32_t* cant_global);
+void print_pokemons(char* key, int* value);
 
 #endif /* TEAM_H_ */

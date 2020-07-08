@@ -2,7 +2,7 @@
 
 
 void print_pokemons(char* key, int* value) {
-	printf("Pokemon: %s. Cantidad: %d \n", key, *value);
+	log_info(logger, "Pokemon: %s. Cantidad: %d", key, *value);
 }
 
 int main(void) {
@@ -241,6 +241,7 @@ void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, 
 		t_dictionary* objectives = generate_dictionary_by_string(objectives_by_trainer[i], "|");
 
 		t_trainer* trainer = malloc(sizeof(t_trainer));
+		trainer->name = get_letter(i);
 		trainer->pos_x = atoi(positions[0]);
 		trainer->pos_y = atoi(positions[1]);
 		trainer->objective = objectives;

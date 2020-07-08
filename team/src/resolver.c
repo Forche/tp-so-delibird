@@ -12,6 +12,13 @@ void proceed_to_finish() {
 		exit(0);
 	} else {
 		handle_deadlock(trainers_with_deadlock);
+
+		void print_caught(t_trainer* trainer) {
+			log_info(logger, "Entrenador %s", &trainer->name);
+			dictionary_iterator(trainer->caught, print_pokemons);
+		}
+
+		list_iterate(trainers,print_caught);
 	}
 }
 

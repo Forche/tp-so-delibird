@@ -120,6 +120,7 @@ typedef struct {
 } t_pcb_trainer;
 
 typedef struct {
+       char name;
        uint32_t pos_x;
        uint32_t pos_y;
        t_dictionary* objective;
