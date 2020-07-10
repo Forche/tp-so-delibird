@@ -17,6 +17,7 @@ int main(void) {
 	remaining_pokemons = dictionary_create();
 	matched_deadlocks = list_create();
 	to_deadlock = list_create();
+	queue_deadlock = list_create();
 
 	char* POSICIONES_ENTRENADORES = config_get_string_value(config, "POSICIONES_ENTRENADORES");
 	char* POKEMON_ENTRENADORES = config_get_string_value(config, "POKEMON_ENTRENADORES");
@@ -29,14 +30,12 @@ int main(void) {
 	POKEMON_ENTRENADORES = remove_square_braquets(POKEMON_ENTRENADORES);
 	OBJETIVOS_ENTRENADORES = remove_square_braquets(OBJETIVOS_ENTRENADORES);
 	TIEMPO_RECONEXION = config_get_int_value(config, "TIEMPO_RECONEXION");
+	RETARDO_CICLO_CPU = config_get_int_value(config, "RETARDO_CICLO_CPU");
 
 
 	global_objective = build_global_objective(OBJETIVOS_ENTRENADORES);
 	caught_pokemons = build_global_objective(POKEMON_ENTRENADORES);
 	build_remaining_pokemons();
-
-	dictionary_iterator(remaining_pokemons, print_pokemons);
-
 
 	create_trainers(POSICIONES_ENTRENADORES, POKEMON_ENTRENADORES,OBJETIVOS_ENTRENADORES);
 	create_planner();
@@ -59,7 +58,7 @@ int main(void) {
 	sem_wait(&sem_all_pokemons_caught);
 
 	//No se necesitan mas los threads de suscripcion
-
+	create_thread(planning_deadlock, "planning_deadlock");
 	proceed_to_finish();
 
 	return EXIT_SUCCESS;
@@ -92,6 +91,8 @@ void handle_event(uint32_t* socket) {
 
 void handle_localized(t_message* msg) {
 	t_localized_pokemon* localized_pokemon = msg->buffer;
+	log_info(logger, "Recibido LOCALIZED_POKEMON. Pokemon: %s. Cantidad: %d.",
+			localized_pokemon->pokemon, localized_pokemon->positions_count);
 
 	pthread_mutex_lock(&mutex_remaining_pokemons);
 	uint32_t cant_catch = dictionary_get(remaining_pokemons, localized_pokemon->pokemon);
@@ -101,7 +102,7 @@ void handle_localized(t_message* msg) {
 		uint32_t pos_x;
 		uint32_t pos_y = 1;
 		t_list* localized_appeared_pokemon = list_create();
-		for(pos_x = 0; pos_x < (localized_pokemon->positions_count * 2); pos_x = pos_x + 2 ) {
+		for(pos_x = 0; pos_x < (localized_pokemon->positions_count * 2); pos_x = pos_x + 2) {
 			t_appeared_pokemon* appeared_pokemon = malloc(sizeof(t_appeared_pokemon));
 			appeared_pokemon->pokemon_len = localized_pokemon->pokemon_len;
 			appeared_pokemon->pokemon = localized_pokemon->pokemon;
@@ -123,6 +124,7 @@ void handle_localized(t_message* msg) {
 
 void handle_caught(t_message* msg) {
 	t_caught_pokemon* caught_pokemon = msg->buffer;
+	log_info(logger, "Recibido CAUGHT_POKEMON. Resultado: %d. Correlative_id: %d", caught_pokemon->result, msg->correlative_id);
 	t_trainer* trainer = obtener_trainer_mensaje(msg);
 	if (trainer != NULL) {
 		trainer->pcb_trainer->result_catch = caught_pokemon->result;
@@ -132,13 +134,14 @@ void handle_caught(t_message* msg) {
 
 void handle_appeared(t_message* msg) {
 	t_appeared_pokemon* appeared_pokemon = msg->buffer;
+	log_info(logger, "Recibido APPEARED_POKEMON. Pokemon: %s. Posicion x: %d, y: %d",
+			appeared_pokemon->pokemon, appeared_pokemon->pos_x, appeared_pokemon->pos_y);
 
 	pthread_mutex_lock(&mutex_remaining_pokemons);
-	uint32_t cant_catch = dictionary_get(remaining_pokemons, appeared_pokemon->pokemon);
+	uint32_t q_catch = dictionary_get(remaining_pokemons, appeared_pokemon->pokemon);
 	pthread_mutex_unlock(&mutex_remaining_pokemons);
 
-	if (cant_catch) {
-		log_info(logger, "Agregado para matchear %s", appeared_pokemon->pokemon);
+	if (q_catch) {
 		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
 		list_add(pokemon_received_to_catch, appeared_pokemon);
 		pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
@@ -150,6 +153,7 @@ void init_sem() {
 	sem_init(&sem_trainer_available, 0, list_size(trainers));
 	sem_init(&sem_appeared_pokemon, 0, 0);
 	sem_init(&sem_count_matches, 0, 0);
+	sem_init(&sem_count_queue_deadlocks, 0, 0);
 	pthread_mutex_init(&mutex_pokemon_received_to_catch, NULL);
 	pthread_mutex_init(&mutex_trainers, NULL);
 	pthread_mutex_init(&mutex_matches, NULL);
@@ -157,6 +161,8 @@ void init_sem() {
 	pthread_mutex_init(&mutex_remaining_pokemons, NULL);
 	pthread_mutex_init(&mutex_caught_pokemons, NULL);
 	pthread_mutex_init(&mutex_being_caught_pokemons, NULL);
+	pthread_mutex_init(&mutex_queue_deadlocks, NULL);
+	pthread_mutex_init(&mutex_planning_deadlock, NULL);
 }
 
 void send_get_pokemons() {
@@ -170,15 +176,14 @@ void get_pokemon(char* pokemon, uint32_t* cant) {
 }
 
 void send_get(char* pokemon) {
-	t_get_pokemon* get_pokemon = malloc(strlen(pokemon) + sizeof(uint32_t));
-	get_pokemon->pokemon_len = strlen(pokemon);
-	get_pokemon->pokemon = pokemon;
-	log_info(logger, pokemon);
-	t_buffer* buffer = serialize_t_get_pokemon_message(get_pokemon);
 	uint32_t broker_connection = connect_to(IP_BROKER, PUERTO_BROKER);
 	if(broker_connection == -1) {
-		log_error(logger, "Error de comunicacion con el broker, realizando operacion default");
+		log_error(logger, "Error de comunicacion con el broker, realizando operacion get default");
 	} else {
+		t_get_pokemon* get_pokemon = malloc(strlen(pokemon) + sizeof(uint32_t));
+		get_pokemon->pokemon_len = strlen(pokemon);
+		get_pokemon->pokemon = pokemon;
+		t_buffer* buffer = serialize_t_get_pokemon_message(get_pokemon);
 		send_message(broker_connection, GET_POKEMON, NULL, NULL, buffer);
 		close(broker_connection);
 	}
@@ -199,7 +204,6 @@ void* add_remaining(char* pokemon, uint32_t* cant_global) {
 		uint32_t* cant_remaining = malloc(sizeof(uint32_t));
 		*cant_remaining = (*cant_global) - (*cant_caught);
 		if(*cant_remaining < 0) {
-			log_error(logger, "Configuracion de pokemons erronea");
 			exit(-777);
 		} else if(*cant_remaining > 0) {
 			dictionary_put(remaining_pokemons, pokemon, cant_remaining);
@@ -272,8 +276,8 @@ void subscribe_to(event_code code) {
 	uint32_t broker_connection = connect_to(IP_BROKER, PUERTO_BROKER);
 	if(broker_connection == -1) {
 		log_error(logger, "No se pudo conectar al broker, reintentando en %d seg", TIEMPO_RECONEXION);
-//		sleep(TIEMPO_RECONEXION);
-//		subscribe_to(code);
+		sleep(TIEMPO_RECONEXION);
+		subscribe_to(code);
 	} else {
 		log_info(logger, "Conectada cola code %d al broker", code);
 		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
@@ -286,4 +290,39 @@ void subscribe_to(event_code code) {
 }
 
 
+void swap_pokemons(t_deadlock_matcher* deadlock_matcher) {
+	t_trainer* trainer_1 = deadlock_matcher->trainer1;
+	t_trainer* trainer_2 = deadlock_matcher->trainer2;
+	char* pokemon_1 = deadlock_matcher->pokemon1;
+	char* pokemon_2 = deadlock_matcher->pokemon2;
+	log_info(logger, "Inicio intercambio entre %s y %s, pokemons %s y %s", &trainer_1->name, &trainer_2->name, pokemon_1, pokemon_2);
+
+
+	//Esta parte se deberia sacar y el planificador decidir cual ejecutar
+	//Ver idea de carito de asignar que funcion debe ejecutar (deadlock en este caso)
+
+	move_to_position(trainer_1, trainer_2->pos_x, trainer_2->pos_y);
+	sleep(RETARDO_CICLO_CPU * 5);
+	substract_from_dictionary(trainer_1->caught, pokemon_1);
+	substract_from_dictionary(trainer_2->caught, pokemon_2);
+	add_to_dictionary(trainer_1->caught, pokemon_2);
+	add_to_dictionary(trainer_2->caught, pokemon_1);
+
+	log_info(logger, "Finalizado intercambio entre %s y %s, pokemons %s y %s", &trainer_1->name, &trainer_2->name, pokemon_1, pokemon_2);
+
+	t_list* leftovers_trainer_1 = get_dictionary_difference(trainer_1->caught, trainer_1->objective);
+
+	if(list_is_empty(leftovers_trainer_1)) {
+		trainer_1->status = EXIT;
+	}
+
+	t_list* leftovers_trainer_2 = get_dictionary_difference(trainer_2->caught, trainer_2->objective);
+
+	if(list_is_empty(leftovers_trainer_2)) {
+		trainer_2->status = EXIT;
+	}
+
+	sem_post(&sem_deadlock_directo);
+	pthread_mutex_unlock(&mutex_planning_deadlock);
+}
 

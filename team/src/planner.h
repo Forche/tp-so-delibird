@@ -12,5 +12,6 @@
 #include "team.h"
 
 void* planning_catch();
+void* planning_deadlock();
 
 #endif /* SRC_PLANNER_H_ */

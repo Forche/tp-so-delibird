@@ -33,6 +33,7 @@ t_list* matched_deadlocks;
 t_list* pokemon_received_to_catch;
 t_list* trainers;
 t_list* matches;
+t_list* queue_deadlock;
 
 pthread_mutex_t mutex_pokemon_received_to_catch;
 pthread_mutex_t mutex_trainers;
@@ -41,11 +42,15 @@ pthread_mutex_t mutex_planning;
 pthread_mutex_t mutex_remaining_pokemons;
 pthread_mutex_t mutex_caught_pokemons;
 pthread_mutex_t mutex_being_caught_pokemons;
+pthread_mutex_t mutex_queue_deadlocks;
+pthread_mutex_t mutex_planning_deadlock;
 
 sem_t sem_appeared_pokemon;
 sem_t sem_trainer_available;
 sem_t sem_count_matches;
 sem_t sem_all_pokemons_caught;
+sem_t sem_count_queue_deadlocks;
+sem_t sem_deadlock_directo;
 
 t_log* logger;
 t_config* config;
@@ -54,6 +59,7 @@ char* PUERTO_TEAM;
 char* IP_BROKER;
 char* PUERTO_BROKER;
 uint32_t TIEMPO_RECONEXION;
+uint32_t RETARDO_CICLO_CPU;
 
 t_dictionary* global_objective;
 t_dictionary* caught_pokemons;
@@ -78,5 +84,6 @@ void send_get(char* pokemon);
 void* build_remaining_pokemons();
 void* add_remaining(char* pokemon, uint32_t* cant_global);
 void print_pokemons(char* key, int* value);
+void swap_pokemons(t_deadlock_matcher* deadlock_matcher);
 
 #endif /* TEAM_H_ */

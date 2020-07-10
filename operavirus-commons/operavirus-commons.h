@@ -117,6 +117,8 @@ typedef struct {
     pthread_mutex_t sem_caught;
     status status;
     uint32_t msg_connection;
+    void (*do_next)(void*);
+    void* params_do_next;
 } t_pcb_trainer;
 
 typedef struct {

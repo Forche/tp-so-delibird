@@ -1,13 +1,21 @@
 #include "resolver.h"
 
-void swap_pokemons(t_deadlock_matcher* deadlock_matcher);
 
+void add_to_queue_deadlocks(t_deadlock_matcher* deadlock_matcher);
 void proceed_to_finish() {
-	list_iterate(matched_deadlocks, swap_pokemons);
+	sem_init(&sem_deadlock_directo, 0, 1);
+	list_iterate(matched_deadlocks, add_to_queue_deadlocks);
+	sem_wait(&sem_deadlock_directo);
 
 	t_list* trainers_with_deadlock = get_trainers_with_deadlock();
 
 	if(list_is_empty(trainers_with_deadlock)) {
+		void print_caught(t_trainer* trainer) {
+			log_info(logger, "Entrenador %s", &trainer->name);
+			dictionary_iterator(trainer->caught, print_pokemons);
+		}
+
+		list_iterate(trainers,print_caught);
 		//Termino el proceso, finaliza el team
 		exit(0);
 	} else {
@@ -31,6 +39,8 @@ bool trainer_not_exit(t_trainer* trainer) {
 }
 
 void handle_deadlock(t_list* trainers_with_deadlock) {
+
+	log_info(logger, "Inicio proceso deteccion Deadlock Indirectos");
 	t_list* direct_deadlock = list_create();
 	uint32_t i;
 
@@ -78,11 +88,14 @@ void give_me_my_pokemons_dude(t_trainer* trainer, t_trainer* trainer_to_compare,
 		deadlock_match->trainer2 = trainer_to_compare;
 		deadlock_match->pokemon2 = pokemon_i_need;
 
+		log_info(logger, "Deadlock indirecto. Entrenador %s recibe %s. Entrenador %s recibe %s, que no lo necesita",
+				&trainer->name, pokemon_i_need, &trainer_to_compare->name, pokemon_i_give);
+
 		list_remove_by_value(leftovers, pokemon_i_give);
 		list_remove_by_value(remaining, pokemon_i_need);
 		list_remove_by_value(leftovers_to_compare, pokemon_i_need);
 
-		swap_pokemons(deadlock_match);
+		add_to_queue_deadlocks(deadlock_match);
 		if(trainer->status != EXIT) {
 			give_me_my_pokemons_dude(trainer, trainer_to_compare, leftovers, remaining);
 		}
@@ -100,38 +113,13 @@ char* get_pokemon_I_need(t_list* remaining, t_list* leftovers) {
 	return list_find(leftovers, i_have_one);
 }
 
-void swap_pokemons(t_deadlock_matcher* deadlock_matcher) {
-	log_info(logger, "Intercambio entre %s y %s", deadlock_matcher->pokemon1, deadlock_matcher->pokemon2);
-
-	t_trainer* trainer_1 = deadlock_matcher->trainer1;
-	t_trainer* trainer_2 = deadlock_matcher->trainer2;
-	char* pokemon_1 = deadlock_matcher->pokemon1;
-	char* pokemon_2 = deadlock_matcher->pokemon2;
-
-	trainer_1->status = READY;
-
-	//Esta parte se deberia sacar y el planificador decidir cual ejecutar
-	//Ver idea de carito de asignar que funcion debe ejecutar (deadlock en este caso)
-
-	//Se planifica para hacer el deadlock
-	trainer_1->status = EXEC;
-	move_to_position(trainer_1, trainer_2->pos_x, trainer_2->pos_y);
-	substract_from_dictionary(trainer_1->caught, pokemon_1);
-	substract_from_dictionary(trainer_2->caught, pokemon_2);
-
-	add_to_dictionary(trainer_1->caught, pokemon_2);
-	add_to_dictionary(trainer_2->caught, pokemon_1);
-
-	t_list* leftovers_trainer_1 = get_dictionary_difference(trainer_1->caught, trainer_1->objective);
-
-	if(list_is_empty(leftovers_trainer_1)) {
-		trainer_1->status = EXIT;
-	}
-
-	t_list* leftovers_trainer_2 = get_dictionary_difference(trainer_2->caught, trainer_2->objective);
-
-	if(list_is_empty(leftovers_trainer_2)) {
-		trainer_2->status = EXIT;
-	}
+void add_to_queue_deadlocks(t_deadlock_matcher* deadlock_matcher) {
+	//TODO VER EL CASO QUE UN ENTRENADOR TENGA DOS MATCHES DIRECTOS.
+	deadlock_matcher->trainer1->status = READY;
+	pthread_mutex_lock(&mutex_queue_deadlocks);
+	list_add(queue_deadlock, deadlock_matcher);
+	pthread_mutex_unlock(&mutex_queue_deadlocks);
+	sem_wait(&sem_deadlock_directo);
+	sem_post(&sem_count_queue_deadlocks);
 }
 

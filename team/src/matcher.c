@@ -5,15 +5,11 @@ void* match_pokemon_with_trainer() {
 		sem_wait(&sem_trainer_available);
 		sem_wait(&sem_appeared_pokemon);
 
-		log_info(logger, "Disponible para matchear");
-
 		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
 		pthread_mutex_lock(&mutex_trainers);
 		t_match_pokemon_trainer* match_pokemon_trainer = match_closest_trainer();
 		pthread_mutex_unlock(&mutex_trainers);
 		pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
-
-		log_info(logger, "matcheado pokemon %s", match_pokemon_trainer->closest_pokemon->pokemon);
 
 		match_pokemon_trainer->closest_trainer->status = READY;
 
