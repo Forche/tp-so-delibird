@@ -31,6 +31,10 @@ int main(void) {
 	OBJETIVOS_ENTRENADORES = remove_square_braquets(OBJETIVOS_ENTRENADORES);
 	TIEMPO_RECONEXION = config_get_int_value(config, "TIEMPO_RECONEXION");
 	RETARDO_CICLO_CPU = config_get_int_value(config, "RETARDO_CICLO_CPU");
+	ESTIMACION_INICIAL = config_get_double_value(config, "ESTIMACION_INICIAL");
+	ALPHA = config_get_double_value(config, "ALPHA");
+	ALGORITMO_PLANIFICACION = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
+	QUANTUM = config_get_int_value(config, "QUANTUM");
 
 
 	global_objective = build_global_objective(OBJETIVOS_ENTRENADORES);
@@ -251,6 +255,8 @@ void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, 
 		trainer->objective = objectives;
 		trainer->caught = pokemons;
 		trainer->status = NEW;
+		trainer->estimacion_anterior = ESTIMACION_INICIAL;
+		trainer->real_anterior = ESTIMACION_INICIAL;
 		trainer->pcb_trainer = malloc(sizeof(t_pcb_trainer));
 
 
@@ -290,16 +296,13 @@ void subscribe_to(event_code code) {
 }
 
 
+//SACAR A TRAINER O RESOLVER DEADLOCK
 void swap_pokemons(t_deadlock_matcher* deadlock_matcher) {
 	t_trainer* trainer_1 = deadlock_matcher->trainer1;
 	t_trainer* trainer_2 = deadlock_matcher->trainer2;
 	char* pokemon_1 = deadlock_matcher->pokemon1;
 	char* pokemon_2 = deadlock_matcher->pokemon2;
 	log_info(logger, "Inicio intercambio entre %s y %s, pokemons %s y %s", &trainer_1->name, &trainer_2->name, pokemon_1, pokemon_2);
-
-
-	//Esta parte se deberia sacar y el planificador decidir cual ejecutar
-	//Ver idea de carito de asignar que funcion debe ejecutar (deadlock en este caso)
 
 	move_to_position(trainer_1, trainer_2->pos_x, trainer_2->pos_y);
 	sleep(RETARDO_CICLO_CPU * 5);
@@ -314,13 +317,18 @@ void swap_pokemons(t_deadlock_matcher* deadlock_matcher) {
 
 	if(list_is_empty(leftovers_trainer_1)) {
 		trainer_1->status = EXIT;
+	} else {
+		trainer_1->status = BLOCK;
 	}
 
 	t_list* leftovers_trainer_2 = get_dictionary_difference(trainer_2->caught, trainer_2->objective);
 
 	if(list_is_empty(leftovers_trainer_2)) {
 		trainer_2->status = EXIT;
+	} else {
+		trainer_2->status = BLOCK;
 	}
+
 
 	sem_post(&sem_deadlock_directo);
 	pthread_mutex_unlock(&mutex_planning_deadlock);

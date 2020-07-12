@@ -60,6 +60,10 @@ char* IP_BROKER;
 char* PUERTO_BROKER;
 uint32_t TIEMPO_RECONEXION;
 uint32_t RETARDO_CICLO_CPU;
+double ALPHA;
+double ESTIMACION_INICIAL;
+char* ALGORITMO_PLANIFICACION;
+uint32_t QUANTUM;
 
 t_dictionary* global_objective;
 t_dictionary* caught_pokemons;

@@ -114,8 +114,8 @@ char* get_pokemon_I_need(t_list* remaining, t_list* leftovers) {
 }
 
 void add_to_queue_deadlocks(t_deadlock_matcher* deadlock_matcher) {
-	//TODO VER EL CASO QUE UN ENTRENADOR TENGA DOS MATCHES DIRECTOS.
 	deadlock_matcher->trainer1->status = READY;
+	deadlock_matcher->trainer2->status = SWAPPING;
 	pthread_mutex_lock(&mutex_queue_deadlocks);
 	list_add(queue_deadlock, deadlock_matcher);
 	pthread_mutex_unlock(&mutex_queue_deadlocks);

@@ -108,6 +108,7 @@ typedef enum
 	BLOCK = 4,
 	EXIT = 5,
 	FULL = 6,
+	SWAPPING = 7,
 } status;
 
 typedef struct {
@@ -131,6 +132,10 @@ typedef struct {
        pthread_t thread;
        pthread_mutex_t sem;
        t_pcb_trainer* pcb_trainer;
+       bool sjf_calculado;
+       double estimacion_actual;
+       double estimacion_anterior;
+       int real_anterior;
 } t_trainer;
 
 uint32_t connect_to(char* ip, char* port);
