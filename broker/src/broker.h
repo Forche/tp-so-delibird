@@ -15,6 +15,8 @@
 #include<pthread.h>
 #include<signal.h>
 #include<commons/config.h>
+#include<signal.h>
+#include<time.h>
 
 typedef struct
 {
@@ -65,6 +67,7 @@ char* ALGORITMO_PARTICION_LIBRE;
 void* memory;
 t_list* memory_partitions;
 pthread_mutex_t mutex_message_id;
+t_log* logger;
 
 void server_init(void);
 void memory_init();
@@ -83,5 +86,9 @@ t_memory_partition* get_free_partition_ff(uint32_t size);
 t_memory_partition* get_free_partition_lru(uint32_t size);
 
 uint32_t get_message_id();
+
+static void sig_usr(int signo);
+void  err_sys(char* msg);
+void dump_memory();
 
 #endif

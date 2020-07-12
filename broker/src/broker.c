@@ -1,6 +1,9 @@
 #include "broker.h"
 
 int main(void) {
+	if (signal(SIGUSR1, sig_usr) == SIG_ERR){
+		err_sys("Can't catch SIGUSR1");
+	}
 
 	pthread_mutex_init(&mutex_message_id, NULL);
 
@@ -90,11 +93,6 @@ void queues_init() {
 
 	queue_localized_pokemon.messages = list_create();
 	queue_localized_pokemon.subscriptors = list_create();
-}
-
-t_log* iniciar_logger(void) {
-	return log_create("broker.log", "broker", true,
-			LOG_LEVEL_INFO);
 }
 
 void wait_for_client(uint32_t sv_socket) {
@@ -225,7 +223,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	uint32_t i;
 	
 	switch (event_code) {
-	case NEW_POKEMON:
+	case NEW_POKEMON: ;
 		msg->buffer->payload = deserialize_new_pokemon_message(client_socket,
 				&size);
 		msg->buffer->size = size;
@@ -243,7 +241,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		store_message(msg, queue_new_pokemon, queue_new_pokemon.subscriptors);
 
 		break;
-	case APPEARED_POKEMON:;
+	case APPEARED_POKEMON: ;
 		t_appeared_pokemon* appeared_pokemon = deserialize_appeared_pokemon_message(client_socket, &size);
 		msg->buffer = serialize_t_appeared_pokemon_message(appeared_pokemon);
 
@@ -259,7 +257,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		//Add message to memory
 		store_message(msg, queue_appeared_pokemon, queue_appeared_pokemon.subscriptors);
 		break;
-	case CATCH_POKEMON:
+	case CATCH_POKEMON: ;
 		msg->buffer->payload = deserialize_catch_pokemon_message(client_socket,
 				&size);
 		msg->buffer->size = size;
@@ -274,7 +272,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		//Add message to memory
 		store_message(msg, queue_catch_pokemon, queue_catch_pokemon.subscriptors);
 		break;
-	case CAUGHT_POKEMON:;
+	case CAUGHT_POKEMON: ;
 		t_caught_pokemon* caught_pokemon = deserialize_caught_pokemon_message(client_socket,
 				&size);
 		msg->buffer = serialize_t_caught_pokemon_message(appeared_pokemon);
@@ -291,7 +289,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		//Add message to memory
 		store_message(msg, queue_caught_pokemon, queue_caught_pokemon.subscriptors);
 		break;
-	case GET_POKEMON:
+	case GET_POKEMON: ;
 		msg->buffer->payload = deserialize_get_pokemon_message(client_socket,
 				&size);
 		msg->buffer->size = size;
@@ -306,7 +304,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		//Add message to memory
 		store_message(msg, queue_get_pokemon, queue_get_pokemon.subscriptors);
 		break;
-	case LOCALIZED_POKEMON:
+	case LOCALIZED_POKEMON: ;
 		msg->buffer->payload = deserialize_localized_pokemon_message(
 				client_socket, &size);
 		msg->buffer->size = size;
@@ -320,7 +318,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		//Add message to memory
 		store_message(msg, queue_localized_pokemon, queue_localized_pokemon.subscriptors);
 		break;
-	case NEW_SUBSCRIPTOR:
+	case NEW_SUBSCRIPTOR: ;
 		process_new_subscription(client_socket);
 		break;
 	default:
@@ -456,4 +454,47 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 		receiver->received = 1;
 		list_add(message->receivers, receiver);
 	}
+}
+
+static void sig_usr(int signo){
+	if (signo == SIGUSR1){
+		dump_memory();
+	} else{
+		err_sys("received unexpected signal");
+	}
+	return;
+}
+
+void  err_sys(char* msg) {
+  printf("%s \n", msg);
+  exit(-1);
+}
+
+void dump_memory(){
+	 time_t rawtime;
+	 struct tm * timeinfo;
+
+	 time (&rawtime);
+	 timeinfo = localtime (&rawtime);
+
+	FILE* dump_file;
+	dump_file = fopen("dump.txt","w");
+	if(dump_file == NULL){
+		logger = logger_init();
+		log_info(logger,"Error al crear el dump");
+		log_destroy(logger);
+		exit(1);
+	}
+
+		fprintf(dump_file,"Dump: %d/%d/%d %d:%d:%d\n",timeinfo->tm_mday, timeinfo->tm_mon + 1, timeinfo->tm_year + 1900, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+	int i;
+	for(i=0;i<list_size(memory_partitions);i++){
+		uint32_t begin = ((t_memory_partition*)(list_get(memory_partitions,i)))->begin;
+		uint32_t content_size = ((t_memory_partition*)(list_get(memory_partitions,i)))->content_size;
+		uint32_t id = ((t_memory_partition*)(list_get(memory_partitions,i)))->id;
+		uint32_t lru_time = ((t_memory_partition*)(list_get(memory_partitions,i)))->lru_time;
+		uint32_t status = ((t_memory_partition*)(list_get(memory_partitions,i)))->status;
+		fprintf(dump_file,"Particion %d: %X - %X.\t [%d]\t Size:%d b\t LRU:%d\t Cola:%d(FALTA EL TIPO DE COLA)\t ID:%d\n", i, begin, (begin+content_size), status, content_size, lru_time, content_size, id);
+	 }
+	fclose(dump_file);
 }
