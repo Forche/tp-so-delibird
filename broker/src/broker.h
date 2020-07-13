@@ -53,6 +53,7 @@ typedef struct {
 
 pthread_t thread;
 uint32_t message_count;
+uint32_t partition_count;
 t_list* answered_messages;
 t_list* threads;
 queue queue_new_pokemon;
@@ -83,7 +84,8 @@ void store_message(t_message* message, queue queue, t_list* receivers);
 uint32_t store_payload(void* payload, uint32_t size);
 t_memory_partition* get_free_partition(uint32_t size);
 t_memory_partition* get_free_partition_ff(uint32_t size);
-t_memory_partition* get_free_partition_lru(uint32_t size);
+t_memory_partition* get_free_partition_bf(uint32_t size);
+void perform_compaction();
 
 uint32_t get_message_id();
 

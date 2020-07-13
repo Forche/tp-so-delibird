@@ -16,6 +16,7 @@ void server_init(void) {
 	answered_messages = list_create(); // Answered messages list
 	threads = list_create(); // Subscriptor threads list
 	message_count = 0;
+	partition_count = 0;
 	queues_init();
 	int sv_socket;
 	t_config* config = config_create("broker.config");
@@ -61,7 +62,7 @@ void memory_init() {
 	memory_partitions = list_create();
 
 	t_memory_partition* first_memory_partition = malloc(sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(partition_status));
-	first_memory_partition->id = 0;
+	first_memory_partition->id = get_partition_id();
 	first_memory_partition->begin = 0;
 	first_memory_partition->content_size = TAMANO_MEMORIA;
 	first_memory_partition->lru_time = 0; // We'll use this later for compaction
@@ -73,6 +74,11 @@ void memory_init() {
 uint32_t get_message_id() {
 	message_count++;
 	return message_count;
+}
+
+uint32_t get_partition_id() {
+	partition_count++;
+	return partition_count;
 }
 
 void queues_init() {
@@ -162,12 +168,10 @@ uint32_t store_payload(void* payload, uint32_t size) {
 
 		new_partition->status = OCCUPED;
 		new_partition->lru_time = 0;
-		new_partition->id = list_size(memory_partitions);
+		new_partition->id = get_partition_id();
 		list_add(memory_partitions, new_partition);
 		return new_partition->id;
 	}
-
-	// If id==1, create new partition, store data into it and add it to partitions list
 
 	return -1;
 }
@@ -175,12 +179,72 @@ uint32_t store_payload(void* payload, uint32_t size) {
 
 
 t_memory_partition* get_free_partition(uint32_t size) {
+	t_memory_partition* partition_to_return;
+
 	if (string_equals_ignore_case(ALGORITMO_PARTICION_LIBRE, "FF"))
 	{
-		return get_free_partition_ff(size);
+		partition_to_return = get_free_partition_ff(size);
 	} else {
-		return get_free_partition_lru(size);
+		partition_to_return = get_free_partition_bf(size);
 	}
+
+	if (partition_to_return->id == -1)
+	{
+		perform_compaction();
+
+		if (string_equals_ignore_case(ALGORITMO_PARTICION_LIBRE, "FF"))
+		{
+			partition_to_return = get_free_partition_ff(size);
+		} else {
+			partition_to_return = get_free_partition_bf(size);
+		}
+	}
+
+	return partition_to_return;
+}
+
+void perform_compaction() {
+	uint32_t i = list_size(memory_partitions);
+	t_list* occuped_partitions = list_create();
+	t_list* new_partitions = list_create();
+
+	while (i >= 0) {
+		t_memory_partition* partition = list_get(memory_partitions, i);
+		if (partition->status == OCCUPED)
+		{
+			list_add(occuped_partitions, partition);
+		}
+
+		i--;
+	}
+
+	// Now that we have the list of occuped partitions, we proceed to re-write the partitions into the void* variable
+	int offset = 0;
+	void* compacted_memory = malloc(TAMANO_MEMORIA);
+
+	for (uint32_t i = 0; i < list_size(occuped_partitions); i++)
+	{
+		t_memory_partition* partition = list_get(occuped_partitions, i);
+		memcpy(compacted_memory + offset, memory + partition->begin, partition->content_size);
+		partition->begin = compacted_memory + offset;
+		offset += partition->content_size;
+		list_add(new_partitions, partition);
+	}
+
+	t_memory_partition* free_memory_partition = malloc(sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(partition_status));
+	free_memory_partition->id = get_partition_id();
+	free_memory_partition->begin = compacted_memory + offset;
+	free_memory_partition->content_size = TAMANO_MEMORIA - offset;
+	free_memory_partition->lru_time = 0; // We'll use this later for compaction
+	free_memory_partition->status = FREE;
+
+	list_add(new_partitions, free_memory_partition);
+
+	free(occuped_partitions);
+	free(memory_partitions);
+	memory_partitions = new_partitions;
+	free(memory);
+	memory = compacted_memory;
 }
 
 t_memory_partition* get_free_partition_ff(uint32_t size) {
@@ -207,11 +271,35 @@ t_memory_partition* get_free_partition_ff(uint32_t size) {
 	return partition_to_return;
 }
 
-t_memory_partition* get_free_partition_lru(uint32_t size) {
-	t_memory_partition* partition_to_return = malloc(sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(partition_status));
-	partition_to_return->id = -1;
+t_memory_partition* get_free_partition_bf(uint32_t size) {
+	uint32_t i = 0;
+	t_memory_partition* best_partition;
 
-	return partition_to_return;
+	if (size <= TAMANO_MINIMO_PARTICION)
+	{
+		size = TAMANO_MINIMO_PARTICION;
+	}
+
+	while (i < list_size(memory_partitions)) {
+		t_memory_partition* partition = list_get(memory_partitions, i);
+		if (best_partition == NULL && partition->status == FREE && partition->content_size >= size)
+		{
+			best_partition = partition;
+		} else if (partition->status == FREE && partition->content_size >= size && best_partition->content_size > partition)
+		{
+			best_partition = partition;
+		}
+
+		i++;
+	}
+
+	if (best_partition == NULL)
+	{
+		best_partition = malloc(sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(partition_status));
+		best_partition->id = -1;
+	}
+
+	return best_partition;
 }
 
 void process_request(uint32_t event_code, uint32_t client_socket) {
@@ -404,8 +492,6 @@ void process_new_subscription(uint32_t socket) {
 }
 
 void process_subscriptor(uint32_t* socket, t_subscription_petition* subscription_petition, queue queue) {
-	//TODO: Add logic to send all messages in the queue of the new subscription
-
 	send_all_messages(socket, subscription_petition, queue);
 
 	//TODO: Add logic to subscribe for 'duration' seconds.
@@ -440,7 +526,7 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 		} else {
 			t_memory_partition* partition = (t_memory_partition*) list_get(memory_partitions, j);
 			void* content = malloc(partition->content_size);
-			memcpy(content, memory + partition->begin, sizeof(partition->content_size));
+			memcpy(content, memory + partition->begin, partition->content_size);
 
 			t_buffer* buffer = malloc(sizeof(uint32_t) + partition->content_size);
 			buffer->size = partition->content_size;
@@ -475,7 +561,7 @@ void dump_memory(){
 	 struct tm * timeinfo;
 
 	 time (&rawtime);
-	 timeinfo = localtime (&rawtime);
+	 timeinfo = localtime(&rawtime);
 
 	FILE* dump_file;
 	dump_file = fopen("dump.txt","w");
