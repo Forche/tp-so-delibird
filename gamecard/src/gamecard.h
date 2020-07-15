@@ -70,6 +70,9 @@ char* read_blocks_content(char* path_pokemon);
 t_list* get_positions_from_buffer(char* buffer);
 t_position* create_position(int x, int y, int pokemon_quantity);
 
+void open_bitmap();
+void write_positions_on_files(t_list* pokemon_positions, char* path_new_file);
+
 void shutdown_gamecard();
 
 #endif /* GAMECARD_H_ */

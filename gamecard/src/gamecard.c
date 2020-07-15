@@ -15,6 +15,7 @@ int main(void) {
 
 	read_config();
 	init_loggers();
+	open_bitmap();
 
 	sem_t sem_gameCard_up;
 	sem_init(&sem_gameCard_up, 0, 0);
@@ -62,12 +63,12 @@ void create_subscription_threads() {
 	pthread_t thread_get = create_thread_with_param(subscribe_to, GET_POKEMON, "subscribe GET_POKEMON");
 }
 
-void subscribe_to(event_code code) {
-	t_subscription_petition* new_subscription = build_new_subscription(code, IP_GAMECARD, "Game Card", atoi(PUERTO_GAMECARD));
-	make_subscription_to(new_subscription, IP_BROKER, PUERTO_BROKER, TIEMPO_DE_REINTENTO_CONEXION, logger, handle_event);
-}
+//void subscribe_to(event_code code) {
+//	t_subscription_petition* new_subscription = build_new_subscription(code, IP_GAMECARD, "Game Card", atoi(PUERTO_GAMECARD));
+//	make_subscription_to(new_subscription, IP_BROKER, PUERTO_BROKER, TIEMPO_DE_REINTENTO_CONEXION, logger, handle_event);
+//}
 
-/*void subscribe_to(event_code code) {
+void subscribe_to(event_code code) {
 	t_subscription_petition* new_subscription = build_new_subscription(code, IP_GAMECARD, "Game Card", atoi(PUERTO_GAMECARD));
 
 	t_buffer* buffer = serialize_t_new_subscriptor_message(new_subscription);
@@ -86,7 +87,7 @@ void subscribe_to(event_code code) {
 		}
 	}
 
-}*/
+}
 
 
 void create_listener_thread() {
@@ -151,7 +152,130 @@ void add_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon){
 		list_add(pokemon_positions, new_position);
 	}
 
+	write_positions_on_files(pokemon_positions, path_pokemon);
 
+	//crear string con datos nuevos
+	//reescribir bloques con datos nuevos
+	//crear estructura para appeard
+	//enviar appeard al broker
+}
+
+
+void write_positions_on_files(t_list* pokemon_positions, char* path_new_file){
+	char* array_positions = string_new();
+
+	while(!list_is_empty(pokemon_positions)){
+		t_position* position = list_remove(pokemon_positions, 0);
+		char* string_x = string_from_format("%d-", position->pos_x);
+		char* string_y = string_from_format("%d=", position->pos_y);
+		char* string_count = string_from_format("%d\n", position->count);
+		string_append(&array_positions, string_x);
+		string_append(&array_positions, string_y);
+		string_append(&array_positions, string_count);
+
+		free(string_x);
+		free(string_y);
+		free(string_count);
+		destroy_position(position);
+	}
+
+	int size_array_positions = string_length(array_positions);
+	t_list* writed_blocks = write_blocks_and_metadata(size_array_positions, array_positions, path_new_file);
+	free(array_positions);
+	log_info(logger, "Se genera el archivo %s con cantidad de bloques: %d y size= %d", path_new_file, list_size(writed_blocks), size_array_positions);
+	//crear_archivo(path_archivo_nuevo, size_registros, bloques_ocupados);
+	list_destroy(writed_blocks);
+}
+
+void destroy_position(t_position* position){
+	free(position);
+}
+
+t_list* pokemon_blocks(int blocks_needed, char* metadata_path){
+	t_config* metadata = config_create(metadata_path);
+	char** actual_blocks = config_get_array_value(metadata, "BLOCKS");
+	int quantity_actual_blocks = 0;
+	t_list* blocks_as_int =  list_create();
+
+	while(actual_blocks[quantity_actual_blocks]!=NULL){
+		list_add(blocks_as_int, atoi(actual_blocks[quantity_actual_blocks]));
+		quantity_actual_blocks += 1;
+	}
+
+
+	int blocks_are_enough = blocks_needed - quantity_actual_blocks;
+	while(!blocks_are_enough){
+		int new_block = get_available_block();
+		blocks_are_enough -= 1;
+		actual_blocks[++quantity_actual_blocks] = string_from_format("%d", new_block);
+		list_add(blocks_as_int, new_block);
+	}
+
+	dictionary_put(metadata->properties, "BLOCKS", actual_blocks);
+	config_save(metadata);
+	config_destroy(metadata);
+
+	return blocks_as_int;
+}
+
+void write_blocks_and_metadata(int size_array_positions, char* array_positions, char* metadata_path){
+	int quantity_of_blocks = my_ceil(size_array_positions, block_size);
+	log_info(logger, "Cantidad de blocks a ocupar: [%d]", quantity_of_blocks);
+	t_list* blocks = pokemon_blocks(quantity_of_blocks, metadata_path);
+
+	for(int i=0; i < quantity_of_blocks; i++){
+
+		int first_byte = i*block_size;
+		int size_positions_to_write = size_of_content_to_write(i+1, quantity_of_blocks, size_array_positions);
+
+		char* data = string_substring(array_positions, first_byte, size_positions_to_write);
+		int block = list_get(blocks, i);
+
+		log_info(logger, "Se escriben [%d] bytes de registros, en el bloque: [%d]", size_positions_to_write, block);
+
+		write_positions_on_block(block, data);
+		log_info(logger, "Bloque escrito satisfactoriamente");
+		free(data);
+	}
+}
+
+int my_ceil(int a, int b){
+	int resto = a % b;
+	int retorno = a/b;
+
+	return resto==0 ? retorno : (retorno+1);
+}
+
+
+int size_of_content_to_write(int index_next_block, int quantity_total_blocks, int total_content_size){
+	int size_of_content = block_size;
+
+	if(index_next_block == quantity_total_blocks){
+		size_of_content = total_content_size - ((quantity_total_blocks-1) * block_size);
+	}
+	return size_of_content;
+}
+
+
+//int tamanio_bloque(int bloque_por_escribir, int bloques_totales, int size_datos){
+//	int tamanio = block_size;
+//
+//	if(bloque_por_escribir == bloques_totales){
+//		tamanio = size_datos - ((bloques_totales-1) * block_size);
+//	}
+//	return tamanio;
+//}
+
+
+void write_positions_on_block(int block, char* data){
+
+	char* path_block = string_from_format("%s/Bloques/%i.bin", PUNTO_MONTAJE_TALLGRASS, block);
+	FILE* file = fopen(path_block, "wb+");
+
+	fwrite(data, sizeof(data[0]), string_length(data), file);
+
+	fclose(file);
+	free(path_block);
 }
 
 char* read_blocks_content(char* path_pokemon){
