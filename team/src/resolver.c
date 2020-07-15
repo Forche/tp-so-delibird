@@ -11,7 +11,7 @@ void proceed_to_finish() {
 
 	if(list_is_empty(trainers_with_deadlock)) {
 		void print_caught(t_trainer* trainer) {
-			log_info(logger, "Entrenador %s", &trainer->name);
+			log_info(logger, "Entrenador %d", trainer->name);
 			dictionary_iterator(trainer->caught, print_pokemons);
 		}
 
@@ -22,7 +22,7 @@ void proceed_to_finish() {
 		handle_deadlock(trainers_with_deadlock);
 
 		void print_caught(t_trainer* trainer) {
-			log_info(logger, "Entrenador %s", &trainer->name);
+			log_info(logger, "Entrenador %d", trainer->name);
 			dictionary_iterator(trainer->caught, print_pokemons);
 		}
 
@@ -88,8 +88,8 @@ void give_me_my_pokemons_dude(t_trainer* trainer, t_trainer* trainer_to_compare,
 		deadlock_match->trainer2 = trainer_to_compare;
 		deadlock_match->pokemon2 = pokemon_i_need;
 
-		log_info(logger, "Deadlock indirecto. Entrenador %s recibe %s. Entrenador %s recibe %s, que no lo necesita",
-				&trainer->name, pokemon_i_need, &trainer_to_compare->name, pokemon_i_give);
+		log_info(logger, "Deadlock indirecto. Entrenador %d recibe %s. Entrenador %d recibe %s, que no lo necesita",
+				trainer->name, pokemon_i_need, trainer_to_compare->name, pokemon_i_give);
 
 		list_remove_by_value(leftovers, pokemon_i_give);
 		list_remove_by_value(remaining, pokemon_i_need);

@@ -54,6 +54,24 @@ t_list* get_dictionary_difference(t_dictionary* a, t_dictionary* b) {
 	return difference;
 }
 
+t_dictionary* get_dictionary_if_has_value(t_list* list, uint32_t index) {
+	if(index < list_size(list)) {
+		char* value = list_get(list, index);
+		return generate_dictionary_by_string(value, "|");
+	} else {
+		return dictionary_create();
+	}
+}
+
+t_list* generate_list(char** array_of_char) {
+	t_list* list = list_create();
+	uint32_t i;
+	for(i = 0; array_of_char[i] != '\0'; i++) {
+		list_add(list, array_of_char[i]);
+	}
+	return list;
+}
+
 t_dictionary* generate_dictionary_by_string(char* text, char* delimiter) {
 	char** splited_text = string_split(text, delimiter);
 	t_dictionary* dictionary = dictionary_create();
@@ -143,12 +161,4 @@ void* get_from_dictionary_with_mutex(pthread_mutex_t mutex, t_dictionary* dictio
 	uint32_t value = dictionary_get(dictionary, key);
 	pthread_mutex_unlock(&mutex);
 	return value;
-}
-
-char abcdario[26] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-char get_letter(int pos) {
-	if(pos > 26) {
-		exit(1000);
-	}
-	return abcdario[pos];
 }

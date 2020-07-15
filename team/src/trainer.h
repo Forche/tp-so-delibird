@@ -37,5 +37,6 @@ uint32_t dictionary_add_values(t_dictionary *self);
 void list_remove_by_value(t_list* list, char* value);
 void move_one_step(uint32_t* pos1, uint32_t pos2);
 void trainer_catch_pokemon(t_trainer* trainer);
+void trainer_must_go_on(t_trainer* trainer);
 
 #endif /* SRC_TRAINER_H_ */

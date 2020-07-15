@@ -29,7 +29,7 @@ void* planning_catch() {
 		t_appeared_pokemon* pokemon = match_pokemon_trainer->closest_pokemon;
 		trainer->pcb_trainer->pokemon_to_catch = pokemon;
 		trainer->status = EXEC;
-		log_info(logger, "Planificando por FIFO, entrenador %s en x: %d y: %d, a atrapar pokemon %s en x: %d y: %d", &trainer->name, trainer->pos_x,
+		log_info(logger, "Planificando por %s, entrenador %d en x: %d y: %d, a atrapar pokemon %s en x: %d y: %d", ALGORITMO_PLANIFICACION, trainer->name, trainer->pos_x,
 				trainer->pos_y, pokemon->pokemon, pokemon->pos_x, pokemon->pos_y);
 		pthread_mutex_unlock(&match_pokemon_trainer->closest_trainer->sem);
 	}
@@ -65,15 +65,22 @@ t_match_pokemon_trainer* planner_sjf() {
 	uint32_t i;
 	bool  is_first = true;
 	double aux;
+	uint32_t aux_position;
 	t_match_pokemon_trainer* to_exec;
 	for(i = 0; i < list_size(matches); i++) {
 		t_match_pokemon_trainer* match_pokemon_trainer = list_get(matches, i);
 		double estimacion = calculate_estimacion_actual_rafaga(match_pokemon_trainer->closest_trainer);
+		log_info(logger, "Estimacion actual para entrenador %d: %f", match_pokemon_trainer->closest_trainer->name, estimacion);
 		if(is_first || estimacion < aux) {
 			is_first = false;
 			aux = estimacion;
 			to_exec = match_pokemon_trainer;
+			aux_position = i;
 		}
+	}
+	list_remove(matches, aux_position);
+	if(to_exec->closest_trainer->pcb_trainer->status == EXEC) {
+		to_exec->closest_trainer->estimacion_anterior = to_exec->closest_trainer->estimacion_actual;
 	}
 	return to_exec;
 }
@@ -82,8 +89,9 @@ double calculate_estimacion_actual_rafaga(t_trainer* trainer) {
 	if(trainer->sjf_calculado) {
 		return trainer->estimacion_actual;
 	} else {
-		double estimacion = ALPHA * trainer->real_anterior + (1 - ALPHA) * trainer->estimacion_anterior;
+		double estimacion = ALPHA * trainer->real_anterior + (1.0 - ALPHA) * trainer->estimacion_anterior;
 		trainer->estimacion_actual =  estimacion;
+		trainer->sjf_calculado = true;
 		return estimacion;
 	}
 }

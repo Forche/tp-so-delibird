@@ -21,5 +21,7 @@ void* get_from_dictionary_with_mutex(pthread_mutex_t mutex, t_dictionary* dictio
 void list_remove_by_value(t_list* list, char* value);
 t_list* get_dictionary_difference(t_dictionary* a, t_dictionary* b);
 uint32_t dictionary_add_values(t_dictionary *self);
+t_dictionary* get_dictionary_if_has_value(t_list* list, uint32_t index);
+t_list* generate_list(char** array_of_char);
 
 #endif /* SRC_UTIL_H_ */

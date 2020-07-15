@@ -8,10 +8,12 @@ void print_pokemons(char* key, int* value) {
 int main(void) {
 
 	config = config_create("team.config");
+	char* LOG_FILE = config_get_string_value(config, "LOG_FILE");
+
 	pokemon_received_to_catch = list_create();
 	trainers = list_create();
 	matches = list_create();
-	logger = log_create("pruebitaTeam.log", "team", true, LOG_LEVEL_INFO);
+	logger = log_create(LOG_FILE, "team", true, LOG_LEVEL_INFO);
 	set_logger_thread(logger);
 	being_caught_pokemons = dictionary_create();
 	remaining_pokemons = dictionary_create();
@@ -240,16 +242,19 @@ void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, 
 	char** pokemons_by_trainer = string_split(POKEMON_ENTRENADORES, ",");
 	char** objectives_by_trainer = string_split(OBJETIVOS_ENTRENADORES, ",");
 
+	t_list* list_pokemons_by_trainer = generate_list(pokemons_by_trainer);
+	t_list* list_objectives_by_trainer = generate_list(objectives_by_trainer);
+
 	uint32_t i = 0;
 	while(positions_by_trianer[i] != '\0') {
 		pthread_t thread;
 
 		char** positions = string_split(positions_by_trianer[i], "|");
-		t_dictionary* pokemons = generate_dictionary_by_string(pokemons_by_trainer[i], "|");
-		t_dictionary* objectives = generate_dictionary_by_string(objectives_by_trainer[i], "|");
+		t_dictionary* pokemons = get_dictionary_if_has_value(list_pokemons_by_trainer, i);
+		t_dictionary* objectives = get_dictionary_if_has_value(list_objectives_by_trainer, i);
 
 		t_trainer* trainer = malloc(sizeof(t_trainer));
-		trainer->name = get_letter(i);
+		trainer->name = i;
 		trainer->pos_x = atoi(positions[0]);
 		trainer->pos_y = atoi(positions[1]);
 		trainer->objective = objectives;
@@ -282,8 +287,8 @@ void subscribe_to(event_code code) {
 	uint32_t broker_connection = connect_to(IP_BROKER, PUERTO_BROKER);
 	if(broker_connection == -1) {
 		log_error(logger, "No se pudo conectar al broker, reintentando en %d seg", TIEMPO_RECONEXION);
-		sleep(TIEMPO_RECONEXION);
-		subscribe_to(code);
+//		sleep(TIEMPO_RECONEXION);
+//		subscribe_to(code);
 	} else {
 		log_info(logger, "Conectada cola code %d al broker", code);
 		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
@@ -302,7 +307,7 @@ void swap_pokemons(t_deadlock_matcher* deadlock_matcher) {
 	t_trainer* trainer_2 = deadlock_matcher->trainer2;
 	char* pokemon_1 = deadlock_matcher->pokemon1;
 	char* pokemon_2 = deadlock_matcher->pokemon2;
-	log_info(logger, "Inicio intercambio entre %s y %s, pokemons %s y %s", &trainer_1->name, &trainer_2->name, pokemon_1, pokemon_2);
+	log_info(logger, "Inicio intercambio entre %d y %d, pokemons %s y %s", trainer_1->name, trainer_2->name, pokemon_1, pokemon_2);
 
 	move_to_position(trainer_1, trainer_2->pos_x, trainer_2->pos_y);
 	sleep(RETARDO_CICLO_CPU * 5);
@@ -311,7 +316,7 @@ void swap_pokemons(t_deadlock_matcher* deadlock_matcher) {
 	add_to_dictionary(trainer_1->caught, pokemon_2);
 	add_to_dictionary(trainer_2->caught, pokemon_1);
 
-	log_info(logger, "Finalizado intercambio entre %s y %s, pokemons %s y %s", &trainer_1->name, &trainer_2->name, pokemon_1, pokemon_2);
+	log_info(logger, "Finalizado intercambio entre %d y %d, pokemons %s y %s", trainer_1->name, trainer_2->name, pokemon_1, pokemon_2);
 
 	t_list* leftovers_trainer_1 = get_dictionary_difference(trainer_1->caught, trainer_1->objective);
 

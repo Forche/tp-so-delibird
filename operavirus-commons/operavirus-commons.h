@@ -123,7 +123,7 @@ typedef struct {
 } t_pcb_trainer;
 
 typedef struct {
-       char name;
+       int name;
        uint32_t pos_x;
        uint32_t pos_y;
        t_dictionary* objective;
@@ -135,7 +135,7 @@ typedef struct {
        bool sjf_calculado;
        double estimacion_actual;
        double estimacion_anterior;
-       int real_anterior;
+       double real_anterior;
 } t_trainer;
 
 uint32_t connect_to(char* ip, char* port);
