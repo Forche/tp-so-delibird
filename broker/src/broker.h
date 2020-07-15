@@ -65,6 +65,7 @@ queue queue_localized_pokemon;
 int TAMANO_MINIMO_PARTICION;
 int TAMANO_MEMORIA;
 char* ALGORITMO_PARTICION_LIBRE;
+char* ALGORITMO_REEMPLAZO;
 void* memory;
 t_list* memory_partitions;
 pthread_mutex_t mutex_message_id;

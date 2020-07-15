@@ -23,6 +23,7 @@ void server_init(void) {
 	char* IP = config_get_string_value(config, "IP_BROKER");
 	char* PORT = config_get_string_value(config, "PUERTO_BROKER");
 	ALGORITMO_PARTICION_LIBRE = config_get_string_value(config, "ALGORITMO_PARTICION_LIBRE");
+	ALGORITMO_REEMPLAZO = config_get_string_value(config, "ALGORITMO_REEMPLAZO");
 	TAMANO_MEMORIA = config_get_int_value(config, "TAMANO_MEMORIA");
 	TAMANO_MINIMO_PARTICION = config_get_int_value(config, "TAMANO_MINIMO_PARTICION");
 
@@ -199,6 +200,8 @@ t_memory_partition* get_free_partition(uint32_t size) {
 			partition_to_return = get_free_partition_bf(size);
 		}
 	}
+
+	
 
 	return partition_to_return;
 }
