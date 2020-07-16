@@ -62,6 +62,7 @@ void gamecard_listener();
 void create_subscription_threads();
 void handle_event(uint32_t* socket);
 void handle_new_pokemon(t_message* msg);
+void add_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon);
 
 void check_pokemon_directory(char* pokemon);
 void check_if_file_is_open(char* path);
@@ -69,7 +70,16 @@ int get_available_block();
 char* read_blocks_content(char* path_pokemon);
 t_list* get_positions_from_buffer(char* buffer);
 t_position* create_position(int x, int y, int pokemon_quantity);
+void destroy_position(t_position* position);
+t_list* write_blocks_and_metadata(int size_array_positions, char* array_positions, char* metadata_path);
+char* add_block_to_array(char* blocks_as_array, char* block_to_add);
+int my_ceil(int a, int b);
+int size_of_content_to_write(int index_next_block, int quantity_total_blocks, int total_content_size);
+void write_positions_on_block(int block, char* data);
+t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_positions);
+int position_list(t_list* pokemon_positions, t_position* find_position);
 
+void tall_grass_metadata_info();
 void open_bitmap();
 void write_positions_on_files(t_list* pokemon_positions, char* path_new_file);
 

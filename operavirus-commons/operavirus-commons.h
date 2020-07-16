@@ -12,6 +12,8 @@
 #include<commons/string.h>
 #include<commons/log.h>
 #include<commons/collections/dictionary.h>
+#include "connection.h"
+#include "thread.h"
 
 typedef enum {
 	NEW_POKEMON = 1,

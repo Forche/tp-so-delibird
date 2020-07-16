@@ -34,7 +34,6 @@ void wait_for_message(uint32_t sv_socket, void* handle_event) {
 	uint32_t addr_size = sizeof(struct sockaddr_in);
 
 	uint32_t client_socket;
-
 	if ((client_socket = accept(sv_socket, (void*) &client_addr, &addr_size))
 			!= -1) {
 		pthread_create(&thread, NULL, (void*) handle_event, &client_socket);
