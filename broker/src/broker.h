@@ -47,7 +47,7 @@ typedef struct {
 	uint32_t id;
 	partition_status status;
 	uint32_t content_size;
-	uint64_t lru_time; // Won't be using this by now until we implement compaction
+	uint64_t timestamp;
 } t_memory_partition;
 
 
@@ -66,6 +66,7 @@ int TAMANO_MINIMO_PARTICION;
 int TAMANO_MEMORIA;
 char* ALGORITMO_PARTICION_LIBRE;
 char* ALGORITMO_REEMPLAZO;
+int FRECUENCIA_COMPACTACION;
 void* memory;
 t_list* memory_partitions;
 pthread_mutex_t mutex_message_id;
@@ -84,8 +85,12 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 void store_message(t_message* message, queue queue, t_list* receivers);
 uint32_t store_payload(void* payload, uint32_t size);
 t_memory_partition* get_free_partition(uint32_t size);
-t_memory_partition* get_free_partition_ff(uint32_t size);
-t_memory_partition* get_free_partition_bf(uint32_t size);
+t_memory_partition* find_free_partition(uint32_t size);
+t_memory_partition* find_free_partition_ff(uint32_t size);
+t_memory_partition* find_free_partition_bf(uint32_t size);
+void delete_partition_and_consolidate();
+void delete_partition_and_consolidate_fifo();
+void delete_partition_and_consolidate_lru();
 void perform_compaction();
 
 uint32_t get_message_id();
