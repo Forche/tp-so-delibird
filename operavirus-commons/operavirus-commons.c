@@ -401,6 +401,7 @@ t_message* receive_message(uint32_t event_code, uint32_t socket) {
 	buffer = malloc(sizeof(uint32_t) + size);
 	buffer->size = size;
 	message->buffer = buffer;
+	message->event_code = event_code;
 
 	return message;
 }
@@ -468,7 +469,6 @@ t_catch_pokemon* deserialize_catch_pokemon_message(uint32_t socket,
 
 	recv(socket, &(catch_pokemon->pos_x), sizeof(uint32_t), MSG_WAITALL);
 	recv(socket, &(catch_pokemon->pos_y), sizeof(uint32_t), MSG_WAITALL);
-
 	t_log* logger = logger_init();
 	log_info(logger, catch_pokemon->pokemon);
 	log_destroy(logger);

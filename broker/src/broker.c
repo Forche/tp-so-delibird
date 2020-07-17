@@ -225,10 +225,9 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	uint32_t i;
 	
 	switch (event_code) {
-	case NEW_POKEMON:
-		msg->buffer->payload = deserialize_new_pokemon_message(client_socket,
-				&size);
-		msg->buffer->size = size;
+	case NEW_POKEMON: ;
+		t_new_pokemon* new_pokemon = deserialize_new_pokemon_message(client_socket,	&size);
+		msg->buffer = serialize_t_new_pokemon_message(new_pokemon);
 
 		return_message_id(client_socket, msg->id);
 

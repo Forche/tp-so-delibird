@@ -62,9 +62,12 @@ void gamecard_listener();
 void create_subscription_threads();
 void handle_event(uint32_t* socket);
 void handle_new_pokemon(t_message* msg);
+void handle_catch_pokemon(t_message* msg);
+void handle_appeared_pokemon(t_message* msg);
 void add_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon);
-
-void check_pokemon_directory(char* pokemon);
+t_position* ckeck_position_exists(char* path_pokemon, t_catch_pokemon* pokemon);
+void remove_position(t_position* position, char* path_pokemon);
+int check_pokemon_directory(char* pokemon, event_code code);
 void check_if_file_is_open(char* path);
 int get_available_block();
 char* read_blocks_content(char* path_pokemon);
@@ -79,6 +82,8 @@ void write_positions_on_block(char* block, char* data);
 t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_positions);
 int position_list(t_list* pokemon_positions, t_position* find_position);
 void close_file_pokemon(char* path_pokemon);
+t_appeared_pokemon* create_appeared_pokemon(uint32_t pokemon_len, char* pokemon, uint32_t pos_x, uint32_t pos_y);
+void send_appeared_to_broker(t_appeared_pokemon* appeared_pokemon, uint32_t id);
 
 void tall_grass_metadata_info();
 void open_bitmap();
