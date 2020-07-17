@@ -133,7 +133,22 @@ void handle_new_pokemon(t_message* msg){
 
 	check_if_file_is_open(path_pokemon);
 	add_new_pokemon(path_pokemon, new_pokemon);
+	//crear estructura para appeard
+	//enviar appeard al broker*/
+}
 
+void close_file_pokemon(char* path_pokemon){
+	t_config* metadata = config_create(path_pokemon);
+	char* is_open = (char*) config_get_string_value(metadata, "OPEN");
+
+	if(string_equals_ignore_case(is_open, "Y")){
+		is_open = "N";
+		config_set_value(metadata,"OPEN",is_open);
+	}
+	config_save(metadata);
+	log_info(logger, "Cerramos el archivo %s luego de utilizarlo",path_pokemon);
+	config_save(metadata);
+	config_destroy(metadata);
 }
 
 void add_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon){
@@ -148,21 +163,20 @@ void add_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon){
 	find_position = list_find(pokemon_positions, _compare);
 
 	if(find_position != NULL){
+		log_info(logger,"Sumamos %d a %d total: %d en %s", pokemon->count, find_position->count, pokemon->count + find_position->count, path_pokemon);
 		find_position->count += pokemon->count;
+		//PROBAR SIN REPLACE
 		int position = position_list(pokemon_positions,find_position);
-		log_info(logger,"POSICION:%d", position);
 		list_replace(pokemon_positions,position,find_position);
+
 	}else{
 		t_position* new_position = create_position(pokemon->pos_x, pokemon->pos_y, pokemon->count);
 		list_add(pokemon_positions, new_position);
 	}
 
 	write_positions_on_files(pokemon_positions, path_pokemon);
-
-	//crear string con datos nuevos
-	//reescribir bloques con datos nuevos
-	//crear estructura para appeard
-	//enviar appeard al broker*/
+	list_destroy(pokemon_positions);
+	close_file_pokemon(path_pokemon);
 }
 
 int position_list(t_list* pokemon_positions, t_position* find_position){
@@ -197,13 +211,8 @@ void write_positions_on_files(t_list* pokemon_positions, char* path_new_file){
 	int size_array_positions = string_length(array_positions);
 	t_list* writed_blocks = write_blocks_and_metadata(size_array_positions, array_positions, path_new_file);
 	free(array_positions);
-	//log_info(logger, "Se genera el archivo %s con cantidad de bloques: %d y size= %d", path_new_file, list_size(writed_blocks), size_array_positions);
-	//crear_archivo(path_archivo_nuevo, size_registros, bloques_ocupados);
-	//list_destroy(writed_blocks);
-	t_config* metadata = config_create(path_new_file);
-	char* n = "N";
-	config_set_value(metadata,"OPEN",n);
-	config_destroy(metadata);
+	log_info(logger, "Se genera el archivo %s con cantidad de bloques: %d y size= %d", path_new_file, list_size(writed_blocks), size_array_positions);
+	list_destroy(writed_blocks);
 }
 
 void destroy_position(t_position* position){
@@ -215,11 +224,11 @@ t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_po
 	char** actual_blocks = config_get_array_value(metadata, "BLOCKS");
 	char* blocks_as_array_of_char = string_new();
 	int quantity_actual_blocks = 0;
-	t_list* blocks_as_int =  list_create();
+	t_list* blocks_as_char =  list_create();
 
 	while(actual_blocks[quantity_actual_blocks]!=NULL){
 		blocks_as_array_of_char = add_block_to_array(blocks_as_array_of_char, actual_blocks[quantity_actual_blocks]);
-		list_add(blocks_as_int, atoi(actual_blocks[quantity_actual_blocks]));
+		list_add(blocks_as_char, actual_blocks[quantity_actual_blocks]);
 		quantity_actual_blocks++;
 	}
 
@@ -230,7 +239,8 @@ t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_po
 		actual_blocks[quantity_actual_blocks] = string_from_format("%d", new_block);
 		blocks_as_array_of_char = add_block_to_array(blocks_as_array_of_char, actual_blocks[quantity_actual_blocks]);
 		quantity_actual_blocks++;
-		list_add(blocks_as_int, new_block);
+
+		list_add(blocks_as_char, string_from_format("%d",new_block));
 	}
 	log_info(logger,"Bloques a guardar:%s",blocks_as_array_of_char);
 	dictionary_put(metadata->properties, "BLOCKS", blocks_as_array_of_char);
@@ -238,23 +248,22 @@ t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_po
 	string_append_with_format(&size_array,"%d", size_array_positions);
 	config_set_value(metadata,"SIZE", size_array);
 	config_save(metadata);
-	config_destroy(metadata);
+	//config_destroy(metadata);
+	free(size_array);
 
-	return blocks_as_int;
+	return blocks_as_char;
 }
 
 char* add_block_to_array(char* blocks_as_array, char* block_to_add){
-	char* new_block_as_array = string_duplicate(blocks_as_array);
-
-	if(string_length(new_block_as_array)){
-		new_block_as_array[(string_length(new_block_as_array))-1] = ',';
-		string_append(&new_block_as_array,block_to_add);
+	if(string_length(blocks_as_array)){
+		blocks_as_array[(string_length(blocks_as_array))-1] = ',';
+		string_append(&blocks_as_array,block_to_add);
 		char* close_block = "]\0";
-		string_append(&new_block_as_array,close_block);
+		string_append(&blocks_as_array,close_block);
 	} else {
-		new_block_as_array = string_from_format("[%s]\0",block_to_add);
+		blocks_as_array = string_from_format("[%s]\0",block_to_add);
 	}
-	return new_block_as_array;
+	return blocks_as_array;
 }
 
 t_list* write_blocks_and_metadata(int size_array_positions, char* array_positions, char* metadata_path){
@@ -268,14 +277,15 @@ t_list* write_blocks_and_metadata(int size_array_positions, char* array_position
 
 		char* data = string_substring(array_positions, first_byte, size_positions_to_write);
 		string_append(&data,"\0");
-		int block = list_get(blocks, i);
+		char* block = list_get(blocks, i);
 
-		log_info(logger, "Se escriben [%d] bytes de registros, en el bloque: [%d]", size_positions_to_write, block);
+		log_info(logger, "Se escriben [%d] bytes de registros, en el bloque: [%s]", size_positions_to_write, block);
 
 		write_positions_on_block(block, data);
 		log_info(logger, "Bloque escrito satisfactoriamente");
 		free(data);
 	}
+	return blocks;
 }
 
 int my_ceil(int a, int b){
@@ -295,18 +305,18 @@ int size_of_content_to_write(int index_next_block, int quantity_total_blocks, in
 	return size_of_content;
 }
 
-void write_positions_on_block(int block, char* data){
+void write_positions_on_block(char* block, char* data){
 
-	char* path_block = string_from_format("%s/Blocks/%i.bin", PUNTO_MONTAJE_TALLGRASS, block);
+	char* path_block = string_from_format("%s/Blocks/%s.bin", PUNTO_MONTAJE_TALLGRASS, block);
 	FILE* file = fopen(path_block, "wb+");
 
 	if(file == NULL){
-		log_info(logger,"error al abrir el archivo %s",path_block);
+		log_error(logger,"error al abrir el archivo %s",path_block);
 	} else {
 		size_t data_length = string_length(data);
 		size_t bit_to_write = sizeof(*data);
 
-		size_t element_written = fwrite(data, bit_to_write, data_length, file);
+		fwrite(data, bit_to_write, data_length, file);
 	}
 	sleep(TIEMPO_RETARDO_OPERACION);
 	fclose(file);
@@ -319,13 +329,13 @@ char* read_blocks_content(char* path_pokemon){
 	char** blocks = config_get_array_value(metadata, "BLOCKS");
 
 	char* y = "Y";
-	dictionary_put(metadata->properties, "OPEN", y);
-	config_save(metadata);
+	config_set_value(metadata, "OPEN", y);
+	log_info(logger, "Abrimos el archivo %s para utilizarlo %s",path_pokemon, y);
 
 	int rest_to_read = content_size;
 	int size_to_read = 0;
 	int ind_blocks=0;
-	char* buffer;
+	char* buffer = string_new();
 	char* blocks_content = string_new();
 
 	if (content_size!=0){
@@ -338,12 +348,12 @@ char* read_blocks_content(char* path_pokemon){
 			}
 			int block_num=atoi(blocks[ind_blocks]);
 
-			char* dir_block = string_from_format("%s/Bloques/%i.bin", PUNTO_MONTAJE_TALLGRASS, block_num);
+			char* dir_block = string_from_format("%s/Blocks/%i.bin", PUNTO_MONTAJE_TALLGRASS, block_num);
 			FILE* file = fopen(dir_block, "rb+");
-			buffer = malloc(size_to_read +1);
+			buffer = malloc(size_to_read+1);
 
-			size_t read_count = fread(buffer, sizeof(char), size_to_read, file);
-			buffer[read_count]='\0';
+			fread(buffer, sizeof(char), size_to_read, file);
+			buffer[size_to_read] = '\0';
 			string_append(&blocks_content, buffer);
 			fclose(file);
 			free(buffer);
@@ -354,13 +364,15 @@ char* read_blocks_content(char* path_pokemon){
 		}
 	}
 	free(blocks);
-	//config_destroy(metadata);
+	log_info(logger, "El contenido de los bloques es %s", blocks_content);
+	config_save(metadata);
+	config_destroy(metadata);
 	return blocks_content;
 }
 
 t_list* get_positions_from_buffer(char* buffer){
 	t_list* positions = list_create();
-	if(!string_length(buffer)){
+	if(string_length(buffer) != 0){
 		char **array_buffer_positions = string_split(buffer, "\n");
 		int index_position=0;
 		while (array_buffer_positions[index_position]!=NULL){
@@ -372,8 +384,10 @@ t_list* get_positions_from_buffer(char* buffer){
 			list_add(positions, new_position);
 			free(only_positions[0]);
 			free(only_positions[1]);
+			free(only_positions);
 			free(string_position[0]);
 			free(string_position[1]);
+			free(string_position);
 			free(array_buffer_positions[index_position]);
 			index_position += 1;
 		}
@@ -401,6 +415,7 @@ void check_if_file_is_open(char* path){
 		sleep(TIEMPO_DE_REINTENTO_OPERACION);
 		check_if_file_is_open(path);
 	}
+	log_info(logger, "El archivo %s esta cerrado %s",path, is_open);
 	config_destroy(metadata);
 }
 
@@ -424,9 +439,8 @@ void check_pokemon_directory(char* pokemon){
 		fprintf(file, "BLOCKS=[%d]\n", available_block);
 		fprintf(file, "OPEN=N\n");
 		fclose(file);
-
-		free(path_pokemon);
 	}
+	free(path_pokemon);
 }
 
 int get_available_block(){
@@ -440,7 +454,7 @@ int get_available_block(){
 	block -= 1;
 	bitarray_set_bit(bitarray, block);
 	blocks_available -= 1;
-	//log_info(logger, "Cantidad de bloques disponibles: %d", blocks_available);
+	log_info(logger, "Cantidad de bloques disponibles: %d", blocks_available);
 	log_info(logger, "Se ocupa bloque %d", block);
 	msync(bmap, sizeof(bitarray), MS_SYNC);
 	pthread_mutex_unlock(&mutexBitmap);

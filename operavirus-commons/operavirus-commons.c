@@ -392,7 +392,6 @@ t_buffer* serialize_localized_pokemon_message(char* payload_content[]) {
 t_message* receive_message(uint32_t event_code, uint32_t socket) {
 	t_buffer* buffer;
 	t_message* message = malloc(sizeof(t_message));
-	message->event_code = event_code;
 
 	recv(socket, &(message->id), sizeof(uint32_t), MSG_WAITALL);
 	recv(socket, &(message->correlative_id), sizeof(uint32_t),
@@ -407,7 +406,7 @@ t_message* receive_message(uint32_t event_code, uint32_t socket) {
 }
 
 t_new_pokemon* deserialize_new_pokemon_message(uint32_t socket, uint32_t* size) {
-	uint32_t pokemon_len;
+	uint32_t pokemon_len = 0;
 	recv(socket, &(pokemon_len), sizeof(uint32_t),
 	MSG_WAITALL);
 
@@ -418,7 +417,6 @@ t_new_pokemon* deserialize_new_pokemon_message(uint32_t socket, uint32_t* size) 
 	new_pokemon->pokemon = malloc(new_pokemon->pokemon_len);
 	recv(socket, new_pokemon->pokemon, new_pokemon->pokemon_len,
 	MSG_WAITALL);
-
 	recv(socket, &(new_pokemon->pos_x), sizeof(uint32_t), MSG_WAITALL);
 	recv(socket, &(new_pokemon->pos_y), sizeof(uint32_t), MSG_WAITALL);
 	recv(socket, &(new_pokemon->count), sizeof(uint32_t), MSG_WAITALL);

@@ -75,9 +75,10 @@ t_list* write_blocks_and_metadata(int size_array_positions, char* array_position
 char* add_block_to_array(char* blocks_as_array, char* block_to_add);
 int my_ceil(int a, int b);
 int size_of_content_to_write(int index_next_block, int quantity_total_blocks, int total_content_size);
-void write_positions_on_block(int block, char* data);
+void write_positions_on_block(char* block, char* data);
 t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_positions);
 int position_list(t_list* pokemon_positions, t_position* find_position);
+void close_file_pokemon(char* path_pokemon);
 
 void tall_grass_metadata_info();
 void open_bitmap();
