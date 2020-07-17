@@ -67,6 +67,8 @@ void handle_appeared_pokemon(t_message* msg);
 void add_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon);
 t_position* ckeck_position_exists(char* path_pokemon, t_catch_pokemon* pokemon);
 void remove_position(t_position* position, char* path_pokemon);
+void remove_block_from_bitmap(char* block);
+char* remove_last_block_from_array(char* blocks_as_array);
 int check_pokemon_directory(char* pokemon, event_code code);
 void check_if_file_is_open(char* path);
 int get_available_block();
