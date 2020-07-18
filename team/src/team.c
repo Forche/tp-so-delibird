@@ -7,7 +7,7 @@ void print_pokemons(char* key, int* value) {
 
 int main(void) {
 
-	config = config_create("../team.config");
+	config = config_create("team.config");
 	char* LOG_FILE = config_get_string_value(config, "LOG_FILE");
 
 	pokemon_received_to_catch = list_create();
@@ -85,17 +85,17 @@ void handle_event(uint32_t* socket) {
 	uint32_t size;
 	switch (code) {
 	case LOCALIZED_POKEMON:
-		msg->buffer = deserialize_localized_pokemon_message(*socket, &size);
+		msg->buffer->payload = deserialize_localized_pokemon_message(*socket, &size);
 		create_thread_with_param(handle_localized, msg, "handle_localized");
 
 		break;
 	case CAUGHT_POKEMON:
-		msg->buffer = deserialize_caught_pokemon_message(*socket, &size);
+		msg->buffer->payload = deserialize_caught_pokemon_message(*socket, &size);
 		create_thread_with_param(handle_caught, msg, "handle_caught");
 
 		break;
 	case APPEARED_POKEMON:
-		msg->buffer = deserialize_appeared_pokemon_message(*socket, &size);
+		msg->buffer->payload = deserialize_appeared_pokemon_message(*socket, &size);
 		create_thread_with_param(handle_appeared, msg, "handle_appeared");
 		break;
 	}
@@ -103,7 +103,7 @@ void handle_event(uint32_t* socket) {
 }
 
 void handle_localized(t_message* msg) {
-	t_localized_pokemon* localized_pokemon = msg->buffer;
+	t_localized_pokemon* localized_pokemon = msg->buffer->payload;
 	log_info(logger, "Recibido LOCALIZED_POKEMON. Pokemon: %s. Cantidad: %d.",
 			localized_pokemon->pokemon, localized_pokemon->positions_count);
 
@@ -136,7 +136,7 @@ void handle_localized(t_message* msg) {
 }
 
 void handle_caught(t_message* msg) {
-	t_caught_pokemon* caught_pokemon = msg->buffer;
+	t_caught_pokemon* caught_pokemon = msg->buffer->payload;
 	log_info(logger, "Recibido CAUGHT_POKEMON. Resultado: %d. Correlative_id: %d", caught_pokemon->result, msg->correlative_id);
 	t_trainer* trainer = obtener_trainer_mensaje(msg);
 	if (trainer != NULL) {
@@ -146,7 +146,7 @@ void handle_caught(t_message* msg) {
 }
 
 void handle_appeared(t_message* msg) {
-	t_appeared_pokemon* appeared_pokemon = msg->buffer;
+	t_appeared_pokemon* appeared_pokemon = msg->buffer->payload;
 	log_info(logger, "Recibido APPEARED_POKEMON. Pokemon: %s. Posicion x: %d, y: %d",
 			appeared_pokemon->pokemon, appeared_pokemon->pos_x, appeared_pokemon->pos_y);
 
