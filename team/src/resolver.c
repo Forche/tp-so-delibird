@@ -4,15 +4,19 @@ void add_to_queue_deadlocks_wait_status(t_deadlock_matcher* deadlock_matcher);
 void create_thread_add_to_queue_deadlocks(t_deadlock_matcher* deadlock_matcher);
 void add_to_queue_deadlocks(t_deadlock_matcher* deadlock_matcher);
 void proceed_to_finish() {
-	pthread_mutex_init(&mutex_direct_deadlocks, NULL);
-	pthread_mutex_lock(&mutex_direct_deadlocks);
+	pthread_t thread_planner_deadlock = create_thread(planning_deadlock, "planning_deadlock");
 
-	count_sem_reverse_direct_deadlock = 0;
-	pthread_mutex_lock(&mutex_matched_deadlocks);
-	list_iterate(matched_deadlocks, create_thread_add_to_queue_deadlocks);
-	pthread_mutex_unlock(&mutex_matched_deadlocks);
+	if(list_size(matched_deadlocks) > 0) {
+		pthread_mutex_init(&mutex_direct_deadlocks, NULL);
+		pthread_mutex_lock(&mutex_direct_deadlocks);
 
-	pthread_mutex_lock(&mutex_direct_deadlocks);
+		count_sem_reverse_direct_deadlock = 0;
+		pthread_mutex_lock(&mutex_matched_deadlocks);
+		list_iterate(matched_deadlocks, create_thread_add_to_queue_deadlocks);
+		pthread_mutex_unlock(&mutex_matched_deadlocks);
+
+		pthread_mutex_lock(&mutex_direct_deadlocks);
+	}
 
 	t_list* trainers_with_deadlock = get_trainers_with_deadlock();
 

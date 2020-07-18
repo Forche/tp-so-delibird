@@ -82,7 +82,9 @@ t_dictionary* generate_dictionary_by_string(char* text, char* delimiter) {
 		char* item = splited_text[index];
 		uint32_t* quantity = add_to_dictionary(dictionary, item);
 		index++;
+		free(item);
 	}
+	free(splited_text);
 	return dictionary;
 }
 

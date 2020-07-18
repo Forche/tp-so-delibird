@@ -77,13 +77,13 @@ t_dictionary* remaining_pokemons;
 
 t_dictionary* build_global_objective(char* objectives);
 void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, char* OBJETIVOS_ENTRENADORES);
-void create_planner();
-void create_matcher();
+pthread_t create_planner();
+pthread_t create_matcher();
 void init_sem();
 void handle_event(uint32_t* socket);
 void subscribe_to(event_code code);
 void team_listener();
-void create_thread_open_socket();
+pthread_t create_thread_open_socket();
 void send_get_pokemons();
 void get_pokemon(char* pokemon, uint32_t* cant);
 void handle_localized(t_message* msg);

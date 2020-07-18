@@ -46,9 +46,9 @@ int main(void) {
 	build_remaining_pokemons();
 
 	create_trainers(POSICIONES_ENTRENADORES, POKEMON_ENTRENADORES,OBJETIVOS_ENTRENADORES);
-	create_planner();
-	create_matcher();
-	create_thread_open_socket();
+	pthread_t thread_planner = create_planner();
+	pthread_t thread_matcher = create_matcher();
+	pthread_t thread_listener = create_thread_open_socket();
 
 	init_sem();
 
@@ -65,8 +65,13 @@ int main(void) {
 
 	sem_wait(&sem_all_pokemons_caught);
 
-	//No se necesitan mas los threads de suscripcion
-	create_thread(planning_deadlock, "planning_deadlock");
+//	pthread_exit(&thread_appeared);
+//	pthread_exit(&thread_caught);
+//	pthread_exit(&thread_localized);
+//	pthread_exit(&thread_planner);
+//	pthread_exit(&thread_matcher);
+//	pthread_exit(&thread_listener);
+
 	proceed_to_finish();
 
 	return EXIT_SUCCESS;
@@ -225,16 +230,16 @@ void* add_remaining(char* pokemon, uint32_t* cant_global) {
 	}
 }
 
-void create_planner() {
-	create_thread(planning_catch, "planning_catch");
+pthread_t create_planner() {
+	return create_thread(planning_catch, "planning_catch");
 }
 
-void create_matcher() {
-	create_thread(match_pokemon_with_trainer, "match_pokemon_with_trainer");
+pthread_t create_matcher() {
+	return  create_thread(match_pokemon_with_trainer, "match_pokemon_with_trainer");
 }
 
-void create_thread_open_socket() {
-	create_thread(team_listener, "match_pokemon_with_trainer");
+pthread_t create_thread_open_socket() {
+	return create_thread(team_listener, "match_pokemon_with_trainer");
 }
 
 void team_listener() {
@@ -242,7 +247,7 @@ void team_listener() {
 }
 
 void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, char* OBJETIVOS_ENTRENADORES) {
-	char** positions_by_trianer = string_split(POSICIONES_ENTRENADORES, ",");
+	char** positions_by_trainer = string_split(POSICIONES_ENTRENADORES, ",");
 	char** pokemons_by_trainer = string_split(POKEMON_ENTRENADORES, ",");
 	char** objectives_by_trainer = string_split(OBJETIVOS_ENTRENADORES, ",");
 
@@ -250,10 +255,10 @@ void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, 
 	t_list* list_objectives_by_trainer = generate_list(objectives_by_trainer);
 
 	uint32_t i = 0;
-	while(positions_by_trianer[i] != '\0') {
+	while(positions_by_trainer[i] != '\0') {
 		pthread_t thread;
 
-		char** positions = string_split(positions_by_trianer[i], "|");
+		char** positions = string_split(positions_by_trainer[i], "|");
 		t_dictionary* pokemons = get_dictionary_if_has_value(list_pokemons_by_trainer, i);
 		t_dictionary* objectives = get_dictionary_if_has_value(list_objectives_by_trainer, i);
 
@@ -271,8 +276,21 @@ void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, 
 
 		pthread_create(&thread, NULL, handle_trainer, trainer);
 		list_add(trainers, trainer);
+
+		free(positions_by_trainer[i]);
 		i++;
+		free(positions[0]);
+		free(positions[1]);
+		free(positions);
 	}
+
+	list_iterate(list_pokemons_by_trainer, free);
+	list_iterate(list_objectives_by_trainer, free);
+	free(list_pokemons_by_trainer);
+	free(list_objectives_by_trainer);
+	free(positions_by_trainer);
+	free(pokemons_by_trainer);
+	free(objectives_by_trainer);
 
 }
 
