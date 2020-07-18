@@ -7,7 +7,7 @@ void print_pokemons(char* key, int* value) {
 
 int main(void) {
 
-	config = config_create("team.config");
+	config = config_create("../team.config");
 	char* LOG_FILE = config_get_string_value(config, "LOG_FILE");
 
 	pokemon_received_to_catch = list_create();
@@ -331,21 +331,8 @@ void swap_pokemons(t_deadlock_matcher* deadlock_matcher) {
 	char* pokemon_2 = deadlock_matcher->pokemon2;
 	log_info(logger, "Inicio intercambio entre %d y %d, pokemons %s y %s", trainer_1->name, trainer_2->name, pokemon_1, pokemon_2);
 
-	move_to_position(trainer_1, trainer_2->pos_x, trainer_2->pos_y, deadlock_matcher);
-
-	uint32_t i;
-	for(i = 0;i < 4;i++) {
-		sleep(RETARDO_CICLO_CPU);
-		log_info(logger, "Un ciclo de intercambio");
-		increment_q_ciclos_cpu(trainer_1);
-		trainer_must_go_on(trainer_1, deadlock_matcher);
-	}
-	log_info(logger, "Ultimo ciclo de intercambio");
-	increment_q_ciclos_cpu(trainer_1);
-	substract_from_dictionary(trainer_1->caught, pokemon_1);
-	substract_from_dictionary(trainer_2->caught, pokemon_2);
-	add_to_dictionary(trainer_1->caught, pokemon_2);
-	add_to_dictionary(trainer_2->caught, pokemon_1);
+	move_to_position(trainer_1, trainer_2->pos_x, trainer_2->pos_y, deadlock_matcher, true);
+	exchange_pokemons(deadlock_matcher, true);
 
 	log_info(logger, "Finalizado intercambio entre %d y %d, pokemons %s y %s", trainer_1->name, trainer_2->name, pokemon_1, pokemon_2);
 
@@ -360,6 +347,28 @@ void swap_pokemons(t_deadlock_matcher* deadlock_matcher) {
 	trainer_1->real_anterior = trainer_1->estimacion_anterior - trainer_1->estimacion_actual;
 	trainer_1->sjf_calculado = false;
 	pthread_mutex_unlock(&mutex_planning_deadlock);
+}
+
+void exchange_pokemons(t_deadlock_matcher* deadlock_matcher, bool with_validate_desalojo) {
+	t_trainer* trainer_1 = deadlock_matcher->trainer1;
+	t_trainer* trainer_2 = deadlock_matcher->trainer2;
+	char* pokemon_1 = deadlock_matcher->pokemon1;
+	char* pokemon_2 = deadlock_matcher->pokemon2;
+	uint32_t i;
+	for(i = 0;i < 4;i++) {
+		sleep(RETARDO_CICLO_CPU);
+		log_info(logger, "Un ciclo de intercambio");
+		increment_q_ciclos_cpu(trainer_1);
+		if(with_validate_desalojo) {
+			trainer_must_go_on(trainer_1, deadlock_matcher);
+		}
+	}
+	log_info(logger, "Ultimo ciclo de intercambio");
+	increment_q_ciclos_cpu(trainer_1);
+	substract_from_dictionary(trainer_1->caught, pokemon_1);
+	substract_from_dictionary(trainer_2->caught, pokemon_2);
+	add_to_dictionary(trainer_1->caught, pokemon_2);
+	add_to_dictionary(trainer_2->caught, pokemon_1);
 }
 
 void validate_state_trainer(t_trainer* trainer) {

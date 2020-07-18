@@ -1,6 +1,6 @@
 #include "trainer.h"
 
-void move_to_position(t_trainer* trainer, uint32_t pos_x, uint32_t pos_y, t_deadlock_matcher* deadlock_matcher);
+void move_to_position(t_trainer* trainer, uint32_t pos_x, uint32_t pos_y, t_deadlock_matcher* deadlock_matcher, bool with_validate_desalojo);
 void move_one_step(uint32_t* pos1, uint32_t pos2);
 void trainer_must_go_on(t_trainer* trainer, t_deadlock_matcher* deadlock_matcher);
 void desalojar(t_trainer* trainer, bool refresh_estimation, t_deadlock_matcher* deadlock_matcher, bool lock_sem_caught);
@@ -28,7 +28,7 @@ void trainer_catch_pokemon(t_trainer* trainer) {
 	t_pcb_trainer* pcb_trainer = trainer->pcb_trainer;
 	pcb_trainer->status = EXEC;
 
-	move_to_position(trainer, pcb_trainer->pokemon_to_catch->pos_x, pcb_trainer->pokemon_to_catch->pos_y, NULL);
+	move_to_position(trainer, pcb_trainer->pokemon_to_catch->pos_x, pcb_trainer->pokemon_to_catch->pos_y, NULL, true);
 	catch_pokemon(trainer, pcb_trainer->pokemon_to_catch);
 
 	if (pcb_trainer->result_catch == 1) { //Tiene basura y sale por true
@@ -166,7 +166,7 @@ void change_status_to(t_trainer* trainer, status status) {
 	trainer->status = status;
 }
 
-void move_to_position(t_trainer* trainer, uint32_t pos_x, uint32_t pos_y, t_deadlock_matcher* deadlock_matcher) {
+void move_to_position(t_trainer* trainer, uint32_t pos_x, uint32_t pos_y, t_deadlock_matcher* deadlock_matcher, bool with_validate_desalojo) {
 	uint32_t q_mov_x = abs(trainer->pos_x - pos_x);
 	uint32_t q_mov_y = abs(trainer->pos_y - pos_y);
 	log_info(logger, "Moviendo entrenador %d de posicion x: %d y: %d a posicion x: %d y: %d",trainer->name, trainer->pos_x, trainer->pos_y, pos_x, pos_y);
@@ -178,14 +178,18 @@ void move_to_position(t_trainer* trainer, uint32_t pos_x, uint32_t pos_y, t_dead
 		increment_q_ciclos_cpu(trainer);
 		log_info(logger, "Movido entrenador %d a posicion x: %d y: %d", trainer->name,trainer->pos_x, trainer->pos_y);
 		trainer->estimacion_actual = trainer->estimacion_actual - 1;
-		trainer_must_go_on(trainer, deadlock_matcher);
+		if(with_validate_desalojo) {
+			trainer_must_go_on(trainer, deadlock_matcher);
+		}
 	}
 	for(i = 0; i < q_mov_y; i++) {
 		move_one_step(&trainer->pos_y, pos_y);
 		increment_q_ciclos_cpu(trainer);
 		log_info(logger, "Movido entrenador %d a posicion x: %d y: %d", trainer->name,trainer->pos_x, trainer->pos_y);
 		trainer->estimacion_actual = trainer->estimacion_actual - 1;
-		trainer_must_go_on(trainer, deadlock_matcher);
+		if(with_validate_desalojo) {
+			trainer_must_go_on(trainer, deadlock_matcher);
+		}
 	}
 }
 

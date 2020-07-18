@@ -58,7 +58,6 @@ bool trainer_not_exit(t_trainer* trainer) {
 void handle_deadlock(t_list* trainers_with_deadlock) {
 
 	log_info(logger, "Inicio proceso deteccion Deadlock Indirectos");
-	t_list* direct_deadlock = list_create();
 	uint32_t i;
 
 	for(i = 0; i < list_size(trainers_with_deadlock); i++) {
@@ -94,9 +93,11 @@ void give_me_my_pokemons_dude(t_trainer* trainer, t_trainer* trainer_to_compare,
 	char* pokemon_i_need = get_pokemon_I_need(remaining, leftovers_to_compare);
 	if(pokemon_i_need != NULL) {
 		char* pokemon_i_give = get_pokemon_I_need(remaining_to_compare, leftovers);
+		char* necesita_no_lo_necesita = "que no lo necesita";
 		if(pokemon_i_give == NULL) {
 			pokemon_i_give = list_get(leftovers, 0);
 		} else {
+			necesita_no_lo_necesita = "que lo necesita";
 			list_remove_by_value(remaining_to_compare, pokemon_i_give);
 		}
 		t_deadlock_matcher* deadlock_match = malloc(sizeof(t_deadlock_matcher));
@@ -105,14 +106,14 @@ void give_me_my_pokemons_dude(t_trainer* trainer, t_trainer* trainer_to_compare,
 		deadlock_match->trainer2 = trainer_to_compare;
 		deadlock_match->pokemon2 = pokemon_i_need;
 
-		log_info(logger, "Deadlock indirecto. Entrenador %d recibe %s. Entrenador %d recibe %s, que no lo necesita",
-				trainer->name, pokemon_i_need, trainer_to_compare->name, pokemon_i_give);
+		log_info(logger, "Deadlock indirecto. Entrenador %d recibe %s. Entrenador %d recibe %s, %s",
+				trainer->name, pokemon_i_need, trainer_to_compare->name, pokemon_i_give, necesita_no_lo_necesita);
 
 		list_remove_by_value(leftovers, pokemon_i_give);
 		list_remove_by_value(remaining, pokemon_i_need);
 		list_remove_by_value(leftovers_to_compare, pokemon_i_need);
 
-		add_to_queue_deadlocks(deadlock_match);
+		resolve_deadlock(deadlock_match);
 		if(trainer->status != EXIT) {
 			give_me_my_pokemons_dude(trainer, trainer_to_compare, leftovers, remaining);
 		}
@@ -149,7 +150,6 @@ void add_to_queue_deadlocks_wait_status(t_deadlock_matcher* deadlock_matcher) {
 		pthread_mutex_lock(&deadlock_matcher->trainer2->pcb_trainer->sem_deadlock);
 	}
 	add_to_queue_deadlocks(deadlock_matcher);
-	// pthread_exit(); TODO VER FINALIZACION DE HILOS
 }
 
 void add_to_queue_deadlocks(t_deadlock_matcher* deadlock_matcher) {
@@ -160,5 +160,21 @@ void add_to_queue_deadlocks(t_deadlock_matcher* deadlock_matcher) {
 	list_add(queue_deadlock, deadlock_matcher);
 	pthread_mutex_unlock(&mutex_queue_deadlocks);
 	sem_post(&sem_count_queue_deadlocks);
+}
+
+void resolve_deadlock(t_deadlock_matcher* deadlock_matcher) {
+	t_trainer* trainer_1 = deadlock_matcher->trainer1;
+	t_trainer* trainer_2 = deadlock_matcher->trainer2;
+	char* pokemon_1 = deadlock_matcher->pokemon1;
+	char* pokemon_2 = deadlock_matcher->pokemon2;
+	log_info(logger, "Inicio intercambio entre %d y %d, pokemons %s y %s", trainer_1->name, trainer_2->name, pokemon_1, pokemon_2);
+
+	move_to_position(trainer_1, trainer_2->pos_x, trainer_2->pos_y, deadlock_matcher, false);
+	exchange_pokemons(deadlock_matcher, false);
+
+	log_info(logger, "Finalizado intercambio entre %d y %d, pokemons %s y %s", trainer_1->name, trainer_2->name, pokemon_1, pokemon_2);
+
+	validate_state_trainer(trainer_1);
+	validate_state_trainer(trainer_2);
 }
 

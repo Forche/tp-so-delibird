@@ -94,6 +94,7 @@ void* build_remaining_pokemons();
 void* add_remaining(char* pokemon, uint32_t* cant_global);
 void print_pokemons(char* key, int* value);
 void swap_pokemons(t_deadlock_matcher* deadlock_matcher);
+void exchange_pokemons(t_deadlock_matcher* deadlock_matcher, bool with_validate_desalojo);
 void validate_state_trainer(t_trainer* trainer);
 void increment_q_ciclos_cpu(t_trainer* trainer);
 
