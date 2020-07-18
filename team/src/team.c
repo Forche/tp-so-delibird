@@ -37,6 +37,8 @@ int main(void) {
 	ALPHA = config_get_double_value(config, "ALPHA");
 	ALGORITMO_PLANIFICACION = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
 	QUANTUM = config_get_int_value(config, "QUANTUM");
+	q_ciclos_cpu_totales = 0;
+	q_cambios_contexto_totales = 0;
 
 
 	global_objective = build_global_objective(OBJETIVOS_ENTRENADORES);
@@ -169,6 +171,8 @@ void init_sem() {
 	pthread_mutex_init(&mutex_being_caught_pokemons, NULL);
 	pthread_mutex_init(&mutex_queue_deadlocks, NULL);
 	pthread_mutex_init(&mutex_planning_deadlock, NULL);
+	pthread_mutex_init(&mutex_matched_deadlocks, NULL);
+	pthread_mutex_init(&mutex_q_ciclos_cpu_totales, NULL);
 }
 
 void send_get_pokemons() {
@@ -309,8 +313,17 @@ void swap_pokemons(t_deadlock_matcher* deadlock_matcher) {
 	char* pokemon_2 = deadlock_matcher->pokemon2;
 	log_info(logger, "Inicio intercambio entre %d y %d, pokemons %s y %s", trainer_1->name, trainer_2->name, pokemon_1, pokemon_2);
 
-	move_to_position(trainer_1, trainer_2->pos_x, trainer_2->pos_y);
-	sleep(RETARDO_CICLO_CPU * 5);
+	move_to_position(trainer_1, trainer_2->pos_x, trainer_2->pos_y, deadlock_matcher);
+
+	uint32_t i;
+	for(i = 0;i < 4;i++) {
+		sleep(RETARDO_CICLO_CPU);
+		log_info(logger, "Un ciclo de intercambio");
+		increment_q_ciclos_cpu(trainer_1);
+		trainer_must_go_on(trainer_1, deadlock_matcher);
+	}
+	log_info(logger, "Ultimo ciclo de intercambio");
+	increment_q_ciclos_cpu(trainer_1);
 	substract_from_dictionary(trainer_1->caught, pokemon_1);
 	substract_from_dictionary(trainer_2->caught, pokemon_2);
 	add_to_dictionary(trainer_1->caught, pokemon_2);
@@ -318,24 +331,33 @@ void swap_pokemons(t_deadlock_matcher* deadlock_matcher) {
 
 	log_info(logger, "Finalizado intercambio entre %d y %d, pokemons %s y %s", trainer_1->name, trainer_2->name, pokemon_1, pokemon_2);
 
-	t_list* leftovers_trainer_1 = get_dictionary_difference(trainer_1->caught, trainer_1->objective);
+	validate_state_trainer(trainer_1);
+	validate_state_trainer(trainer_2);
 
-	if(list_is_empty(leftovers_trainer_1)) {
-		trainer_1->status = EXIT;
-	} else {
-		trainer_1->status = BLOCK;
+	count_sem_reverse_direct_deadlock = count_sem_reverse_direct_deadlock + 1;
+	if(count_sem_reverse_direct_deadlock == list_size(matched_deadlocks)) {
+		pthread_mutex_unlock(&mutex_direct_deadlocks);
 	}
-
-	t_list* leftovers_trainer_2 = get_dictionary_difference(trainer_2->caught, trainer_2->objective);
-
-	if(list_is_empty(leftovers_trainer_2)) {
-		trainer_2->status = EXIT;
-	} else {
-		trainer_2->status = BLOCK;
-	}
-
-
-	sem_post(&sem_deadlock_directo);
+	trainer_1->pcb_trainer->quantum = 0;
+	trainer_1->real_anterior = trainer_1->estimacion_anterior - trainer_1->estimacion_actual;
+	trainer_1->sjf_calculado = false;
 	pthread_mutex_unlock(&mutex_planning_deadlock);
+}
+
+void validate_state_trainer(t_trainer* trainer) {
+	t_list* leftovers_trainer = get_dictionary_difference(trainer->caught, trainer->objective);
+	if(list_is_empty(leftovers_trainer)) {
+		trainer->status = EXIT;
+	} else {
+		trainer->status = BLOCK;
+		pthread_mutex_unlock(&trainer->pcb_trainer->sem_deadlock);
+	}
+}
+
+void increment_q_ciclos_cpu(t_trainer* trainer) {
+	trainer->q_ciclos_cpu = trainer->q_ciclos_cpu + 1;
+	pthread_mutex_lock(&mutex_q_ciclos_cpu_totales);
+	q_ciclos_cpu_totales = q_ciclos_cpu_totales + 1;
+	pthread_mutex_unlock(&mutex_q_ciclos_cpu_totales);
 }
 

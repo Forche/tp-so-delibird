@@ -109,6 +109,7 @@ typedef enum
 	EXIT = 5,
 	FULL = 6,
 	SWAPPING = 7,
+	EXEC_DEADLOCK = 8,
 } status;
 
 typedef struct {
@@ -116,10 +117,12 @@ typedef struct {
     uint32_t result_catch;
     uint32_t id_message;
     pthread_mutex_t sem_caught;
+    pthread_mutex_t sem_deadlock;
     status status;
     uint32_t msg_connection;
     void (*do_next)(void*);
     void* params_do_next;
+    uint32_t quantum;
 } t_pcb_trainer;
 
 typedef struct {
@@ -136,6 +139,7 @@ typedef struct {
        double estimacion_actual;
        double estimacion_anterior;
        double real_anterior;
+       uint32_t q_ciclos_cpu;
 } t_trainer;
 
 uint32_t connect_to(char* ip, char* port);

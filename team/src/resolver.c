@@ -1,32 +1,45 @@
 #include "resolver.h"
 
-
+void add_to_queue_deadlocks_wait_status(t_deadlock_matcher* deadlock_matcher);
+void create_thread_add_to_queue_deadlocks(t_deadlock_matcher* deadlock_matcher);
 void add_to_queue_deadlocks(t_deadlock_matcher* deadlock_matcher);
 void proceed_to_finish() {
-	sem_init(&sem_deadlock_directo, 0, 1);
-	list_iterate(matched_deadlocks, add_to_queue_deadlocks);
-	sem_wait(&sem_deadlock_directo);
+	pthread_mutex_init(&mutex_direct_deadlocks, NULL);
+	pthread_mutex_lock(&mutex_direct_deadlocks);
+
+	count_sem_reverse_direct_deadlock = 0;
+	pthread_mutex_lock(&mutex_matched_deadlocks);
+	list_iterate(matched_deadlocks, create_thread_add_to_queue_deadlocks);
+	pthread_mutex_unlock(&mutex_matched_deadlocks);
+
+	pthread_mutex_lock(&mutex_direct_deadlocks);
 
 	t_list* trainers_with_deadlock = get_trainers_with_deadlock();
 
 	if(list_is_empty(trainers_with_deadlock)) {
+
 		void print_caught(t_trainer* trainer) {
-			log_info(logger, "Entrenador %d", trainer->name);
+			log_info(logger, "Entrenador %d. Ciclos CPU: %d", trainer->name, trainer->q_ciclos_cpu);
 			dictionary_iterator(trainer->caught, print_pokemons);
 		}
 
 		list_iterate(trainers,print_caught);
+		log_info(logger, "Ciclos CPU Totales: %d", q_ciclos_cpu_totales);
+		log_info(logger, "Cambios de Contexto Totales: %d", q_cambios_contexto_totales);
 		//Termino el proceso, finaliza el team
 		exit(0);
 	} else {
 		handle_deadlock(trainers_with_deadlock);
 
 		void print_caught(t_trainer* trainer) {
-			log_info(logger, "Entrenador %d", trainer->name);
+			log_info(logger, "Entrenador %d. Ciclos CPU: %d", trainer->name, trainer->q_ciclos_cpu);
 			dictionary_iterator(trainer->caught, print_pokemons);
 		}
 
 		list_iterate(trainers,print_caught);
+		log_info(logger, "Ciclos CPU Totales: %d", q_ciclos_cpu_totales);
+		log_info(logger, "Cambios de Contexto Totales: %d", q_cambios_contexto_totales);
+		exit(0);
 	}
 }
 
@@ -113,13 +126,35 @@ char* get_pokemon_I_need(t_list* remaining, t_list* leftovers) {
 	return list_find(leftovers, i_have_one);
 }
 
+void create_thread_add_to_queue_deadlocks(t_deadlock_matcher* deadlock_matcher) {
+	log_info(logger, "Estado entrenador %d: %d", deadlock_matcher->trainer1->name, deadlock_matcher->trainer1->status);
+	log_info(logger, "Estado entrenador %d: %d", deadlock_matcher->trainer2->name, deadlock_matcher->trainer2->status);
+	if((deadlock_matcher->trainer1->status == FULL || deadlock_matcher->trainer1->status == BLOCK) &&
+			(deadlock_matcher->trainer2->status == FULL || deadlock_matcher->trainer2->status == BLOCK)) {
+		add_to_queue_deadlocks(deadlock_matcher);
+	} else {
+	create_thread_with_param(add_to_queue_deadlocks_wait_status, deadlock_matcher, "add_to_queue_deadlocks");
+	}
+}
+
+void add_to_queue_deadlocks_wait_status(t_deadlock_matcher* deadlock_matcher) {
+	if(deadlock_matcher->trainer1->status != FULL && deadlock_matcher->trainer1->status != BLOCK) {
+		pthread_mutex_lock(&deadlock_matcher->trainer1->pcb_trainer->sem_deadlock);
+	}
+	if(deadlock_matcher->trainer2->status != FULL && deadlock_matcher->trainer2->status != BLOCK) {
+		pthread_mutex_lock(&deadlock_matcher->trainer2->pcb_trainer->sem_deadlock);
+	}
+	add_to_queue_deadlocks(deadlock_matcher);
+	// pthread_exit(); TODO VER FINALIZACION DE HILOS
+}
+
 void add_to_queue_deadlocks(t_deadlock_matcher* deadlock_matcher) {
+	log_info(logger, "Disponible a planificar deadlock entre entrenador %d y %d", deadlock_matcher->trainer1->name, deadlock_matcher->trainer2->name);
 	deadlock_matcher->trainer1->status = READY;
 	deadlock_matcher->trainer2->status = SWAPPING;
 	pthread_mutex_lock(&mutex_queue_deadlocks);
 	list_add(queue_deadlock, deadlock_matcher);
 	pthread_mutex_unlock(&mutex_queue_deadlocks);
-	sem_wait(&sem_deadlock_directo);
 	sem_post(&sem_count_queue_deadlocks);
 }
 

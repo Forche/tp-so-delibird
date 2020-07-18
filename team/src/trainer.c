@@ -1,14 +1,22 @@
 #include "trainer.h"
 
+void move_to_position(t_trainer* trainer, uint32_t pos_x, uint32_t pos_y, t_deadlock_matcher* deadlock_matcher);
+void move_one_step(uint32_t* pos1, uint32_t pos2);
+void trainer_must_go_on(t_trainer* trainer, t_deadlock_matcher* deadlock_matcher);
+void desalojar(t_trainer* trainer, bool refresh_estimation, t_deadlock_matcher* deadlock_matcher, bool lock_sem_caught);
+
 void handle_trainer(t_trainer* trainer) {
 	trainer->thread = pthread_self();
 	trainer->pcb_trainer->status = NEW;
 	trainer->pcb_trainer->do_next = &trainer_catch_pokemon;
 	trainer->pcb_trainer->params_do_next = trainer;
+	trainer->pcb_trainer->quantum = 0;
 	pthread_mutex_init(&trainer->sem, NULL);
 	pthread_mutex_lock(&trainer->sem); // Para que quede en 0.
 	pthread_mutex_init(&trainer->pcb_trainer->sem_caught, NULL);
 	pthread_mutex_lock(&trainer->pcb_trainer->sem_caught);
+	pthread_mutex_init(&trainer->pcb_trainer->sem_deadlock, NULL);
+	pthread_mutex_lock(&trainer->pcb_trainer->sem_deadlock);
 
 	while(1) {
 		pthread_mutex_lock(&trainer->sem);
@@ -20,10 +28,10 @@ void trainer_catch_pokemon(t_trainer* trainer) {
 	t_pcb_trainer* pcb_trainer = trainer->pcb_trainer;
 	pcb_trainer->status = EXEC;
 
-	move_to_position(trainer, pcb_trainer->pokemon_to_catch->pos_x, pcb_trainer->pokemon_to_catch->pos_y);
+	move_to_position(trainer, pcb_trainer->pokemon_to_catch->pos_x, pcb_trainer->pokemon_to_catch->pos_y, NULL);
 	catch_pokemon(trainer, pcb_trainer->pokemon_to_catch);
 
-	if (pcb_trainer->result_catch) { //Tiene basura y sale por true
+	if (pcb_trainer->result_catch == 1) { //Tiene basura y sale por true
 		add_to_dictionary(trainer->caught, pcb_trainer->pokemon_to_catch->pokemon);
 
 		pthread_mutex_lock(&mutex_caught_pokemons);
@@ -44,6 +52,7 @@ void trainer_catch_pokemon(t_trainer* trainer) {
 	pthread_mutex_unlock(&mutex_being_caught_pokemons);
 
 	if(is_trainer_full(trainer)) {
+		dictionary_iterator(trainer->caught, print_pokemons);
 		change_status_to(trainer, FULL);
 		validate_deadlock(trainer);
 
@@ -58,6 +67,7 @@ void trainer_catch_pokemon(t_trainer* trainer) {
 
 	trainer->real_anterior = trainer->estimacion_anterior - trainer->estimacion_actual;
 	trainer->sjf_calculado = false;
+	trainer->pcb_trainer->quantum = 0;
 
 	pthread_mutex_unlock(&mutex_planning);
 }
@@ -79,7 +89,9 @@ void find_candidate_to_swap(t_list* remaining, t_list* leftovers, t_trainer* tra
 				deadlock_match->pokemon2 = pokemon;
 				log_info(logger, "Deadlock directo. Entrenador %d recibe %s. Entrenador %d recibe %s",
 						trainer->name, pokemon, has_pokemon_i_need->trainer->name, pokemon_he_needs);
+				pthread_mutex_lock(&mutex_matched_deadlocks);
 				list_add(matched_deadlocks, deadlock_match);
+				pthread_mutex_unlock(&mutex_matched_deadlocks);
 				list_remove_by_value(leftovers, pokemon_he_needs);
 				list_remove_by_value(remaining, pokemon);
 				list_remove_by_value(has_pokemon_i_need->leftovers, pokemon);
@@ -154,7 +166,7 @@ void change_status_to(t_trainer* trainer, status status) {
 	trainer->status = status;
 }
 
-void move_to_position(t_trainer* trainer, uint32_t pos_x, uint32_t pos_y) {
+void move_to_position(t_trainer* trainer, uint32_t pos_x, uint32_t pos_y, t_deadlock_matcher* deadlock_matcher) {
 	uint32_t q_mov_x = abs(trainer->pos_x - pos_x);
 	uint32_t q_mov_y = abs(trainer->pos_y - pos_y);
 	log_info(logger, "Moviendo entrenador %d de posicion x: %d y: %d a posicion x: %d y: %d",trainer->name, trainer->pos_x, trainer->pos_y, pos_x, pos_y);
@@ -163,51 +175,66 @@ void move_to_position(t_trainer* trainer, uint32_t pos_x, uint32_t pos_y) {
 	uint32_t i;
 	for(i = 0; i < q_mov_x; i++) {
 		move_one_step(&trainer->pos_x, pos_x);
+		increment_q_ciclos_cpu(trainer);
 		log_info(logger, "Movido entrenador %d a posicion x: %d y: %d", trainer->name,trainer->pos_x, trainer->pos_y);
 		trainer->estimacion_actual = trainer->estimacion_actual - 1;
-		pthread_mutex_lock(&mutex_matches);
-		trainer_must_go_on(trainer);
-		pthread_mutex_unlock(&mutex_matches);
+		trainer_must_go_on(trainer, deadlock_matcher);
 	}
 	for(i = 0; i < q_mov_y; i++) {
 		move_one_step(&trainer->pos_y, pos_y);
+		increment_q_ciclos_cpu(trainer);
 		log_info(logger, "Movido entrenador %d a posicion x: %d y: %d", trainer->name,trainer->pos_x, trainer->pos_y);
 		trainer->estimacion_actual = trainer->estimacion_actual - 1;
-		pthread_mutex_lock(&mutex_matches);
-		trainer_must_go_on(trainer);
-		pthread_mutex_unlock(&mutex_matches);
+		trainer_must_go_on(trainer, deadlock_matcher);
 	}
 }
 
-void trainer_must_go_on(t_trainer* trainer) {
+void trainer_must_go_on(t_trainer* trainer, t_deadlock_matcher* deadlock_matcher) {
+	if(string_equals_ignore_case(ALGORITMO_PLANIFICACION, "SJF-CD")) {
 		bool is_first = true;
 		double aux;
 		uint32_t i;
-		t_match_pokemon_trainer* to_exec;
-		for(i = 0; i < list_size(matches); i++) {
-			t_match_pokemon_trainer* match_pokemon_trainer = list_get(matches, i);
-			double estimacion = calculate_estimacion_actual_rafaga(match_pokemon_trainer->closest_trainer);
-			log_info(logger, "Estimacion actual para entrenador %d: %f", match_pokemon_trainer->closest_trainer->name, estimacion);
-			if(is_first || estimacion < aux) {
-				is_first = false;
-				aux = estimacion;
-				to_exec = match_pokemon_trainer;
+		if(deadlock_matcher == NULL) {
+			t_match_pokemon_trainer* to_exec = NULL;
+			pthread_mutex_lock(&mutex_matches);
+			for(i = 0; i < list_size(matches); i++) {
+				t_match_pokemon_trainer* match_pokemon_trainer = list_get(matches, i);
+				double estimacion = calculate_estimacion_actual_rafaga(match_pokemon_trainer->closest_trainer);
+				log_info(logger, "Estimacion actual para entrenador %d: %f", match_pokemon_trainer->closest_trainer->name, estimacion);
+				if(is_first || estimacion < aux) {
+					is_first = false;
+					aux = estimacion;
+					to_exec = match_pokemon_trainer;
+				}
+			}
+			pthread_mutex_unlock(&mutex_matches);
+			if(to_exec != NULL && to_exec->closest_trainer->estimacion_actual < trainer->estimacion_actual) {
+				desalojar(trainer, false, deadlock_matcher, false);
+			}
+		} else {
+			t_deadlock_matcher* to_exec = NULL;
+			pthread_mutex_lock(&mutex_queue_deadlocks);
+			for(i = 0; i < list_size(queue_deadlock); i++) {
+				t_deadlock_matcher* deadlock_matcher = list_get(queue_deadlock, i);
+				double estimacion = calculate_estimacion_actual_rafaga(deadlock_matcher->trainer1);
+				log_info(logger, "Estimacion actual para entrenador %d: %f", deadlock_matcher->trainer1->name, estimacion);
+				if(is_first || estimacion < aux) {
+					is_first = false;
+					aux = estimacion;
+					to_exec = deadlock_matcher;
+				}
+			}
+			pthread_mutex_unlock(&mutex_queue_deadlocks);
+			if(to_exec != NULL && to_exec->trainer1->estimacion_actual < trainer->estimacion_actual) {
+				desalojar(trainer, false, deadlock_matcher, false);
 			}
 		}
-		if(to_exec->closest_trainer->estimacion_actual < trainer->estimacion_actual) {
-			change_status_to(trainer, BLOCK);
-			pthread_mutex_unlock(&mutex_planning);
-
-			trainer->status = READY;
-			t_match_pokemon_trainer* match_pokemon_trainer_by_pokemon = malloc(sizeof(t_match_pokemon_trainer));
-			match_pokemon_trainer_by_pokemon->closest_pokemon = trainer->pcb_trainer->pokemon_to_catch;
-			match_pokemon_trainer_by_pokemon->closest_trainer = trainer;
-			pthread_mutex_lock(&mutex_matches);
-			list_add(matches, match_pokemon_trainer_by_pokemon);
-			pthread_mutex_unlock(&mutex_matches);
-			sem_post(&sem_count_matches);
-			pthread_mutex_lock(&trainer->sem);
+	} else if(string_equals_ignore_case(ALGORITMO_PLANIFICACION, "RR")) {
+		trainer->pcb_trainer->quantum = trainer->pcb_trainer->quantum + 1;
+		if(trainer->pcb_trainer->quantum >= QUANTUM) {
+			desalojar(trainer, false, deadlock_matcher, false);
 		}
+	}
 }
 
 
@@ -219,31 +246,18 @@ void move_one_step(uint32_t* pos1, uint32_t pos2) {
 		sleep(RETARDO_CICLO_CPU);
 		*pos1 = *pos1 - 1;
 	}
-
 }
 
 void catch_pokemon(t_trainer* trainer, t_appeared_pokemon* appeared_pokemon) {
 	log_info(logger, "Operacion de catch a pokemon %s, bloqueado entrenador %d en posicion x: %d y: %d", appeared_pokemon->pokemon,
 			trainer->name, trainer->pos_x, trainer->pos_y);
 	sleep(RETARDO_CICLO_CPU);
+	increment_q_ciclos_cpu(trainer);
 	uint32_t broker_msg_connection = connect_to(IP_BROKER, PUERTO_BROKER);
 	if(broker_msg_connection == -1) {
 		log_error(logger, "Entrenador %d: Error de comunicacion con el broker, realizando operacion catch default", trainer->name);
 		trainer->pcb_trainer->result_catch = 1;
-		change_status_to(trainer, BLOCK);
-		pthread_mutex_unlock(&mutex_planning);
-
-		trainer->status = READY;
-		t_match_pokemon_trainer* match_pokemon_trainer_by_pokemon = malloc(sizeof(t_match_pokemon_trainer));
-		match_pokemon_trainer_by_pokemon->closest_pokemon = appeared_pokemon;
-		match_pokemon_trainer_by_pokemon->closest_trainer = trainer;
-		trainer->real_anterior = trainer->estimacion_anterior - trainer->estimacion_actual;
-		trainer->sjf_calculado = false;
-		pthread_mutex_lock(&mutex_matches);
-		list_add(matches, match_pokemon_trainer_by_pokemon);
-		pthread_mutex_unlock(&mutex_matches);
-		sem_post(&sem_count_matches);
-		pthread_mutex_lock(&trainer->sem);
+		desalojar(trainer, true, NULL, false);
 	} else {
 		t_catch_pokemon* pokemon_to_catch = malloc(sizeof(t_catch_pokemon));
 		pokemon_to_catch->pos_x = appeared_pokemon->pos_x;
@@ -254,24 +268,44 @@ void catch_pokemon(t_trainer* trainer, t_appeared_pokemon* appeared_pokemon) {
 		trainer->pcb_trainer->msg_connection = broker_msg_connection;
 		send_message(broker_msg_connection, CATCH_POKEMON, NULL, NULL, buffer);
 		pthread_t thread = create_thread_with_param(receive_message_id, trainer, "receive_message_id");
-		change_status_to(trainer, BLOCK);
-		pthread_mutex_unlock(&mutex_planning);
+		desalojar(trainer, true, NULL, true);
+	}
+	trainer->estimacion_actual = trainer->estimacion_actual - 1;
+}
 
+void desalojar(t_trainer* trainer, bool refresh_estimation, t_deadlock_matcher* deadlock_matcher, bool lock_sem_caught) {
+	log_info(logger, "Desalojando entrenador %d", trainer->name);
+	trainer->pcb_trainer->quantum = 0;
+	pthread_mutex_unlock(&mutex_planning);
+
+	if(lock_sem_caught) {
 		pthread_mutex_lock(&trainer->pcb_trainer->sem_caught);
+	}
 
-		trainer->status = READY;
-		t_match_pokemon_trainer* match_pokemon_trainer_by_pokemon = malloc(sizeof(t_match_pokemon_trainer));
-		match_pokemon_trainer_by_pokemon->closest_pokemon = appeared_pokemon;
-		match_pokemon_trainer_by_pokemon->closest_trainer = trainer;
+	trainer->status = READY;
+	if(refresh_estimation) {
 		trainer->real_anterior = trainer->estimacion_anterior - trainer->estimacion_actual;
 		trainer->sjf_calculado = false;
+	}
+
+	bool catch = trainer->pcb_trainer->status == EXEC;
+
+	if(catch) {
+		t_match_pokemon_trainer* match_pokemon_trainer_by_pokemon = malloc(sizeof(t_match_pokemon_trainer));
+		match_pokemon_trainer_by_pokemon->closest_pokemon = trainer->pcb_trainer->pokemon_to_catch;
+		match_pokemon_trainer_by_pokemon->closest_trainer = trainer;
 		pthread_mutex_lock(&mutex_matches);
 		list_add(matches, match_pokemon_trainer_by_pokemon);
 		pthread_mutex_unlock(&mutex_matches);
 		sem_post(&sem_count_matches);
-		pthread_mutex_lock(&trainer->sem);
+	} else {
+		pthread_mutex_unlock(&mutex_planning_deadlock);
+		pthread_mutex_lock(&mutex_queue_deadlocks);
+		list_add(queue_deadlock, deadlock_matcher);
+		pthread_mutex_unlock(&mutex_queue_deadlocks);
+		sem_post(&sem_count_queue_deadlocks);
 	}
-	trainer->estimacion_actual = trainer->estimacion_actual - 1;
+	pthread_mutex_lock(&trainer->sem);
 }
 
 void receive_message_id(t_trainer* trainer) {

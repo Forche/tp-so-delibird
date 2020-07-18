@@ -4,6 +4,7 @@ char* remove_square_braquets(char* text) {
 	return replace_word(replace_word(text, "[", ""), "]", "");
 }
 
+
 uint32_t* add_to_dictionary(t_dictionary* dictionary, char* item) {
 	uint32_t* quantity = dictionary_get(dictionary, item);
 	if (quantity == NULL) {

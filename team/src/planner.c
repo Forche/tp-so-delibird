@@ -4,6 +4,9 @@ t_match_pokemon_trainer* get_next_to_exec();
 t_match_pokemon_trainer* planner_rr();
 t_match_pokemon_trainer* planner_fifo();
 t_match_pokemon_trainer* planner_sjf();
+t_deadlock_matcher* planner_deadlock_rr();
+t_deadlock_matcher* planner_deadlock_fifo();
+t_deadlock_matcher* planner_deadlock_sjf();
 
 void* planning_catch() {
 
@@ -24,7 +27,7 @@ void* planning_catch() {
 		pthread_mutex_lock(&mutex_matches);
 		t_match_pokemon_trainer* match_pokemon_trainer = get_next_to_exec();
 		pthread_mutex_unlock(&mutex_matches);
-
+		q_cambios_contexto_totales = q_cambios_contexto_totales + 1;
 		t_trainer* trainer = match_pokemon_trainer->closest_trainer;
 		t_appeared_pokemon* pokemon = match_pokemon_trainer->closest_pokemon;
 		trainer->pcb_trainer->pokemon_to_catch = pokemon;
@@ -36,15 +39,29 @@ void* planning_catch() {
 }
 
 void* planning_deadlock() {
+
+	t_deadlock_matcher* (*get_next_to_exec)();
+
+	if(string_equals_ignore_case(ALGORITMO_PLANIFICACION,"FIFO")) {
+		get_next_to_exec = &planner_deadlock_fifo;
+	} else if (string_equals_ignore_case(ALGORITMO_PLANIFICACION,"RR")) {
+		get_next_to_exec = &planner_deadlock_rr;
+	} else if (string_equals_ignore_case(ALGORITMO_PLANIFICACION,"SJF-CD") || string_equals_ignore_case(ALGORITMO_PLANIFICACION,"SJF-SD") ) {
+		get_next_to_exec = &planner_deadlock_sjf;
+	}
+
+
 	while(1) {
 		sem_wait(&sem_count_queue_deadlocks);
 		pthread_mutex_lock(&mutex_planning_deadlock);
 		pthread_mutex_lock(&mutex_queue_deadlocks);
 		t_deadlock_matcher* deadlock_matcher= list_remove(queue_deadlock, 0);
 		pthread_mutex_unlock(&mutex_queue_deadlocks);
+		q_cambios_contexto_totales = q_cambios_contexto_totales + 1;
 		deadlock_matcher->trainer1->pcb_trainer->do_next = &swap_pokemons;
 		deadlock_matcher->trainer1->pcb_trainer->params_do_next = deadlock_matcher;
 		deadlock_matcher->trainer1->status = EXEC;
+		deadlock_matcher->trainer1->pcb_trainer->status = EXEC_DEADLOCK;
 		pthread_mutex_unlock(&deadlock_matcher->trainer1->sem);
 	}
 }
@@ -63,7 +80,7 @@ t_match_pokemon_trainer* planner_fifo() {
 
 t_match_pokemon_trainer* planner_sjf() {
 	uint32_t i;
-	bool  is_first = true;
+	bool is_first = true;
 	double aux;
 	uint32_t aux_position;
 	t_match_pokemon_trainer* to_exec;
@@ -81,6 +98,38 @@ t_match_pokemon_trainer* planner_sjf() {
 	list_remove(matches, aux_position);
 	if(to_exec->closest_trainer->pcb_trainer->status == EXEC) {
 		to_exec->closest_trainer->estimacion_anterior = to_exec->closest_trainer->estimacion_actual;
+	}
+	return to_exec;
+}
+
+t_deadlock_matcher* planner_deadlock_rr() {
+	return list_remove(queue_deadlock, 0);
+}
+
+t_deadlock_matcher* planner_deadlock_fifo() {
+	return list_remove(queue_deadlock, 0);
+}
+
+t_deadlock_matcher* planner_deadlock_sjf() {
+	uint32_t i;
+	bool  is_first = true;
+	double aux;
+	uint32_t aux_position;
+	t_deadlock_matcher* to_exec;
+	for(i = 0; i < list_size(queue_deadlock); i++) {
+		t_deadlock_matcher* deadlock_matcher = list_get(queue_deadlock, i);
+		double estimacion = calculate_estimacion_actual_rafaga(deadlock_matcher->trainer1);
+		log_info(logger, "Estimacion actual para entrenador %d: %f", deadlock_matcher->trainer1->name, estimacion);
+		if(is_first || estimacion < aux) {
+			is_first = false;
+			aux = estimacion;
+			to_exec = deadlock_matcher;
+			aux_position = i;
+		}
+	}
+	list_remove(queue_deadlock, aux_position);
+	if(to_exec->trainer1->pcb_trainer->status == EXEC) {
+		to_exec->trainer1->estimacion_anterior = to_exec->trainer1->estimacion_actual;
 	}
 	return to_exec;
 }

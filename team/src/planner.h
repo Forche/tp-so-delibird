@@ -9,5 +9,4 @@
 void* planning_catch();
 void* planning_deadlock();
 double calculate_estimacion_actual_rafaga(t_trainer* trainer);
-
 #endif /* SRC_PLANNER_H_ */

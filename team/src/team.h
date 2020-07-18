@@ -44,13 +44,16 @@ pthread_mutex_t mutex_caught_pokemons;
 pthread_mutex_t mutex_being_caught_pokemons;
 pthread_mutex_t mutex_queue_deadlocks;
 pthread_mutex_t mutex_planning_deadlock;
+pthread_mutex_t mutex_direct_deadlocks;
+pthread_mutex_t mutex_matched_deadlocks;
+pthread_mutex_t mutex_q_ciclos_cpu_totales;
 
 sem_t sem_appeared_pokemon;
 sem_t sem_trainer_available;
 sem_t sem_count_matches;
 sem_t sem_all_pokemons_caught;
 sem_t sem_count_queue_deadlocks;
-sem_t sem_deadlock_directo;
+uint32_t count_sem_reverse_direct_deadlock;
 
 t_log* logger;
 t_config* config;
@@ -64,6 +67,8 @@ double ALPHA;
 double ESTIMACION_INICIAL;
 char* ALGORITMO_PLANIFICACION;
 uint32_t QUANTUM;
+uint32_t q_ciclos_cpu_totales;
+uint32_t q_cambios_contexto_totales;
 
 t_dictionary* global_objective;
 t_dictionary* caught_pokemons;
@@ -89,5 +94,7 @@ void* build_remaining_pokemons();
 void* add_remaining(char* pokemon, uint32_t* cant_global);
 void print_pokemons(char* key, int* value);
 void swap_pokemons(t_deadlock_matcher* deadlock_matcher);
+void validate_state_trainer(t_trainer* trainer);
+void increment_q_ciclos_cpu(t_trainer* trainer);
 
 #endif /* TEAM_H_ */
