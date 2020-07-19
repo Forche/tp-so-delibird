@@ -26,6 +26,7 @@ void server_init(void) {
 	ALGORITMO_REEMPLAZO = config_get_string_value(config, "ALGORITMO_REEMPLAZO");
 	TAMANO_MEMORIA = config_get_int_value(config, "TAMANO_MEMORIA");
 	TAMANO_MINIMO_PARTICION = config_get_int_value(config, "TAMANO_MINIMO_PARTICION");
+	FRECUENCIA_COMPACTACION = config_get_int_value(config, "FRECUENCIA_COMPACTACION");
 
 	memory_init();
 
@@ -66,7 +67,7 @@ void memory_init() {
 	first_memory_partition->id = get_partition_id();
 	first_memory_partition->begin = 0;
 	first_memory_partition->content_size = TAMANO_MEMORIA;
-	first_memory_partition->lru_time = 0; // We'll use this later for compaction
+	first_memory_partition->timestamp = 0; // We'll use this later for compaction and eviction strategy
 	first_memory_partition->status = FREE;
 
 	list_add(memory_partitions, first_memory_partition);
@@ -168,7 +169,7 @@ uint32_t store_payload(void* payload, uint32_t size) {
 		partition->content_size = partition->content_size - size;
 
 		new_partition->status = OCCUPED;
-		new_partition->lru_time = 0;
+		new_partition->timestamp = 0;
 		new_partition->id = get_partition_id();
 		list_add(memory_partitions, new_partition);
 		return new_partition->id;
@@ -177,31 +178,63 @@ uint32_t store_payload(void* payload, uint32_t size) {
 	return -1;
 }
 
-t_memory_partition* get_free_partition(uint32_t size) {
-	t_memory_partition* partition_to_return;
-
+t_memory_partition* find_free_partition(uint32_t size) {
 	if (string_equals_ignore_case(ALGORITMO_PARTICION_LIBRE, "FF"))
 	{
-		partition_to_return = get_free_partition_ff(size);
+		partition_to_return = find_free_partition_ff(size);
 	} else {
-		partition_to_return = get_free_partition_bf(size);
+		partition_to_return = find_free_partition_bf(size);
 	}
+}
 
-	if (partition_to_return->id == -1)
+void delete_partition_and_consolidate() {
+	if (string_equals_ignore_case(ALGORITMO_REEMPLAZO, "FIFO"))
 	{
-		perform_compaction();
+		delete_partition_and_consolidate_fifo();
+	} else {
+		delete_partition_and_consolidate_lru();
+	}
+}
 
-		if (string_equals_ignore_case(ALGORITMO_PARTICION_LIBRE, "FF"))
-		{
-			partition_to_return = get_free_partition_ff(size);
-		} else {
-			partition_to_return = get_free_partition_bf(size);
-		}
+void delete_partition_and_consolidate_fifo() {
+	// Delete partition which ID is the lowest
+	// Because we assign partition IDs incrementally
+	// Causing older partitions to have lower ID values
+}
+
+void delete_partition_and_consolidate_lru() {
+	// Delete partition which timestamp is the lowest
+	// We must update the timestamp with every access to the partition
+	// (Not taking into account when accessing for compacting)
+}
+
+t_memory_partition* get_free_partition(uint32_t size) {
+	int search_count = 0;
+	t_memory_partition* partition_to_return = find_free_partition(size);
+	search_count++;
+
+	if (partition_to_return->id != -1)
+	{
+		return partition_to_return;
 	}
 
-	
+	while (true)
+	{
+		while (FRECUENCIA_COMPACTACION > search_count)
+		{
+			perform_compaction();
+			partition_to_return = find_free_partition(size);
+			search_count++;
 
-	return partition_to_return;
+			if (partition_to_return->id != -1)
+			{
+				return partition_to_return;
+			}
+		}
+
+	delete_partition_and_consolidate();
+	search_count = 0;
+	}
 }
 
 void perform_compaction() {
@@ -236,7 +269,7 @@ void perform_compaction() {
 	free_memory_partition->id = get_partition_id();
 	free_memory_partition->begin = compacted_memory + offset;
 	free_memory_partition->content_size = TAMANO_MEMORIA - offset;
-	free_memory_partition->lru_time = 0; // We'll use this later for compaction
+	free_memory_partition->timestamp = 0; // We'll use this later for compaction
 	free_memory_partition->status = FREE;
 
 	list_add(new_partitions, free_memory_partition);
@@ -248,7 +281,7 @@ void perform_compaction() {
 	memory = compacted_memory;
 }
 
-t_memory_partition* get_free_partition_ff(uint32_t size) {
+t_memory_partition* find_free_partition_ff(uint32_t size) {
 	uint32_t i = 0;
 
 	if (size <= TAMANO_MINIMO_PARTICION)
@@ -272,7 +305,7 @@ t_memory_partition* get_free_partition_ff(uint32_t size) {
 	return partition_to_return;
 }
 
-t_memory_partition* get_free_partition_bf(uint32_t size) {
+t_memory_partition* find_free_partition_bf(uint32_t size) {
 	uint32_t i = 0;
 	t_memory_partition* best_partition;
 
@@ -579,9 +612,9 @@ void dump_memory(){
 		uint32_t begin = ((t_memory_partition*)(list_get(memory_partitions,i)))->begin;
 		uint32_t content_size = ((t_memory_partition*)(list_get(memory_partitions,i)))->content_size;
 		uint32_t id = ((t_memory_partition*)(list_get(memory_partitions,i)))->id;
-		uint32_t lru_time = ((t_memory_partition*)(list_get(memory_partitions,i)))->lru_time;
+		uint32_t timestamp = ((t_memory_partition*)(list_get(memory_partitions,i)))->timestamp;
 		uint32_t status = ((t_memory_partition*)(list_get(memory_partitions,i)))->status;
-		fprintf(dump_file,"Particion %d: %X - %X.\t [%d]\t Size:%d b\t LRU:%d\t Cola:%d(FALTA EL TIPO DE COLA)\t ID:%d\n", i, begin, (begin+content_size), status, content_size, lru_time, content_size, id);
+		fprintf(dump_file,"Particion %d: %X - %X.\t [%d]\t Size:%d b\t LRU:%d\t Cola:%d(FALTA EL TIPO DE COLA)\t ID:%d\n", i, begin, (begin+content_size), status, content_size, timestamp, content_size, id);
 	 }
 	fclose(dump_file);
 }
