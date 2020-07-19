@@ -69,6 +69,7 @@ char* ALGORITMO_PLANIFICACION;
 uint32_t QUANTUM;
 uint32_t q_ciclos_cpu_totales;
 uint32_t q_cambios_contexto_totales;
+char* ID;
 
 t_dictionary* global_objective;
 t_dictionary* caught_pokemons;
@@ -80,7 +81,7 @@ void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, 
 pthread_t create_planner();
 pthread_t create_matcher();
 void init_sem();
-void handle_event(uint32_t* socket);
+void handle_event(uint32_t* socket, bool* connection_on);
 void subscribe_to(event_code code);
 void team_listener();
 pthread_t create_thread_open_socket();

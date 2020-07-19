@@ -21,6 +21,7 @@ int main(void) {
 	to_deadlock = list_create();
 	queue_deadlock = list_create();
 
+	ID = config_get_string_value(config, "ID");
 	char* POSICIONES_ENTRENADORES = config_get_string_value(config, "POSICIONES_ENTRENADORES");
 	char* POKEMON_ENTRENADORES = config_get_string_value(config, "POKEMON_ENTRENADORES");
 	char* OBJETIVOS_ENTRENADORES = config_get_string_value(config, "OBJETIVOS_ENTRENADORES");
@@ -77,29 +78,39 @@ int main(void) {
 	return EXIT_SUCCESS;
 }
 
-void handle_event(uint32_t* socket) {
+void handle_event(uint32_t* socket, bool* connection_on) {
 	event_code code;
-	if (recv(*socket, &code, sizeof(event_code), MSG_WAITALL) == -1)
-		code = -1;
-	t_message* msg = receive_message(code, *socket);
-	uint32_t size;
-	switch (code) {
-	case LOCALIZED_POKEMON:
-		msg->buffer->payload = deserialize_localized_pokemon_message(*socket, &size);
-		create_thread_with_param(handle_localized, msg, "handle_localized");
+	int bytes = recv(*socket, &code, sizeof(event_code), MSG_WAITALL);
+	if (bytes == -1 || bytes == 0) {
+		*connection_on = false;
+	} else {
+		t_message* msg = receive_message(code, *socket);
+		uint32_t size;
+		t_message_received* message_received = malloc(sizeof(t_message_received));
+		switch (code) {
+		case LOCALIZED_POKEMON:
+			msg->buffer->payload = deserialize_localized_pokemon_message(*socket, &size);
+			create_thread_with_param(handle_localized, msg, "handle_localized");
+			message_received->message_type = LOCALIZED_POKEMON;
+			break;
+		case CAUGHT_POKEMON:
+			msg->buffer->payload = deserialize_caught_pokemon_message(*socket, &size);
+			create_thread_with_param(handle_caught, msg, "handle_caught");
+			message_received->message_type = CAUGHT_POKEMON;
+			break;
+		case APPEARED_POKEMON:
+			msg->buffer->payload = deserialize_appeared_pokemon_message(*socket, &size);
+			create_thread_with_param(handle_appeared, msg, "handle_appeared");
+			message_received->message_type = APPEARED_POKEMON;
+			break;
+		}
+		message_received->received_message_id = msg->id;
+		message_received->subscriptor_len = string_length(ID) + 1;
+		message_received->subscriptor_id = ID;
 
-		break;
-	case CAUGHT_POKEMON:
-		msg->buffer->payload = deserialize_caught_pokemon_message(*socket, &size);
-		create_thread_with_param(handle_caught, msg, "handle_caught");
-
-		break;
-	case APPEARED_POKEMON:
-		msg->buffer->payload = deserialize_appeared_pokemon_message(*socket, &size);
-		create_thread_with_param(handle_appeared, msg, "handle_appeared");
-		break;
+		t_buffer* buffer_received = serialize_t_message_received(message_received);
+		send_message(socket, MESSAGE_RECEIVED, msg->id, msg->correlative_id, buffer_received);
 	}
-
 }
 
 void handle_localized(t_message* msg) {
@@ -186,7 +197,6 @@ void send_get_pokemons() {
 
 void get_pokemon(char* pokemon, uint32_t* cant) {
 	create_thread_with_param(send_get, pokemon, "send_get");
-	//FIXME Sacar sleep, hay sindrome de los tres chiflados
 	sleep(1);
 }
 
@@ -299,8 +309,8 @@ void subscribe_to(event_code code) {
 	suscription->ip_len = string_length(IP_TEAM) + 1;
 	suscription->ip = IP_TEAM;
 	suscription->queue = code;
-	suscription->subscriptor_len = 12;
-	suscription->subscriptor_id = "TEAM ROCKET";
+	suscription->subscriptor_len = string_length(ID) + 1;
+	suscription->subscriptor_id = ID;
 	suscription->port = PUERTO_TEAM;
 	suscription->duration = -1;
 
@@ -309,15 +319,19 @@ void subscribe_to(event_code code) {
 	uint32_t broker_connection = connect_to(IP_BROKER, PUERTO_BROKER);
 	if(broker_connection == -1) {
 		log_error(logger, "No se pudo conectar al broker, reintentando en %d seg", TIEMPO_RECONEXION);
-//		sleep(TIEMPO_RECONEXION);
-//		subscribe_to(code);
+		sleep(TIEMPO_RECONEXION);
+		subscribe_to(code);
 	} else {
 		log_info(logger, "Conectada cola code %d al broker", code);
 		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
-
-		while(1) {
-			handle_event(&broker_connection);
+		bool connection_on = true;
+		while(connection_on) {
+			handle_event(&broker_connection, &connection_on);
 		}
+		log_error(logger, "Desconectado del broker, reintentando en %d seg", TIEMPO_RECONEXION);
+		close(broker_connection);
+		sleep(TIEMPO_RECONEXION);
+		subscribe_to(code);
 	}
 
 }
