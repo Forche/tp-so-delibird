@@ -177,8 +177,6 @@ uint32_t store_payload(void* payload, uint32_t size) {
 	return -1;
 }
 
-
-
 t_memory_partition* get_free_partition(uint32_t size) {
 	t_memory_partition* partition_to_return;
 
