@@ -20,7 +20,8 @@ typedef enum {
 	CAUGHT_POKEMON = 4,
 	GET_POKEMON = 5,
 	LOCALIZED_POKEMON = 6,
-	NEW_SUBSCRIPTOR = 7
+	NEW_SUBSCRIPTOR = 7,
+	MESSAGE_RECEIVED = 8
 } event_code;
 
 typedef struct {
@@ -89,6 +90,13 @@ typedef struct {
 	uint32_t port;
 	uint32_t duration; // If duration is -1, it's for an undefined amount of time. Otherwise, 'duration' seconds.
 } t_subscription_petition;
+
+typedef struct {
+	uint32_t subscriptor_len;
+	char* subscriptor_id;
+	event_code message_type;
+	uint32_t received_message_id;
+} t_message_received;
 
 typedef struct {
 	t_subscription_petition* subscriptor_info;
