@@ -92,6 +92,8 @@ void delete_partition_and_consolidate();
 void delete_partition_and_consolidate_fifo();
 void delete_partition_and_consolidate_lru();
 void perform_compaction();
+void delete_and_consolidate(uint32_t memory_partition_id);
+void consolidate(t_memory_partition* memory_partition_to_consolidate);
 
 uint32_t get_message_id();
 
