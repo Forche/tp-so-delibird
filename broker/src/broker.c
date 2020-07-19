@@ -67,7 +67,7 @@ void memory_init() {
 	first_memory_partition->id = get_partition_id();
 	first_memory_partition->begin = 0;
 	first_memory_partition->content_size = TAMANO_MEMORIA;
-	first_memory_partition->timestamp = 0; // We'll use this later for compaction and eviction strategy
+	first_memory_partition->timestamp = 0; // Free partitions should not have timestamp value !== 0
 	first_memory_partition->status = FREE;
 
 	list_add(memory_partitions, first_memory_partition);
@@ -164,7 +164,7 @@ uint32_t store_payload(void* payload, uint32_t size) {
 	partition->content_size = partition->content_size - size;
 
 	new_partition->status = OCCUPED;
-	new_partition->timestamp = 0;
+	new_partition->timestamp = (unsigned long)time(NULL);
 	new_partition->id = get_partition_id();
 	list_add(memory_partitions, new_partition);
 
@@ -228,6 +228,7 @@ void delete_partition_and_consolidate_fifo() {
 	// Set as FREE the partition which ID is memory_partition_id
 	t_memory_partition* partition = list_remove(memory_partitions, index_to_free);
 	partition->status = FREE;
+	partition->timestamp = 0;
 	list_add(memory_partitions, partition);
 	delete_and_consolidate(smallest_id);
 }
@@ -260,6 +261,7 @@ void delete_partition_and_consolidate_lru() {
 	// Set as FREE the partition which ID is memory_partition_id
 	t_memory_partition* partition = list_remove(memory_partitions, index_to_free);
 	partition->status = FREE;
+	partition->timestamp = 0;
 	list_add(memory_partitions, partition);
 	delete_and_consolidate(smallest_id);
 }
@@ -441,7 +443,7 @@ void perform_compaction() {
 	free_memory_partition->id = get_partition_id();
 	free_memory_partition->begin = compacted_memory + offset;
 	free_memory_partition->content_size = TAMANO_MEMORIA - offset;
-	free_memory_partition->timestamp = 0; // We'll use this later for compaction
+	free_memory_partition->timestamp = 0;
 	free_memory_partition->status = FREE;
 
 	list_add(new_partitions, free_memory_partition);
@@ -739,6 +741,10 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 			buffer->payload = content;
 			send_message(*socket, subscription_petition->queue, message->message->id,
 											message->message->correlative_id, buffer);
+
+			partition = list_remove(memory_partitions, j);
+			partition->timestamp = (unsigned long)time(NULL);
+			list_add(memory_partitions, partition);
 		}
 
 		receiver* receiver = malloc(sizeof(uint32_t) * 2);
