@@ -258,10 +258,10 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		//Add message to memory
 		store_message(msg, queue_appeared_pokemon, queue_appeared_pokemon.subscriptors);
 		break;
-	case CATCH_POKEMON:
-		msg->buffer->payload = deserialize_catch_pokemon_message(client_socket,
+	case CATCH_POKEMON: ;
+		t_catch_pokemon* catch_pokemon = deserialize_catch_pokemon_message(client_socket,
 				&size);
-		msg->buffer->size = size;
+		msg->buffer = serialize_t_catch_pokemon_message(catch_pokemon);
 		return_message_id(client_socket, msg->id);
 
 		for (i = 0; i < list_size(queue_catch_pokemon.subscriptors); i++) {

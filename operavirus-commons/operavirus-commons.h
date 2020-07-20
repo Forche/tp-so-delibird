@@ -160,7 +160,7 @@ t_buffer* serialize_caught_pokemon_message(char* payload_content[]);
 t_buffer* serialize_t_get_pokemon_message(t_get_pokemon* get_pokemon);
 t_buffer* serialize_get_pokemon_message(char* payload_content[]);
 
-t_buffer* serialize_t_localized_pokemon_message(t_localized_pokemon* get_pokemon);
+t_buffer* serialize_t_localized_pokemon_message(t_localized_pokemon* localized_pokemon);
 t_buffer* serialize_localized_pokemon_message(char* payload_content[]);
 
 t_buffer* serialize_new_subscriptor_message(char* payload_content[], char* sender_id, char* sender_ip, uint32_t sender_port);

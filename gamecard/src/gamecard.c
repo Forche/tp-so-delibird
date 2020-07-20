@@ -116,11 +116,58 @@ void handle_event(uint32_t* socket) {
 		break;
 	case GET_POKEMON:
 		msg->buffer = deserialize_get_pokemon_message(*socket, &size);
-		//create_thread_with_param(handle_appeared, msg, "handle_appeared");
+		create_thread_with_param(handle_get_pokemon, msg, "handle_get");
 		break;
 	}
 }
+
+void handle_get_pokemon(t_message* msg){
+	t_get_pokemon* get_pokemon = (t_get_pokemon*)msg->buffer;
+	int exists_directory = check_pokemon_directory(get_pokemon->pokemon, msg->event_code);
+	if(exists_directory){
+		char* path_pokemon = string_from_format("%s/Files/%s/Metadata.bin", PUNTO_MONTAJE_TALLGRASS, get_pokemon->pokemon);
+		check_if_file_is_open(path_pokemon);
+		char* blocks_content = read_blocks_content(path_pokemon);
+		sleep(TIEMPO_RETARDO_OPERACION);
+		close_file_pokemon(path_pokemon);
+		t_list* pokemon_positions = get_positions_from_buffer(blocks_content);
+		uint32_t* positions_uint32 = positions_to_uint32(pokemon_positions);
+		if(pokemon_positions != NULL){
+			t_localized_pokemon* localized_pokemon = create_localized_pokemon(get_pokemon->pokemon_len, get_pokemon->pokemon, list_size(pokemon_positions), positions_uint32);
+			send_localized_to_broker(localized_pokemon, msg->id);
+		}
+	}
+}
+
+t_localized_pokemon* create_localized_pokemon(uint32_t pokemon_len,	char* pokemon, uint32_t positions_count, uint32_t* positions){
+	t_localized_pokemon* localized_pokemon = malloc(sizeof(t_localized_pokemon));
+	localized_pokemon->pokemon_len = pokemon_len;
+	localized_pokemon->pokemon = malloc(pokemon_len);
+	memcpy(localized_pokemon->pokemon, pokemon, pokemon_len);
+	localized_pokemon->positions_count = positions_count;
+	localized_pokemon->positions = positions;
+	return localized_pokemon;
+}
+
+uint32_t* positions_to_uint32(t_list* pokemon_positions){
+	uint32_t* positions;
+	positions = malloc((list_size(pokemon_positions))*2);
+	for(int i = 0; i<(list_size(pokemon_positions));i++){
+		positions[i] = ((t_position*)pokemon_positions)->pos_x;
+		positions[i+1] = ((t_position*)pokemon_positions)->pos_y;
+	}
+	return positions;
+}
+
+void send_localized_to_broker(t_localized_pokemon* localized_pokemon, uint32_t id){
+	t_buffer* buffer = serialize_t_localized_pokemon_message(localized_pokemon);
+	uint32_t connection = connect_to(IP_BROKER,PUERTO_BROKER);
+	send_message(connection, LOCALIZED_POKEMON, id, 0, buffer);
+	//free(buffer);
+}
+
 void handle_catch_pokemon(t_message* msg){
+	t_caught_pokemon* caught_pokemon = malloc(sizeof(t_appeared_pokemon));
 	t_catch_pokemon* catch_pokemon = (t_catch_pokemon*)msg->buffer;
 	int exists_directory = check_pokemon_directory(catch_pokemon->pokemon, msg->event_code);
 	if(exists_directory){
@@ -133,10 +180,39 @@ void handle_catch_pokemon(t_message* msg){
 			if(position->count == 1){
 				remove_position(position, path_pokemon);
 			} else {
-				//decrease_position(position);
+				decrease_position(position, path_pokemon);
 			}
 		}
+		caught_pokemon->result = 1;
+	}else {
+		caught_pokemon->result = 0;
 	}
+	send_caught_to_broker(caught_pokemon, msg->id);
+}
+
+void send_caught_to_broker(t_caught_pokemon* caught_pokemon, uint32_t id){
+	t_buffer* buffer = serialize_t_caught_pokemon_message(caught_pokemon);
+	uint32_t connection = connect_to(IP_BROKER,PUERTO_BROKER);
+	send_message(connection, CAUGHT_POKEMON, id, 0, buffer);
+	//free(buffer);
+}
+
+void decrease_position(t_position* position, char* path_pokemon){
+	char* blocks_content = read_blocks_content(path_pokemon);
+	t_list* pokemon_positions = get_positions_from_buffer(blocks_content);
+
+	int pos = position_list(pokemon_positions,position);
+	t_position* position_in_list = list_get(pokemon_positions,pos);
+
+	log_info(logger,"Restamos 1 a %d total: %d en %s", position_in_list->count, position_in_list->count - 1, path_pokemon);
+	position_in_list->count -=1;
+	//TODO:PROBAR SIN REPLACE
+	list_replace(pokemon_positions,pos,position_in_list);
+
+
+	write_positions_on_files(pokemon_positions, path_pokemon);
+	list_destroy(pokemon_positions);
+	close_file_pokemon(path_pokemon);
 }
 
 void remove_position(t_position* position, char* path_pokemon){
@@ -187,7 +263,7 @@ void send_appeared_to_broker(t_appeared_pokemon* appeared_pokemon, uint32_t id){
 }
 
 t_appeared_pokemon* create_appeared_pokemon(uint32_t pokemon_len, char* pokemon, uint32_t pos_x, uint32_t pos_y){
-	t_appeared_pokemon* appeared_pokemon = malloc(sizeof(t_appeared_pokemon));;
+	t_appeared_pokemon* appeared_pokemon = malloc(sizeof(t_appeared_pokemon));
 	appeared_pokemon->pokemon_len = pokemon_len;
 	appeared_pokemon->pokemon = malloc(pokemon_len);
 	memcpy(appeared_pokemon->pokemon, pokemon, pokemon_len);
@@ -473,6 +549,7 @@ char* read_blocks_content(char* path_pokemon){
 
 t_list* get_positions_from_buffer(char* buffer){
 	t_list* positions = list_create();
+	positions = NULL;
 	if(string_length(buffer) != 0){
 		char **array_buffer_positions = string_split(buffer, "\n");
 		int index_position=0;
@@ -542,7 +619,7 @@ int check_pokemon_directory(char* pokemon, event_code code){
 			fprintf(file, "BLOCKS=[%d]\n", available_block);
 			fprintf(file, "OPEN=N\n");
 			fclose(file);
-		} else if(code == CATCH_POKEMON){
+		} else if(code == CATCH_POKEMON || code == GET_POKEMON){
 			log_error(logger, "No existe el directorio para %s", pokemon);
 		}
 	}

@@ -386,7 +386,38 @@ t_buffer* serialize_t_get_pokemon_message(t_get_pokemon* get_pokemon_ptr) {
 }
 
 t_buffer* serialize_localized_pokemon_message(char* payload_content[]) {
-	return NULL;
+	//No se llama desde el gameboy
+	t_localized_pokemon* localized_pokemon_ptr = malloc(sizeof(t_appeared_pokemon));
+	localized_pokemon_ptr->pokemon_len = strlen(payload_content[0]) + 1;
+	localized_pokemon_ptr->pokemon = payload_content[0];
+	localized_pokemon_ptr->positions_count = atoi(payload_content[1]);
+	localized_pokemon_ptr->positions = atoi(payload_content[2]);
+
+	return serialize_t_localized_pokemon_message(localized_pokemon_ptr);
+}
+
+t_buffer* serialize_t_localized_pokemon_message(t_localized_pokemon* localized_pokemon_ptr){
+	t_localized_pokemon localized_pokemon_msg = (*localized_pokemon_ptr);
+
+	t_buffer* buffer = malloc(sizeof(t_buffer));
+	buffer->size = sizeof(uint32_t) * 2 + localized_pokemon_ptr->pokemon_len + 2 * localized_pokemon_ptr->positions_count;
+
+	void* payload = malloc(buffer->size);
+	int offset = 0;
+
+	memcpy(payload + offset, &localized_pokemon_msg.pokemon_len, sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+	memcpy(payload + offset, &localized_pokemon_msg.positions_count, sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+	memcpy(payload + offset, localized_pokemon_msg.pokemon, localized_pokemon_msg.pokemon_len);
+	offset += localized_pokemon_msg.pokemon_len;
+	memcpy(payload + offset, &localized_pokemon_msg.positions, 2 * localized_pokemon_msg.positions_count);
+
+	buffer->payload = payload;
+
+	free(localized_pokemon_ptr);
+
+	return buffer;
 }
 
 t_message* receive_message(uint32_t event_code, uint32_t socket) {
@@ -483,8 +514,8 @@ t_caught_pokemon* deserialize_caught_pokemon_message(uint32_t socket,
 
 	t_log* logger = logger_init();
 	*size = 1;
-	char* str_result = malloc(*size);
-	sprintf(str_result, "%d", caught_pokemon->result);
+	char* str_result = string_new();
+	str_result= string_from_format("%d", caught_pokemon->result);
 	log_info(logger, str_result);
 	log_destroy(logger);
 	free(str_result);
