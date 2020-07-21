@@ -78,6 +78,7 @@ void queues_init();
 void wait_for_client(uint32_t);
 void process_request(uint32_t event_code, uint32_t socket);
 void process_new_subscription(uint32_t client_socket);
+void process_message_received(uint32_t client_socket);
 void serve_client(uint32_t* socket);
 void process_subscriptor(uint32_t* socket, t_subscription_petition* subscription_petition, queue queue);
 void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_petition, queue queue);

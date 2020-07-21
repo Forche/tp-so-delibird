@@ -617,8 +617,82 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	case NEW_SUBSCRIPTOR: ;
 		process_new_subscription(client_socket);
 		break;
+	case MESSAGE_RECEIVED: ;
+		process_message_received(client_socket);
 	default:
 		pthread_exit(NULL);
+	}
+}
+
+void process_message_received(uint32_t socket) {
+	uint32_t subscriptor_len;
+	recv(socket, &(subscriptor_len), sizeof(uint32_t), MSG_WAITALL);
+
+	char* subscriptor_id = malloc(subscriptor_len);
+	recv(socket, subscriptor_id, subscriptor_len,
+	MSG_WAITALL);
+
+	event_code message_type;
+	recv(socket, &(message_type), sizeof(event_code),
+	MSG_WAITALL);
+
+	uint32_t received_message_id;
+	recv(socket, &(received_message_id), sizeof(uint32_t), MSG_WAITALL);
+
+	switch (message_type) {
+	case NEW_POKEMON:
+		queue = queue_new_pokemon;
+		break;
+	case APPEARED_POKEMON:
+		queue = queue_appeared_pokemon;
+		break;
+	case CATCH_POKEMON:
+		queue = queue_catch_pokemon;
+		break;
+	case CAUGHT_POKEMON:
+		queue = queue_caught_pokemon;
+		break;
+	case GET_POKEMON:
+		queue = queue_get_pokemon;
+		break;
+	case LOCALIZED_POKEMON:
+		queue = queue_localized_pokemon;
+		break;
+	default:
+		pthread_exit(NULL);
+	}
+
+	process_message_ack(queue, subscriptor_id, received_message_id);
+}
+
+void process_message_ack(queue queue, char* subscriptor_id, uint32_t received_message_id)
+{
+	for (int i = 0; i < list_size(queue->subscriptors); i++)
+	{
+		t_subscriptor* subscriptor = (t_subscriptor*) list_get(queue->subscriptors, i);
+
+		if (string_equals_ignore_case(subscriptor->subscriptor_info->subscriptor_id, subscriptor_id))
+		{
+			uint32_t subscriptor_socket = subscriptor->socket;
+			for (int j = 0; j < list_size(queue->messages); j++)
+			{
+				queue_message* queue_message = (queue_message*) list_get(queue->messages, j);
+
+				if (queue_message->message->id == received_message_id)
+				{
+					for (int k = 0; k < list_size(queue->receivers); k++)
+					{
+						receiver* receiver = (receiver*) list_get(queue->receivers, k);
+
+						if (receiver->receiver_socket == subscriptor->socket)
+						{
+							receiver->received = 1;
+							return;
+						}
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -718,7 +792,7 @@ void process_subscriptor(uint32_t* socket, t_subscription_petition* subscription
 
 		process_request(code, *socket);
 	}
-	
+
 	pthread_exit(NULL);
 }
 
@@ -757,7 +831,6 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 
 		receiver* receiver = malloc(sizeof(uint32_t) * 2);
 		receiver->receiver_socket = *socket;
-		receiver->received = 1;
 		list_add(message->receivers, receiver);
 	}
 }
