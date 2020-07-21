@@ -702,16 +702,24 @@ void process_new_subscription(uint32_t socket) {
 void process_subscriptor(uint32_t* socket, t_subscription_petition* subscription_petition, queue queue) {
 	send_all_messages(socket, subscription_petition, queue);
 
-	//TODO: Add logic to subscribe for 'duration' seconds.
+	uint64_t end_subscription_time = (unsigned long)time(NULL);
+	if (susbcription_petition->time < 0)
+	{
+		end_subscription_time += 50000;
+	} else {
+		end_subscription_time += susbcription_petition->time;
+	}
 
 	event_code code;
 
-	while (1) {
+	while ((unsigned long)time(NULL) < end_subscription_time) {
 		if (recv(*socket, &code, sizeof(event_code), MSG_WAITALL) == -1)
 			code = -1;
 
 		process_request(code, *socket);
 	}
+	
+	pthread_exit(NULL);
 }
 
 void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_petition, queue queue) {
