@@ -247,7 +247,7 @@ pthread_t create_matcher() {
 }
 
 pthread_t create_thread_open_socket() {
-	return create_thread(team_listener, "match_pokemon_with_trainer");
+	return create_thread(team_listener, "team_listener");
 }
 
 void team_listener() {
