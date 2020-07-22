@@ -78,12 +78,11 @@ int main(void) {
 	return EXIT_SUCCESS;
 }
 
-void handle_event(uint32_t* socket, bool* connection_on) {
+void handle_event(uint32_t* socket) {
 	event_code code;
-	int bytes = recv(*socket, &code, sizeof(event_code), MSG_WAITALL);
-	if (bytes == -1 || bytes == 0) {
-		*connection_on = false;
-	} else {
+	if (recv(*socket, &code, sizeof(event_code), MSG_WAITALL) == -1) {
+		code = -1;
+	}
 		t_message* msg = receive_message(code, *socket);
 		uint32_t size;
 		t_message_received* message_received = malloc(sizeof(t_message_received));
@@ -110,7 +109,6 @@ void handle_event(uint32_t* socket, bool* connection_on) {
 
 		t_buffer* buffer_received = serialize_t_message_received(message_received);
 		send_message(socket, MESSAGE_RECEIVED, msg->id, msg->correlative_id, buffer_received);
-	}
 }
 
 void handle_localized(t_message* msg) {
@@ -324,14 +322,11 @@ void subscribe_to(event_code code) {
 	} else {
 		log_info(logger, "Conectada cola code %d al broker", code);
 		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
-		bool connection_on = true;
-		while(connection_on) {
-			handle_event(&broker_connection, &connection_on);
+		while(1) {
+			handle_event(&broker_connection);
 		}
-		log_error(logger, "Desconectado del broker, reintentando en %d seg", TIEMPO_RECONEXION);
+		log_error(logger, "Se desconecto del broker");
 		close(broker_connection);
-		sleep(TIEMPO_RECONEXION);
-		subscribe_to(code);
 	}
 
 }
