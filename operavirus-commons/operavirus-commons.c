@@ -121,7 +121,7 @@ void* serialize_message(t_message* message, uint32_t* bytes_to_send) {
 }
 
 void validate_arg_count(uint32_t arg_count, uint32_t payload_args) {
-	//TODO: Throw exception if arg_count != payload_args
+
 }
 
 t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count,
@@ -433,6 +433,7 @@ t_message* receive_message(uint32_t event_code, uint32_t socket) {
 	buffer->size = size;
 	message->buffer = buffer;
 	message->event_code = event_code;
+	free(buffer);
 
 	return message;
 }
@@ -454,7 +455,7 @@ t_new_pokemon* deserialize_new_pokemon_message(uint32_t socket, uint32_t* size) 
 	recv(socket, &(new_pokemon->count), sizeof(uint32_t), MSG_WAITALL);
 
 	t_log* logger = logger_init();
-	log_info(logger, new_pokemon->pokemon);
+	log_info(logger,"Pokemon: %s", new_pokemon->pokemon);
 	log_destroy(logger);
 
 	return new_pokemon;

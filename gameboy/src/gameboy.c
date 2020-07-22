@@ -52,7 +52,7 @@ int main(int argc, char* argv[]) {
 		send_message(connection, code, 0, atoi(payload_content[0]), buffer);
 	} else if (code == NEW_POKEMON
 			&& string_equals_ignore_case(argv[1], "GAMECARD")) {
-		send_message(connection, code, atoi(payload_content[3]), 0, buffer);
+		send_message(connection, code, atoi(payload_content[4]), 0, buffer);
 	} else if (code == CATCH_POKEMON
 			&& string_equals_ignore_case(argv[1], "GAMECARD")) {
 		send_message(connection, code, atoi(payload_content[3]), 0, buffer);

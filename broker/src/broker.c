@@ -276,7 +276,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	case CAUGHT_POKEMON:;
 		t_caught_pokemon* caught_pokemon = deserialize_caught_pokemon_message(client_socket,
 				&size);
-		msg->buffer = serialize_t_caught_pokemon_message(appeared_pokemon);
+		msg->buffer = serialize_t_caught_pokemon_message(caught_pokemon);
 
 		return_message_id(client_socket, msg->id);
 
@@ -290,10 +290,10 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		//Add message to memory
 		store_message(msg, queue_caught_pokemon, queue_caught_pokemon.subscriptors);
 		break;
-	case GET_POKEMON:
-		msg->buffer->payload = deserialize_get_pokemon_message(client_socket,
+	case GET_POKEMON: ;
+		t_get_pokemon* get_pokemon = deserialize_get_pokemon_message(client_socket,
 				&size);
-		msg->buffer->size = size;
+		msg->buffer = serialize_t_get_pokemon_message(get_pokemon);
 
 		for (i = 0; i < list_size(queue_get_pokemon.subscriptors); i++) {
 			t_subscriptor* subscriptor = list_get(
@@ -305,10 +305,10 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		//Add message to memory
 		store_message(msg, queue_get_pokemon, queue_get_pokemon.subscriptors);
 		break;
-	case LOCALIZED_POKEMON:
-		msg->buffer->payload = deserialize_localized_pokemon_message(
-				client_socket, &size);
-		msg->buffer->size = size;
+	case LOCALIZED_POKEMON: ;
+		t_localized_pokemon* localized_pokemon = deserialize_localized_pokemon_message(client_socket,
+				&size);
+		msg->buffer = serialize_t_localized_pokemon_message(localized_pokemon);
 
 		for (i = 0; i < list_size(queue_localized_pokemon.subscriptors); i++) {
 			t_subscriptor* subscriptor = list_get(
