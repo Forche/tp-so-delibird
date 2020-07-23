@@ -51,6 +51,7 @@ char* PUERTO_GAMECARD;
 int block_size, blocks, blocks_available;
 
 pthread_mutex_t mutexBitmap;
+pthread_mutex_t mutexMetadata;
 
 // ******* DEFINICION DE FUNCIONES A UTILIZAR ******* //
 void read_config();
@@ -83,6 +84,7 @@ t_list* get_positions_from_buffer(char* buffer);
 t_position* create_position(int x, int y, int pokemon_quantity);
 void destroy_position(t_position* position);
 t_list* write_blocks_and_metadata(int size_array_positions, char* array_positions, char* metadata_path);
+char** metadata_blocks_to_actual_blocks(char* metadata_blocks);
 char* add_block_to_array(char* blocks_as_array, char* block_to_add);
 int my_ceil(int a, int b);
 int size_of_content_to_write(int index_next_block, int quantity_total_blocks, int total_content_size);

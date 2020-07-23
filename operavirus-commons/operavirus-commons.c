@@ -222,31 +222,55 @@ t_buffer* serialize_new_pokemon_message(char* payload_content[]) {
 }
 
 t_buffer* serialize_t_new_pokemon_message(t_new_pokemon* new_pokemon_ptr){
+
+	/*t_buffer* buffer = malloc(sizeof(t_buffer));
+	buffer->size = sizeof(uint32_t) *4 + new_pokemon_ptr->pokemon_len;
+	void* payload = malloc(buffer->size);
+	int offset = 0;
+	memcpy(payload + offset, &(new_pokemon_ptr->pokemon_len), sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+
+	memcpy(payload + offset, new_pokemon_ptr->pokemon, sizeof(uint32_t));
+	offset += new_pokemon_ptr->pokemon_len;
+
+	memcpy(payload + offset, &(new_pokemon_ptr->pos_x), sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+
+	memcpy(payload + offset, &(new_pokemon_ptr->pos_y), sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+
+	memcpy(payload + offset, &(new_pokemon_ptr->count), sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+
+	buffer->payload = payload;*/
 	t_new_pokemon new_pokemon_msg = (*new_pokemon_ptr);
 
-		t_buffer* buffer = malloc(sizeof(t_buffer));
-		buffer->size = sizeof(uint32_t) * 4 + new_pokemon_ptr->pokemon_len;
+	t_buffer* buffer = malloc(sizeof(t_buffer));
+	buffer->size = sizeof(uint32_t) * 4 + new_pokemon_ptr->pokemon_len;
 
-		void* payload = malloc(buffer->size);
-		int offset = 0;
+	void* payload = malloc(buffer->size);
+	int offset = 0;
 
-		memcpy(payload + offset, &new_pokemon_msg.pokemon_len, sizeof(uint32_t));
-		offset += sizeof(uint32_t);
-		memcpy(payload + offset, new_pokemon_msg.pokemon,
-				new_pokemon_msg.pokemon_len);
-		offset += new_pokemon_msg.pokemon_len;
-		memcpy(payload + offset, &new_pokemon_msg.pos_x, sizeof(uint32_t));
-		offset += sizeof(uint32_t);
-		memcpy(payload + offset, &new_pokemon_msg.pos_y, sizeof(uint32_t));
-		offset += sizeof(uint32_t);
-		memcpy(payload + offset, &new_pokemon_msg.count, sizeof(uint32_t));
-		offset += sizeof(uint32_t);
+	memcpy(payload + offset, &new_pokemon_msg.pokemon_len, sizeof(uint32_t));
+	offset += sizeof(uint32_t);
 
-		buffer->payload = payload;
+	memcpy(payload + offset, new_pokemon_msg.pokemon,new_pokemon_msg.pokemon_len);
+	offset += new_pokemon_msg.pokemon_len;
 
-		free(new_pokemon_ptr);
+	memcpy(payload + offset, &new_pokemon_msg.pos_x, sizeof(uint32_t));
+	offset += sizeof(uint32_t);
 
-		return buffer;
+	memcpy(payload + offset, &new_pokemon_msg.pos_y, sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+
+	memcpy(payload + offset, &new_pokemon_msg.count, sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+
+	buffer->payload = payload;
+
+	free(new_pokemon_ptr);
+
+	return buffer;
 }
 
 t_buffer* serialize_appeared_pokemon_message(char* payload_content[]) {
@@ -420,15 +444,15 @@ t_buffer* serialize_t_localized_pokemon_message(t_localized_pokemon* localized_p
 	return buffer;
 }
 
-t_message* receive_message(uint32_t event_code, uint32_t socket) {
+t_message* receive_message(uint32_t event_code, uint32_t client_socket) {
 	t_buffer* buffer;
 	t_message* message = malloc(sizeof(t_message));
 
-	recv(socket, &(message->id), sizeof(uint32_t), MSG_WAITALL);
-	recv(socket, &(message->correlative_id), sizeof(uint32_t),
+	recv(client_socket, &(message->id), sizeof(uint32_t), MSG_WAITALL);
+	recv(client_socket, &(message->correlative_id), sizeof(uint32_t),
 	MSG_WAITALL);
 	uint32_t size;
-	recv(socket, &size, sizeof(uint32_t), MSG_WAITALL);
+	recv(client_socket, &size, sizeof(uint32_t), MSG_WAITALL);
 	buffer = malloc(sizeof(uint32_t) + size);
 	buffer->size = size;
 	message->buffer = buffer;
@@ -438,26 +462,32 @@ t_message* receive_message(uint32_t event_code, uint32_t socket) {
 	return message;
 }
 
-t_new_pokemon* deserialize_new_pokemon_message(uint32_t socket, uint32_t* size) {
+t_new_pokemon* deserialize_new_pokemon_message(uint32_t client_socket, uint32_t* size) {
+	//log_info(logger, "DESERIALIZE client socket: %d adress socket: %d", client_socket, &client_socket);
 	uint32_t pokemon_len = 0;
-	recv(socket, &(pokemon_len), sizeof(uint32_t),
-	MSG_WAITALL);
+	recv(client_socket, &(pokemon_len), sizeof(uint32_t),MSG_WAITALL);
+
+	//log_info(logger, "Recibo el len: %d client socket: %d adress socket: %d", pokemon_len, client_socket, &client_socket);
 
 	*size = 4 * sizeof(uint32_t) + pokemon_len;
 	t_new_pokemon* new_pokemon = malloc(*size);
 	new_pokemon->pokemon_len = pokemon_len;
 
 	new_pokemon->pokemon = malloc(new_pokemon->pokemon_len);
-	recv(socket, new_pokemon->pokemon, new_pokemon->pokemon_len,
+	recv(client_socket, new_pokemon->pokemon, new_pokemon->pokemon_len,
 	MSG_WAITALL);
-	recv(socket, &(new_pokemon->pos_x), sizeof(uint32_t), MSG_WAITALL);
-	recv(socket, &(new_pokemon->pos_y), sizeof(uint32_t), MSG_WAITALL);
-	recv(socket, &(new_pokemon->count), sizeof(uint32_t), MSG_WAITALL);
+	//log_info(logger, "DESERIALIZE POKEMON LENGTH: %d",string_length(new_pokemon->pokemon));
+	//log_info(logger, "Recibo el pokemon: %s client socket: %d adress socket: %d", new_pokemon->pokemon, client_socket, &client_socket);
 
-	t_log* logger = logger_init();
-	log_info(logger,"Pokemon: %s", new_pokemon->pokemon);
-	log_destroy(logger);
+	recv(client_socket, &(new_pokemon->pos_x), sizeof(uint32_t), MSG_WAITALL);
+	//log_info(logger, "Recibo la pos_x: %d client socket: %d adress socket: %d", new_pokemon->pos_x, client_socket, &client_socket);
 
+	recv(client_socket, &(new_pokemon->pos_y), sizeof(uint32_t), MSG_WAITALL);
+	//log_info(logger, "Recibo la pos_x: %d client socket: %d adress socket: %d", new_pokemon->pos_y, client_socket, &client_socket);
+
+	recv(client_socket, &(new_pokemon->count), sizeof(uint32_t), MSG_WAITALL);
+	//log_info(logger, "Recibo el count: %d client socket: %d adress socket: %d", new_pokemon->count, client_socket, &client_socket);
+	//log_info(logger, "Recibo el pokemon de la conexión: [len:%d|pokemon:%s|pos_x:%d|pos_y:%d|count:%d] client socket: %d adress socket: %d", new_pokemon->pokemon_len, new_pokemon->pokemon, new_pokemon->pos_x, new_pokemon->pos_y, new_pokemon->count, client_socket, &client_socket);
 	return new_pokemon;
 }
 
