@@ -39,7 +39,7 @@ typedef struct
 typedef enum
 {
 	FREE,
-	OCCUPED,
+	OCCUPIED,
 } partition_status;
 
 typedef struct {
@@ -47,7 +47,8 @@ typedef struct {
 	uint32_t id;
 	partition_status status;
 	uint32_t content_size;
-	uint64_t timestamp;
+	uint64_t lru_timestamp;
+	uint64_t occupied_timestamp;
 } t_memory_partition;
 
 
@@ -66,6 +67,7 @@ int TAMANO_MINIMO_PARTICION;
 int TAMANO_MEMORIA;
 char* ALGORITMO_PARTICION_LIBRE;
 char* ALGORITMO_REEMPLAZO;
+char* ALGORITMO_MEMORIA;
 int FRECUENCIA_COMPACTACION;
 void* memory;
 t_list* memory_partitions;
@@ -84,8 +86,10 @@ void process_subscriptor(uint32_t* socket, t_subscription_petition* subscription
 void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_petition, queue queue);
 
 void store_message(t_message* message, queue queue, t_list* receivers);
-uint32_t store_payload(void* payload, uint32_t size);
-t_memory_partition* get_free_partition(uint32_t size);
+uint32_t store_payload_particiones(void* payload, uint32_t size);
+uint32_t store_payload_bs(void* payload, uint32_t size);
+t_memory_partition* get_free_partition_particiones(uint32_t size);
+t_memory_partition* get_free_partition_bs(uint32_t size);
 t_memory_partition* find_free_partition(uint32_t size);
 t_memory_partition* find_free_partition_ff(uint32_t size);
 t_memory_partition* find_free_partition_bf(uint32_t size);

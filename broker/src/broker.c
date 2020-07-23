@@ -24,6 +24,7 @@ void server_init(void) {
 	char* PORT = config_get_string_value(config, "PUERTO_BROKER");
 	ALGORITMO_PARTICION_LIBRE = config_get_string_value(config, "ALGORITMO_PARTICION_LIBRE");
 	ALGORITMO_REEMPLAZO = config_get_string_value(config, "ALGORITMO_REEMPLAZO");
+	ALGORITMO_MEMORIA = config_get_string_value(config, "ALGORITMO_MEMORIA");
 	TAMANO_MEMORIA = config_get_int_value(config, "TAMANO_MEMORIA");
 	TAMANO_MINIMO_PARTICION = config_get_int_value(config, "TAMANO_MINIMO_PARTICION");
 	FRECUENCIA_COMPACTACION = config_get_int_value(config, "FRECUENCIA_COMPACTACION");
@@ -60,14 +61,33 @@ void server_init(void) {
 }
 
 void memory_init() {
-	memory = malloc(TAMANO_MEMORIA);
+	uint32_t first_partition_size;
+
+	if (string_equals_ignore_case(ALGORITMO_MEMORIA, "PARTICIONES"))
+	{
+		first_partition_size = TAMANO_MEMORIA;
+	} else {
+		first_partition_size = 1;
+
+		while (first_partition_size <= TAMANO_MEMORIA)
+		{
+			uint32_t new_partition_size = first_partition_size * 2;
+			if (new_partition_size <= TAMANO_MEMORIA)
+			{
+				first_partition_size = new_partition_size;
+			}
+		}
+	}
+
+	memory = malloc(first_partition_size);
 	memory_partitions = list_create();
 
-	t_memory_partition* first_memory_partition = malloc(sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(partition_status));
+	t_memory_partition* first_memory_partition = malloc(sizeof(uint64_t) * 2 + 3 * sizeof(uint32_t) + sizeof(partition_status));
 	first_memory_partition->id = get_partition_id();
 	first_memory_partition->begin = 0;
-	first_memory_partition->content_size = TAMANO_MEMORIA;
-	first_memory_partition->timestamp = 0; // Free partitions should not have timestamp value !== 0
+	first_memory_partition->content_size = first_partition_size;
+	first_memory_partition->lru_timestamp = 0; // Free partitions should not have lru_timestamp value !== 0
+	first_memory_partition->occupied_timestamp = 0;
 	first_memory_partition->status = FREE;
 
 	list_add(memory_partitions, first_memory_partition);
@@ -126,14 +146,20 @@ void serve_client(uint32_t* socket) {
 	process_request(code, *socket);
 }
 
-void store_message(t_message* message, queue queue, t_list* receivers) {
+void store_message(t_message* message, queue queue, t_list* receivers)
+{
 	t_memory_message* memory_message = malloc(sizeof(t_memory_message));
 	memory_message->id = message->id;
 	memory_message->correlative_id = message->correlative_id;
 	memory_message->event_code = message->event_code;
 
 	//Store payload and get its containing partition id
-	memory_message->memory_partition_id = store_payload(message->buffer->payload, message->buffer->size);
+	if (string_equals_ignore_case(ALGORITMO_MEMORIA, "PARTICIONES"))
+	{
+		memory_message->memory_partition_id = store_payload_particiones(message->buffer->payload, message->buffer->size);
+	} else {
+		memory_message->memory_partition_id = store_payload_bs(message->buffer->payload, message->buffer->size);
+	}
 
 	queue_message* queue_message = malloc(sizeof(queue_message));
 	queue_message->receivers = receivers;
@@ -142,16 +168,65 @@ void store_message(t_message* message, queue queue, t_list* receivers) {
 	list_add(queue.messages, queue_message);
 }
 
-uint32_t store_payload(void* payload, uint32_t size) {
+uint32_t store_payload_bs(void* payload, uint32_t size) {
 	// Search for partition and return it, if no partition is found return a partition with id=-1
-	t_memory_partition* partition = get_free_partition(size);
+	t_memory_partition* partition = get_free_partition_bs(size);
+	uint32_t minimum_size = size;
+	if (size <= TAMANO_MINIMO_PARTICION)
+	{
+		minimum_size = TAMANO_MINIMO_PARTICION;
+	}
+
+	uint32_t partition_size_to_use = partition->content_size;
+
+	while (partition_size_to_use / 2 >= minimum_size)
+	{
+		partition_size_to_use = partition_size_to_use / 2;
+		// Divide partition in two, use the first one
+		t_memory_partition* first_half = malloc(sizeof(uint64_t) * 2 + 3 * sizeof(uint32_t) + sizeof(partition_status));
+		first_memory_partition->id = get_partition_id();
+		first_memory_partition->begin = partition->begin;
+		first_memory_partition->content_size = partition_size_to_use;
+		first_memory_partition->lru_timestamp = 0;
+		first_memory_partition->occupied_timestamp = 0;
+		first_memory_partition->status = FREE;
+
+		list_add(memory_partitions, first_half);
+
+		t_memory_partition* second_half = malloc(sizeof(uint64_t) * 2 + 3 * sizeof(uint32_t) + sizeof(partition_status));
+		first_memory_partition->id = get_partition_id();
+		first_memory_partition->begin = partition->begin + partition_size_to_use;
+		first_memory_partition->content_size = partition_size_to_use;
+		first_memory_partition->lru_timestamp = 0;
+		first_memory_partition->occupied_timestamp = 0;
+		first_memory_partition->status = FREE;
+
+		list_add(memory_partitions, second_half);
+
+		partition = first_half;
+	}
 
 	// Copy into memory
 	int offset = partition->begin;
-	memcpy(memory + offset, payload, sizeof(size));
+	memcpy(memory + offset, payload, size);
+
+	partition->status = OCCUPIED;
+	partition->lru_timestamp = (unsigned long)time(NULL);
+	partition->occupied_timestamp = (unsigned long)time(NULL);
+
+	return partition->id;
+}
+
+uint32_t store_payload_particiones(void* payload, uint32_t size) {
+	// Search for partition and return it, if no partition is found return a partition with id=-1
+	t_memory_partition* partition = get_free_partition_particiones(size);
+
+	// Copy into memory
+	int offset = partition->begin;
+	memcpy(memory + offset, payload, size);
 
 	// Create partition to reference the new content
-	t_memory_partition* new_partition = malloc(sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(partition_status));
+	t_memory_partition* new_partition = malloc(2 * sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(partition_status));
 
 	if (size <= TAMANO_MINIMO_PARTICION)
 	{
@@ -163,8 +238,9 @@ uint32_t store_payload(void* payload, uint32_t size) {
 	new_partition->content_size = size;
 	partition->content_size = partition->content_size - size;
 
-	new_partition->status = OCCUPED;
-	new_partition->timestamp = (unsigned long)time(NULL);
+	new_partition->status = OCCUPIED;
+	new_partition->lru_timestamp = (unsigned long)time(NULL);
+	new_partition->occupied_timestamp = (unsigned long)time(NULL);
 	new_partition->id = get_partition_id();
 	list_add(memory_partitions, new_partition);
 
@@ -207,6 +283,7 @@ void delete_partition_and_consolidate_fifo() {
 	// Because we assign partition IDs incrementally
 	// Causing older partitions to have lower ID values
 	uint32_t smallest_id;
+	uint64_t smallest_ocuppied_timestamp;
 	int index_to_free;
 
 	for (int i = 0; i < list_size(memory_partitions); i++)
@@ -214,55 +291,48 @@ void delete_partition_and_consolidate_fifo() {
 		
 		t_memory_partition* partition = list_get(memory_partitions, i);
 
-		if (i == 0)
+		if ((i == 0) || (partition->occupied_timestamp < smallest_ocuppied_timestamp))
 		{
 			smallest_id = partition->id;
 			index_to_free = i;
-		} else if (partition->id < smallest_id)
-		{
-			smallest_id = partition->id;
-			index_to_free = i;
+			smallest_ocuppied_timestamp = partition->occupied_timestamp;
 		}
 	}
 	
 	// Set as FREE the partition which ID is memory_partition_id
-	t_memory_partition* partition = list_remove(memory_partitions, index_to_free);
+	t_memory_partition* partition = list_get(memory_partitions, index_to_free);
 	partition->status = FREE;
-	partition->timestamp = 0;
-	list_add(memory_partitions, partition);
+	partition->lru_timestamp = 0;
+	partition->occupied_timestamp = 0;
 	delete_and_consolidate(smallest_id);
 }
 
 void delete_partition_and_consolidate_lru() {
-	// Delete partition which timestamp is the lowest
-	// We must update the timestamp with every access to the partition
+	// Delete partition which lru_timestamp is the lowest
+	// We must update the lru_timestamp with every access to the partition
 	// (Not taking into account when accessing for compacting)
 	uint32_t smallest_id;
 	int index_to_free;
-	uint64_t smallest_timestamp;
+	uint64_t smallest_lru_timestamp;
 
 	for (int i = 0; i < list_size(memory_partitions); i++)
 	{
 		
 		t_memory_partition* partition = list_get(memory_partitions, i);
 
-		if (i == 0)
+		if ((i == 0) || (partition->lru_timestamp < smallest_lru_timestamp))
 		{
 			index_to_free = i;
 			smallest_id = partition->id;
-			smallest_timestamp = partition->timestamp;
-		} else if (partition->timestamp < smallest_timestamp)
-		{
-			smallest_id = partition->id;
-			index_to_free = i;
+			smallest_lru_timestamp = partition->lru_timestamp;
 		}
 	}
 	
 	// Set as FREE the partition which ID is memory_partition_id
-	t_memory_partition* partition = list_remove(memory_partitions, index_to_free);
+	t_memory_partition* partition = list_get(memory_partitions, index_to_free);
 	partition->status = FREE;
-	partition->timestamp = 0;
-	list_add(memory_partitions, partition);
+	partition->lru_timestamp = 0;
+	partition->occupied_timestamp = 0;
 	delete_and_consolidate(smallest_id);
 }
 
@@ -336,53 +406,106 @@ void delete_and_consolidate(uint32_t memory_partition_id)
 }
 
 void consolidate(t_memory_partition* memory_partition_to_consolidate) {
-	for (int i = 0; i < list_size(memory_partitions); i++)
+	if (string_equals_ignore_case(ALGORITMO_MEMORIA, "PARTICIONES"))
 	{
-		t_memory_partition* partition = list_get(memory_partitions, i);
-		if (partition->status == FREE)
+		for (int i = 0; i < list_size(memory_partitions); i++)
 		{
-			if ((partition->begin + partition->content_size) == memory_partition_to_consolidate->begin)
+			t_memory_partition* partition = list_get(memory_partitions, i);
+			if (partition->status == FREE)
 			{
-				for (int j = 0; j < list_size(memory_partitions); j++)
+				if ((partition->begin + partition->content_size) == memory_partition_to_consolidate->begin)
 				{
-					t_memory_partition* partition_to_consolidate = list_get(memory_partitions, j);
-					if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
+					for (int j = 0; j < list_size(memory_partitions); j++)
 					{
-						list_remove(memory_partitions, j);
-						partition = list_remove(memory_partitions, i);
-						partition->content_size += memory_partition_to_consolidate->content_size;
-						list_add(memory_partitions, partition);
-						memory_partition_to_consolidate = partition;
+						t_memory_partition* partition_to_consolidate = list_get(memory_partitions, j);
+						if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
+						{
+							list_remove(memory_partitions, j);
+							partition->content_size += memory_partition_to_consolidate->content_size;
+							memory_partition_to_consolidate = partition;
+						}
 					}
 				}
 			}
 		}
-	}
 
-	for (int i = 0; i < list_size(memory_partitions); i++)
-	{
-		t_memory_partition* partition = list_get(memory_partitions, i);
-		if (partition->status == FREE)
+		for (int i = 0; i < list_size(memory_partitions); i++)
 		{
-			if ((memory_partition_to_consolidate->begin + memory_partition_to_consolidate->content_size) == partition->begin)
+			t_memory_partition* partition = list_get(memory_partitions, i);
+			if (partition->status == FREE)
 			{
-				for (int j = 0; j < list_size(memory_partitions); j++)
+				if ((memory_partition_to_consolidate->begin + memory_partition_to_consolidate->content_size) == partition->begin)
 				{
-					t_memory_partition* partition_to_consolidate = list_get(memory_partitions, j);
-					if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
+					for (int j = 0; j < list_size(memory_partitions); j++)
 					{
-						list_remove(memory_partitions, i);
-						partition_to_consolidate = list_remove(memory_partitions, j);
-						partition_to_consolidate->content_size += partition->content_size;
-						list_add(memory_partitions, partition_to_consolidate);
+						t_memory_partition* partition_to_consolidate = list_get(memory_partitions, j);
+						if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
+						{
+							list_remove(memory_partitions, i);
+							partition_to_consolidate = list_get(memory_partitions, j);
+							partition_to_consolidate->content_size += partition->content_size;
+						}
 					}
 				}
 			}
 		}
+	} else {
+		 int consolidated;
+		do
+		{
+			consolidated = 0
+
+			for (int i = 0; i < list_size(memory_partitions); i++)
+			{
+				t_memory_partition* partition = list_get(memory_partitions, i);
+				if (partition->status == FREE)
+				{
+					if ((partition->begin + partition->content_size) == memory_partition_to_consolidate->begin && memory_partition_to_consolidate->content_size == partition->content_size)
+					{
+						for (int j = 0; j < list_size(memory_partitions); j++)
+						{
+							t_memory_partition* partition_to_consolidate = list_get(memory_partitions, j);
+							if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
+							{
+								list_remove(memory_partitions, j);
+								partition->content_size += memory_partition_to_consolidate->content_size;
+								memory_partition_to_consolidate = partition;
+								consolidated = 1;
+							}
+						}
+					}
+				}
+			}
+
+			for (int i = 0; i < list_size(memory_partitions); i++)
+			{
+				t_memory_partition* partition = list_get(memory_partitions, i);
+				if (partition->status == FREE)
+				{
+					if ((memory_partition_to_consolidate->begin + memory_partition_to_consolidate->content_size) == partition->begin && memory_partition_to_consolidate->content_size == partition->content_size)
+					{
+						for (int j = 0; j < list_size(memory_partitions); j++)
+						{
+							t_memory_partition* partition_to_consolidate = list_get(memory_partitions, j);
+							if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
+							{
+								list_remove(memory_partitions, i);
+								partition_to_consolidate = list_get(memory_partitions, j);
+								partition_to_consolidate->content_size += partition->content_size;
+								memory_partition_to_consolidate = partition_to_consolidate;
+								consolidated = 1;
+							}
+						}
+					}
+				}
+			}
+			
+		} while (consolidated == 1)
 	}
+	
 }
 
-t_memory_partition* get_free_partition(uint32_t size) {
+t_memory_partition* get_free_partition_particiones(uint32_t size) {
 	int search_count = 0;
 	t_memory_partition* partition_to_return = find_free_partition(size);
 	search_count++;
@@ -411,28 +534,48 @@ t_memory_partition* get_free_partition(uint32_t size) {
 	}
 }
 
+t_memory_partition* get_free_partition_bs(uint32_t size) {
+	t_memory_partition* partition_to_return = find_free_partition(size);
+
+	if (partition_to_return->id != -1)
+	{
+		return partition_to_return;
+	}
+
+	while (true)
+	{
+		delete_partition_and_consolidate();
+		partition_to_return = find_free_partition(size);
+
+		if (partition_to_return->id != -1)
+		{
+			return partition_to_return;
+		}
+	}
+}
+
 void perform_compaction() {
 	uint32_t i = list_size(memory_partitions);
-	t_list* occuped_partitions = list_create();
+	t_list* occupied_partitions = list_create();
 	t_list* new_partitions = list_create();
 
 	while (i >= 0) {
 		t_memory_partition* partition = list_get(memory_partitions, i);
-		if (partition->status == OCCUPED)
+		if (partition->status == OCCUPIED)
 		{
-			list_add(occuped_partitions, partition);
+			list_add(occupied_partitions, partition);
 		}
 
 		i--;
 	}
 
-	// Now that we have the list of occuped partitions, we proceed to re-write the partitions into the void* variable
+	// Now that we have the list of occupied partitions, we proceed to re-write the partitions into the void* variable
 	int offset = 0;
 	void* compacted_memory = malloc(TAMANO_MEMORIA);
 
-	for (uint32_t i = 0; i < list_size(occuped_partitions); i++)
+	for (uint32_t i = 0; i < list_size(occupied_partitions); i++)
 	{
-		t_memory_partition* partition = list_get(occuped_partitions, i);
+		t_memory_partition* partition = list_get(occupied_partitions, i);
 		memcpy(compacted_memory + offset, memory + partition->begin, partition->content_size);
 		partition->begin = compacted_memory + offset;
 		offset += partition->content_size;
@@ -443,12 +586,12 @@ void perform_compaction() {
 	free_memory_partition->id = get_partition_id();
 	free_memory_partition->begin = compacted_memory + offset;
 	free_memory_partition->content_size = TAMANO_MEMORIA - offset;
-	free_memory_partition->timestamp = 0;
+	free_memory_partition->lru_timestamp = 0;
 	free_memory_partition->status = FREE;
 
 	list_add(new_partitions, free_memory_partition);
 
-	free(occuped_partitions);
+	free(occupied_partitions);
 	free(memory_partitions);
 	memory_partitions = new_partitions;
 	free(memory);
@@ -779,7 +922,7 @@ void process_subscriptor(uint32_t* socket, t_subscription_petition* subscription
 	uint64_t end_subscription_time = (unsigned long)time(NULL);
 	if (susbcription_petition->time < 0)
 	{
-		end_subscription_time += 50000;
+		end_subscription_time += 60000;
 	} else {
 		end_subscription_time += susbcription_petition->time;
 	}
@@ -798,40 +941,73 @@ void process_subscriptor(uint32_t* socket, t_subscription_petition* subscription
 
 void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_petition, queue queue) {
 	uint32_t i;
+	uint32_t old_socket;
+	uint32_t already_subscribed;
+
+	for (int i = 0; i < list_size(queue->subscriptors); i++)
+	{
+		t_subscriptor* subscriptor = list_get(queue->subscriptors, i);
+		
+		if (string_equals_ignore_case(subscriptor->subscriptor_info->subscriptor_id, subscription_petition->subscriptor_id))
+		{
+			old_socket = subscriptor->socket;
+			subscriptor->socket = *socket; // Override existing old socket with newly opened socket
+			already_subscribed = 1;
+		}
+	}
 
 	for (i = 0; i < list_size(queue.messages); i++)
 	{
 		queue_message* message = list_get(queue.messages, i);
-		uint32_t partition_id = message->message->memory_partition_id;
-		uint32_t j = 0;
 
-		while (j < list_size(memory_partitions) && (((t_memory_partition*)list_get(memory_partitions, j))->id != partition_id))
+		uint32_t already_received = 0;
+
+		if (already_subscribed)
 		{
-			j++;
+			for (int j = 0; j < list_size(message->receivers); j++)
+			{
+				receiver* receiver = list_get(message->receivers, j);
+				
+				if (receiver->receiver_socket == old_socket && receiver->received == 1)
+				{
+					already_received = 1;
+				}
+			}
 		}
 
-		if (j >= list_size(memory_partitions))
+		if (!already_received)
 		{
-			return; //ERROR, MESSAGE NOT FOUND
-		} else {
-			t_memory_partition* partition = (t_memory_partition*) list_get(memory_partitions, j);
-			void* content = malloc(partition->content_size);
-			memcpy(content, memory + partition->begin, partition->content_size);
+			uint32_t partition_id = message->message->memory_partition_id;
+			uint32_t j = 0;
 
-			t_buffer* buffer = malloc(sizeof(uint32_t) + partition->content_size);
-			buffer->size = partition->content_size;
-			buffer->payload = content;
-			send_message(*socket, subscription_petition->queue, message->message->id,
-											message->message->correlative_id, buffer);
+			while (j < list_size(memory_partitions) && (((t_memory_partition*)list_get(memory_partitions, j))->id != partition_id))
+			{
+				j++;
+			}
 
-			partition = list_remove(memory_partitions, j);
-			partition->timestamp = (unsigned long)time(NULL);
-			list_add(memory_partitions, partition);
+			if (j >= list_size(memory_partitions))
+			{
+				return; //ERROR, MESSAGE NOT FOUND
+			} else {
+				t_memory_partition* partition = (t_memory_partition*) list_get(memory_partitions, j);
+				void* content = malloc(partition->content_size);
+				memcpy(content, memory + partition->begin, partition->content_size);
+
+				t_buffer* buffer = malloc(sizeof(uint32_t) + partition->content_size);
+				buffer->size = partition->content_size;
+				buffer->payload = content;
+				send_message(*socket, subscription_petition->queue, message->message->id,
+												message->message->correlative_id, buffer);
+
+				partition = list_remove(memory_partitions, j);
+				partition->lru_timestamp = (unsigned long)time(NULL);
+				list_add(memory_partitions, partition);
+			}
+
+			receiver* receiver = malloc(sizeof(uint32_t) * 2);
+			receiver->receiver_socket = *socket;
+			list_add(message->receivers, receiver);
 		}
-
-		receiver* receiver = malloc(sizeof(uint32_t) * 2);
-		receiver->receiver_socket = *socket;
-		list_add(message->receivers, receiver);
 	}
 }
 
@@ -871,9 +1047,9 @@ void dump_memory(){
 		uint32_t begin = ((t_memory_partition*)(list_get(memory_partitions,i)))->begin;
 		uint32_t content_size = ((t_memory_partition*)(list_get(memory_partitions,i)))->content_size;
 		uint32_t id = ((t_memory_partition*)(list_get(memory_partitions,i)))->id;
-		uint32_t timestamp = ((t_memory_partition*)(list_get(memory_partitions,i)))->timestamp;
+		uint32_t lru_timestamp = ((t_memory_partition*)(list_get(memory_partitions,i)))->lru_timestamp;
 		uint32_t status = ((t_memory_partition*)(list_get(memory_partitions,i)))->status;
-		fprintf(dump_file,"Particion %d: %X - %X.\t [%d]\t Size:%d b\t LRU:%d\t Cola:%d(FALTA EL TIPO DE COLA)\t ID:%d\n", i, begin, (begin+content_size), status, content_size, timestamp, content_size, id);
+		fprintf(dump_file,"Particion %d: %X - %X.\t [%d]\t Size:%d b\t LRU:%d\t Cola:%d(FALTA EL TIPO DE COLA)\t ID:%d\n", i, begin, (begin+content_size), status, content_size, lru_timestamp, content_size, id);
 	 }
 	fclose(dump_file);
 }
