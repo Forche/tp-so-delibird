@@ -47,6 +47,7 @@ typedef struct {
 	uint32_t id;
 	partition_status status;
 	uint32_t content_size;
+	uint32_t partition_size;
 	uint64_t lru_timestamp;
 	uint64_t occupied_timestamp;
 } t_memory_partition;
