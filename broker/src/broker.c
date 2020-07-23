@@ -446,7 +446,6 @@ void consolidate(t_memory_partition* memory_partition_to_consolidate) {
 						if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
 						{
 							list_remove(memory_partitions, i);
-							partition_to_consolidate = list_get(memory_partitions, j);
 							partition_to_consolidate->partition_size += partition->partition_size;
 						}
 					}
@@ -494,7 +493,6 @@ void consolidate(t_memory_partition* memory_partition_to_consolidate) {
 							if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
 							{
 								list_remove(memory_partitions, i);
-								partition_to_consolidate = list_get(memory_partitions, j);
 								partition_to_consolidate->partition_size += partition->partition_size;
 								memory_partition_to_consolidate = partition_to_consolidate;
 								consolidated = 1;
