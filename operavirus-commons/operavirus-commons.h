@@ -118,6 +118,7 @@ typedef enum
 	FULL = 6,
 	SWAPPING = 7,
 	EXEC_DEADLOCK = 8,
+	CATCHING = 9,
 } status;
 
 typedef struct {

@@ -5,10 +5,17 @@ void print_pokemons(char* key, int* value) {
 	log_info(logger, "Pokemon: %s. Cantidad: %d", key, *value);
 }
 
-int main(void) {
+int main(int argc, char* argv[]) {
 
-	config = config_create("team.config");
+	char* file_config = "team.config";
+
+	if(argc == 2) {
+		file_config = strcat(argv[1],".config");
+	}
+	config = config_create(file_config);
 	char* LOG_FILE = config_get_string_value(config, "LOG_FILE");
+
+
 
 	pokemon_received_to_catch = list_create();
 	trainers = list_create();
@@ -20,6 +27,9 @@ int main(void) {
 	matched_deadlocks = list_create();
 	to_deadlock = list_create();
 	queue_deadlock = list_create();
+
+	log_info(logger, "argc %d", argc);
+	log_info(logger, "config %s", file_config);
 
 	ID = config_get_string_value(config, "ID");
 	char* POSICIONES_ENTRENADORES = config_get_string_value(config, "POSICIONES_ENTRENADORES");

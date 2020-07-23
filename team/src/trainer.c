@@ -30,7 +30,10 @@ void trainer_catch_pokemon(t_trainer* trainer) {
 
 	move_to_position(trainer, pcb_trainer->pokemon_to_catch->pos_x, pcb_trainer->pokemon_to_catch->pos_y, NULL, true);
 	catch_pokemon(trainer, pcb_trainer->pokemon_to_catch);
+}
 
+void handle_catch(t_trainer* trainer) {
+	t_pcb_trainer* pcb_trainer = trainer->pcb_trainer;
 	if (pcb_trainer->result_catch == 1) { //Tiene basura y sale por true
 		add_to_dictionary(trainer->caught, pcb_trainer->pokemon_to_catch->pokemon);
 
@@ -68,8 +71,6 @@ void trainer_catch_pokemon(t_trainer* trainer) {
 	trainer->real_anterior = trainer->estimacion_anterior - trainer->estimacion_actual;
 	trainer->sjf_calculado = false;
 	trainer->pcb_trainer->quantum = 0;
-
-	pthread_mutex_unlock(&mutex_planning);
 }
 
 void find_candidate_to_swap(t_list* remaining, t_list* leftovers, t_trainer* trainer) {
@@ -201,6 +202,7 @@ void trainer_must_go_on(t_trainer* trainer, t_deadlock_matcher* deadlock_matcher
 		if(deadlock_matcher == NULL) {
 			t_match_pokemon_trainer* to_exec = NULL;
 			pthread_mutex_lock(&mutex_matches);
+			log_info(logger, "Estimacion actual para entrenador activo %d: %f", trainer->name, trainer->estimacion_actual);
 			for(i = 0; i < list_size(matches); i++) {
 				t_match_pokemon_trainer* match_pokemon_trainer = list_get(matches, i);
 				double estimacion = calculate_estimacion_actual_rafaga(match_pokemon_trainer->closest_trainer);
@@ -218,6 +220,7 @@ void trainer_must_go_on(t_trainer* trainer, t_deadlock_matcher* deadlock_matcher
 		} else {
 			t_deadlock_matcher* to_exec = NULL;
 			pthread_mutex_lock(&mutex_queue_deadlocks);
+			log_info(logger, "Estimacion actual para entrenador activo %d: %f", trainer->name, trainer->estimacion_actual);
 			for(i = 0; i < list_size(queue_deadlock); i++) {
 				t_deadlock_matcher* deadlock_matcher = list_get(queue_deadlock, i);
 				double estimacion = calculate_estimacion_actual_rafaga(deadlock_matcher->trainer1);
@@ -261,7 +264,7 @@ void catch_pokemon(t_trainer* trainer, t_appeared_pokemon* appeared_pokemon) {
 	if(broker_msg_connection == -1) {
 		log_error(logger, "Entrenador %d: Error de comunicacion con el broker, realizando operacion catch default", trainer->name);
 		trainer->pcb_trainer->result_catch = 1;
-		desalojar(trainer, true, NULL, false);
+		wait_catch(trainer,false);
 	} else {
 		t_catch_pokemon* pokemon_to_catch = malloc(sizeof(t_catch_pokemon));
 		pokemon_to_catch->pos_x = appeared_pokemon->pos_x;
@@ -272,9 +275,19 @@ void catch_pokemon(t_trainer* trainer, t_appeared_pokemon* appeared_pokemon) {
 		trainer->pcb_trainer->msg_connection = broker_msg_connection;
 		send_message(broker_msg_connection, CATCH_POKEMON, NULL, NULL, buffer);
 		pthread_t thread = create_thread_with_param(receive_message_id, trainer, "receive_message_id");
-		desalojar(trainer, true, NULL, true);
+		wait_catch(trainer, true);
 	}
-	trainer->estimacion_actual = trainer->estimacion_actual - 1;
+	trainer->estimacion_actual = trainer->estimacion_actual - 1;//Atrapar consume un ciclo de cpu
+	create_thread_with_param(handle_catch, trainer, "handle_catch");
+}
+
+void wait_catch(t_trainer* trainer, bool lock_sem_caught) {
+	log_info(logger, "Desalojando entrenador %d", trainer->name);
+	pthread_mutex_unlock(&mutex_planning);
+	trainer->status = CATCHING;
+	if(lock_sem_caught) {
+		pthread_mutex_lock(&trainer->pcb_trainer->sem_caught);
+	}
 }
 
 void desalojar(t_trainer* trainer, bool refresh_estimation, t_deadlock_matcher* deadlock_matcher, bool lock_sem_caught) {

@@ -35,5 +35,7 @@ bool is_trainer_full(t_trainer* trainer);
 uint32_t dictionary_add_values(t_dictionary *self);
 void list_remove_by_value(t_list* list, char* value);
 void trainer_catch_pokemon(t_trainer* trainer);
+void handle_catch(t_trainer* trainer);
+void wait_catch(t_trainer* trainer, bool lock_sem_caught);
 
 #endif /* SRC_TRAINER_H_ */
