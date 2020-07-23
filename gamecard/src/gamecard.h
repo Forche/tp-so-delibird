@@ -51,7 +51,8 @@ char* PUERTO_GAMECARD;
 int block_size, blocks, blocks_available;
 
 pthread_mutex_t mutexBitmap;
-pthread_mutex_t mutexMetadata;
+pthread_mutex_t mutexDirectory;
+pthread_mutex_t mutexMetadataPath;
 
 // ******* DEFINICION DE FUNCIONES A UTILIZAR ******* //
 void read_config();
@@ -68,7 +69,8 @@ void handle_catch_pokemon(t_message* msg);
 void handle_get_pokemon(t_message* msg);
 
 void add_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon);
-t_position* ckeck_position_exists(char* path_pokemon, t_catch_pokemon* pokemon);
+t_position* ckeck_position_exists_catch_pokemon(char* path_pokemon, t_catch_pokemon* pokemon);
+t_list* ckeck_position_exists_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon);
 void remove_position(t_position* position, char* path_pokemon);
 void decrease_position(t_position* position, char* path_pokemon);
 

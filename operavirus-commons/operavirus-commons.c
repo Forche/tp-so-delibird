@@ -222,27 +222,6 @@ t_buffer* serialize_new_pokemon_message(char* payload_content[]) {
 }
 
 t_buffer* serialize_t_new_pokemon_message(t_new_pokemon* new_pokemon_ptr){
-
-	/*t_buffer* buffer = malloc(sizeof(t_buffer));
-	buffer->size = sizeof(uint32_t) *4 + new_pokemon_ptr->pokemon_len;
-	void* payload = malloc(buffer->size);
-	int offset = 0;
-	memcpy(payload + offset, &(new_pokemon_ptr->pokemon_len), sizeof(uint32_t));
-	offset += sizeof(uint32_t);
-
-	memcpy(payload + offset, new_pokemon_ptr->pokemon, sizeof(uint32_t));
-	offset += new_pokemon_ptr->pokemon_len;
-
-	memcpy(payload + offset, &(new_pokemon_ptr->pos_x), sizeof(uint32_t));
-	offset += sizeof(uint32_t);
-
-	memcpy(payload + offset, &(new_pokemon_ptr->pos_y), sizeof(uint32_t));
-	offset += sizeof(uint32_t);
-
-	memcpy(payload + offset, &(new_pokemon_ptr->count), sizeof(uint32_t));
-	offset += sizeof(uint32_t);
-
-	buffer->payload = payload;*/
 	t_new_pokemon new_pokemon_msg = (*new_pokemon_ptr);
 
 	t_buffer* buffer = malloc(sizeof(t_buffer));
