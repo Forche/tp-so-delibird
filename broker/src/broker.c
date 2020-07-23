@@ -944,6 +944,7 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 	uint32_t old_socket;
 	uint32_t already_subscribed;
 
+
 	for (int i = 0; i < list_size(queue->subscriptors); i++)
 	{
 		t_subscriptor* subscriptor = list_get(queue->subscriptors, i);
@@ -1002,11 +1003,24 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 				partition = list_remove(memory_partitions, j);
 				partition->lru_timestamp = (unsigned long)time(NULL);
 				list_add(memory_partitions, partition);
-			}
 
-			receiver* receiver = malloc(sizeof(uint32_t) * 2);
-			receiver->receiver_socket = *socket;
-			list_add(message->receivers, receiver);
+				if (!already_subscribed)
+				{
+					receiver* receiver = malloc(sizeof(uint32_t) * 2);
+					receiver->receiver_socket = *socket;
+					list_add(message->receivers, receiver);
+				} else {
+					for (int n = 0; n < list_size(message->receivers); n++)
+					{
+						receiver* receiver = list_get(message->receivers, n);
+						
+						if (receiver->receiver_socket == old_socket)
+						{
+							receiver->receiver_socket = *socket;
+						}
+					}
+				}
+			}
 		}
 	}
 }
