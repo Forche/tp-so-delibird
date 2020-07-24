@@ -58,11 +58,11 @@ void shutdown_gamecard() {
 }
 
 void create_subscription_threads() {
-	//pthread_t thread_new = create_thread_with_param(subscribe_to, NEW_POKEMON, "subscribe NEW_POKEMON");
+	pthread_t thread_new = create_thread_with_param(subscribe_to, NEW_POKEMON, "subscribe NEW_POKEMON");
 	sleep(2);
-	//pthread_t thread_catch = create_thread_with_param(subscribe_to, CATCH_POKEMON, "subscribe CATCH_POKEMON");
+	pthread_t thread_catch = create_thread_with_param(subscribe_to, CATCH_POKEMON, "subscribe CATCH_POKEMON");
 	sleep(2);
-	//pthread_t thread_get = create_thread_with_param(subscribe_to, GET_POKEMON, "subscribe GET_POKEMON");
+	pthread_t thread_get = create_thread_with_param(subscribe_to, GET_POKEMON, "subscribe GET_POKEMON");
 }
 
 void subscribe_to(event_code code) {
@@ -78,10 +78,12 @@ void subscribe_to(event_code code) {
 	} else {
 		log_info(logger, "Conectada cola code %d al broker", code);
 		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
-
-		while(1) {
-			handle_event(&broker_connection);
+		int still_connected = 1;
+		while(still_connected) {
+			still_connected = handle_event(&broker_connection);
 		}
+		log_error(logger, "Se desconecto del broker");
+		close(broker_connection);
 	}
 
 	new_subscription = build_new_subscription(code, IP_GAMECARD, "Game Card", PUERTO_GAMECARD);
