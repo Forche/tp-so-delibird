@@ -415,6 +415,18 @@ t_buffer* serialize_t_localized_pokemon_message(t_localized_pokemon* localized_p
 	return buffer;
 }
 
+t_buffer* serialize_message_received_message(char* payload_content[],
+		char* sender_id, char* sender_ip, uint32_t received_message_id) {
+	t_message_received* message_received_ptr = malloc(
+			sizeof(t_message_received));
+	message_received_ptr->subscriptor_len = strlen(sender_id) + 1;
+	message_received_ptr->subscriptor_id = sender_id;
+	message_received_ptr->message_type = string_to_event_code(payload_content[0]);
+	message_received_ptr->received_message_id = received_message_id;
+
+	return serialize_t_message_received(message_received_ptr);
+}
+
 t_buffer* serialize_t_message_received(t_message_received* message_received) {
 	t_message_received message_received_msg = (*message_received);
 
@@ -457,11 +469,8 @@ t_message* receive_message(uint32_t event_code, uint32_t client_socket) {
 }
 
 t_new_pokemon* deserialize_new_pokemon_message(uint32_t client_socket, uint32_t* size) {
-	//log_info(logger, "DESERIALIZE client socket: %d adress socket: %d", client_socket, &client_socket);
 	uint32_t pokemon_len = 0;
 	recv(client_socket, &(pokemon_len), sizeof(uint32_t),MSG_WAITALL);
-
-	//log_info(logger, "Recibo el len: %d client socket: %d adress socket: %d", pokemon_len, client_socket, &client_socket);
 
 	*size = 4 * sizeof(uint32_t) + pokemon_len;
 	t_new_pokemon* new_pokemon = malloc(*size);
@@ -470,18 +479,15 @@ t_new_pokemon* deserialize_new_pokemon_message(uint32_t client_socket, uint32_t*
 	new_pokemon->pokemon = malloc(new_pokemon->pokemon_len);
 	recv(client_socket, new_pokemon->pokemon, new_pokemon->pokemon_len,
 	MSG_WAITALL);
-	//log_info(logger, "DESERIALIZE POKEMON LENGTH: %d",string_length(new_pokemon->pokemon));
-	//log_info(logger, "Recibo el pokemon: %s client socket: %d adress socket: %d", new_pokemon->pokemon, client_socket, &client_socket);
 
 	recv(client_socket, &(new_pokemon->pos_x), sizeof(uint32_t), MSG_WAITALL);
-	//log_info(logger, "Recibo la pos_x: %d client socket: %d adress socket: %d", new_pokemon->pos_x, client_socket, &client_socket);
-
 	recv(client_socket, &(new_pokemon->pos_y), sizeof(uint32_t), MSG_WAITALL);
-	//log_info(logger, "Recibo la pos_x: %d client socket: %d adress socket: %d", new_pokemon->pos_y, client_socket, &client_socket);
-
 	recv(client_socket, &(new_pokemon->count), sizeof(uint32_t), MSG_WAITALL);
-	//log_info(logger, "Recibo el count: %d client socket: %d adress socket: %d", new_pokemon->count, client_socket, &client_socket);
-	//log_info(logger, "Recibo el pokemon de la conexión: [len:%d|pokemon:%s|pos_x:%d|pos_y:%d|count:%d] client socket: %d adress socket: %d", new_pokemon->pokemon_len, new_pokemon->pokemon, new_pokemon->pos_x, new_pokemon->pos_y, new_pokemon->count, client_socket, &client_socket);
+
+	t_log* logger = logger_init();
+	log_info(logger, new_pokemon->pokemon);
+	log_destroy(logger);
+
 	return new_pokemon;
 }
 
@@ -568,9 +574,25 @@ t_get_pokemon* deserialize_get_pokemon_message(uint32_t socket, uint32_t* size) 
 	return get_pokemon;
 }
 
-t_localized_pokemon* deserialize_localized_pokemon_message(uint32_t socket,
-		uint32_t* size) {
-	return NULL;
+t_localized_pokemon* deserialize_localized_pokemon_message(uint32_t socket, uint32_t* size) {
+	uint32_t pokemon_len;
+	uint32_t count;
+	recv(socket, &(pokemon_len), sizeof(uint32_t), MSG_WAITALL);
+	recv(socket, &(count), sizeof(uint32_t), MSG_WAITALL);
+
+	*size = 2 * sizeof(uint32_t) + pokemon_len + 2*count;
+	t_localized_pokemon* localized_pokemon = malloc(*size);
+	localized_pokemon->pokemon_len = pokemon_len;
+	localized_pokemon->positions_count = count;
+	localized_pokemon->pokemon = malloc(localized_pokemon->pokemon_len);
+	recv(socket, localized_pokemon->pokemon, localized_pokemon->pokemon_len, MSG_WAITALL);
+	recv(socket, localized_pokemon->positions, 2*count, MSG_WAITALL);
+
+	t_log* logger = logger_init();
+	log_info(logger, localized_pokemon->pokemon);
+	log_destroy(logger);
+
+	return localized_pokemon;
 }
 
 event_code string_to_event_code(char* code) {

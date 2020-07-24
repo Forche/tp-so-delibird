@@ -87,8 +87,8 @@ void process_subscriptor(uint32_t* socket, t_subscription_petition* subscription
 void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_petition, queue queue);
 
 void store_message(t_message* message, queue queue, t_list* receivers);
-uint32_t store_payload_particiones(void* payload, uint32_t size);
-uint32_t store_payload_bs(void* payload, uint32_t size);
+uint32_t store_payload_particiones(void* payload, uint32_t size, uint32_t message_id);
+uint32_t store_payload_bs(void* payload, uint32_t size, uint32_t message_id);
 t_memory_partition* get_free_partition_particiones(uint32_t size);
 t_memory_partition* get_free_partition_bs(uint32_t size);
 t_memory_partition* find_free_partition(uint32_t size);

@@ -178,6 +178,7 @@ t_buffer* serialize_localized_pokemon_message(char* payload_content[]);
 t_buffer* serialize_new_subscriptor_message(char* payload_content[], char* sender_id, char* sender_ip, uint32_t sender_port);
 t_buffer* serialize_t_new_subscriptor_message(t_subscription_petition* subscription_petition);
 
+t_buffer* serialize_message_received_message(char* payload_content[], char* sender_id, char* sender_ip, uint32_t received_message_id);
 t_buffer* serialize_t_message_received(t_message_received* message_received);
 
 t_message* receive_message(uint32_t event_code, uint32_t socket);
