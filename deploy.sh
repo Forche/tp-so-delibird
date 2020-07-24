@@ -30,6 +30,8 @@ make clean
 make all
 cd
 
-
-
+cd /home/utnso/tp-2020-1c-Operavirus/gameboy/Debug
+git clone https://github.com/sisoputnfrba/delibird-pruebas.git
+cd delibird-pruebas
+mv * ..
 
