@@ -7,7 +7,7 @@ cd
 cd /home/utnso/tp-2020-1c-Operavirus/operavirus-commons/Debug
 make clean
 make all
-cp liboperavirus-commons.so /usr/lib/
+sudo cp liboperavirus-commons.so /usr/lib/
 cd
 
 cd /home/utnso/tp-2020-1c-Operavirus/broker/Debug
