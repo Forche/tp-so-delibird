@@ -5,8 +5,16 @@
 
 int main(int argc, char* argv[]) {
 
+	char* string = string_new();
+	string_append(&string, "/home/utnso/tp-2020-1c-Operavirus/gameboy/");
+	if(argc == 2) {
+		string_append(&string, argv[1]);
+	} else {
+		string_append(&string, "gameboy.config");
+	}
+
 	uint32_t connection;
-	t_config* config = config_create("gameboy.config");
+	t_config* config = config_create(string);
 
 	char* BROKER_IP = config_get_string_value(config, "IP_BROKER");
 	char* BROKER_PORT = config_get_string_value(config, "PORT_BROKER");
