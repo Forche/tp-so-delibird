@@ -4,13 +4,13 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
-../src/broker.c 
+../src/gamecard.c 
 
 OBJS += \
-./src/broker.o 
+./src/gamecard.o 
 
 C_DEPS += \
-./src/broker.d 
+./src/gamecard.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes

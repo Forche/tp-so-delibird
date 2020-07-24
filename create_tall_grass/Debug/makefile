@@ -23,25 +23,21 @@ endif
 # Add inputs and outputs from these tool invocations to the build variables 
 
 # All Target
-all: team
-
-dependents:
-	-cd /home/utnso/tp-2020-1c-Operavirus/operavirus-commons/Debug && $(MAKE) clean all
+all: create_tall_grass
 
 # Tool invocations
-team: $(OBJS) $(USER_OBJS) /home/utnso/tp-2020-1c-Operavirus/operavirus-commons/Debug/liboperavirus-commons.so
+create_tall_grass: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C Linker'
-	gcc -L"/home/utnso/tp-2020-1c-Operavirus/operavirus-commons/Debug" -o "team" $(OBJS) $(USER_OBJS) $(LIBS)
+	gcc  -o "create_tall_grass" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) team
+	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) create_tall_grass
 	-@echo ' '
 
 .PHONY: all clean dependents
-/home/utnso/tp-2020-1c-Operavirus/operavirus-commons/Debug/liboperavirus-commons.so:
 
 -include ../makefile.targets
