@@ -67,6 +67,7 @@ void create_subscription_threads() {
 }
 
 void subscribe_to(event_code code) {
+<<<<<<< HEAD
 	t_subscription_petition* new_subscription = build_new_subscription(code, IP_GAMECARD, "Game Card", atoi(PUERTO_GAMECARD));
 
 	t_buffer* buffer = serialize_t_new_subscriptor_message(new_subscription);
@@ -85,6 +86,10 @@ void subscribe_to(event_code code) {
 		}
 	}
 
+=======
+	t_subscription_petition* new_subscription = build_new_subscription(code, IP_GAMECARD, "Game Card", PUERTO_GAMECARD);
+	make_subscription_to(new_subscription, IP_BROKER, PUERTO_BROKER, TIEMPO_DE_REINTENTO_CONEXION, logger, handle_event);
+>>>>>>> parent of 91420f5... arreglo puerto. cambio log
 }
 
 
