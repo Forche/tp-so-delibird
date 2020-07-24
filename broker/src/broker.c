@@ -184,22 +184,22 @@ uint32_t store_payload_bs(void* payload, uint32_t size) {
 		partition_size_to_use = partition_size_to_use / 2;
 		// Divide partition in two, use the first one
 		t_memory_partition* first_half = malloc(sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t) + sizeof(partition_status));
-		first_memory_partition->id = get_partition_id();
-		first_memory_partition->begin = partition->begin;
-		first_memory_partition->partition_size = partition_size_to_use;
-		first_memory_partition->lru_timestamp = 0;
-		first_memory_partition->occupied_timestamp = 0;
-		first_memory_partition->status = FREE;
+		first_half->id = get_partition_id();
+		first_half->begin = partition->begin;
+		first_half->partition_size = partition_size_to_use;
+		first_half->lru_timestamp = 0;
+		first_half->occupied_timestamp = 0;
+		first_half->status = FREE;
 
 		list_add(memory_partitions, first_half);
 
 		t_memory_partition* second_half = malloc(sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t) + sizeof(partition_status));
-		first_memory_partition->id = get_partition_id();
-		first_memory_partition->begin = partition->begin + partition_size_to_use;
-		first_memory_partition->partition_size = partition_size_to_use;
-		first_memory_partition->lru_timestamp = 0;
-		first_memory_partition->occupied_timestamp = 0;
-		first_memory_partition->status = FREE;
+		second_half->id = get_partition_id();
+		second_half->begin = partition->begin + partition_size_to_use;
+		second_half->partition_size = partition_size_to_use;
+		second_half->lru_timestamp = 0;
+		second_half->occupied_timestamp = 0;
+		second_half->status = FREE;
 
 		list_add(memory_partitions, second_half);
 
@@ -265,9 +265,9 @@ uint32_t store_payload_particiones(void* payload, uint32_t size) {
 t_memory_partition* find_free_partition(uint32_t size) {
 	if (string_equals_ignore_case(ALGORITMO_PARTICION_LIBRE, "FF"))
 	{
-		partition_to_return = find_free_partition_ff(size);
+		return find_free_partition_ff(size);
 	} else {
-		partition_to_return = find_free_partition_bf(size);
+		return find_free_partition_bf(size);
 	}
 }
 
@@ -341,75 +341,85 @@ void delete_partition_and_consolidate_lru() {
 }
 
 void delete_and_consolidate(uint32_t memory_partition_id)
+{
 	// Search for the associated message and delete it
-	for (int i = 0; i < list_size(queue_new_pokemon->messages); i++)
+	for (int i = 0; i < list_size(queue_new_pokemon.messages); i++)
 	{
-		queue_message* message = list_get(queue_new_pokemon->messages, i);
-		if (message->memory_partition_id == memory_partition_id)
+		queue_message* message = list_get(queue_new_pokemon.messages, i);
+		if (message->message->memory_partition_id == memory_partition_id)
 		{
-			list_remove(queue_new_pokemon->messages, i);
-			consolidate(partition);
+			list_remove(queue_new_pokemon.messages, i);
+			consolidate(memory_partition_id);
 			return;
 		}
 	}
 
-	for (int i = 0; i < list_size(queue_appeared_pokemon->messages); i++)
+	for (int i = 0; i < list_size(queue_appeared_pokemon.messages); i++)
 	{
-		queue_message* message = list_get(queue_new_pokemon->messages, i);
-		if (message->memory_partition_id == memory_partition_id)
+		queue_message* message = list_get(queue_new_pokemon.messages, i);
+		if (message->message->memory_partition_id == memory_partition_id)
 		{
-			list_remove(queue_new_pokemon->messages, i);
-			consolidate(partition);
+			list_remove(queue_new_pokemon.messages, i);
+			consolidate(memory_partition_id);
 			return;
 		}
 	}
 	
-	for (int i = 0; i < list_size(queue_catch_pokemon->messages); i++)
+	for (int i = 0; i < list_size(queue_catch_pokemon.messages); i++)
 	{
-		queue_message* message = list_get(queue_new_pokemon->messages, i);
-		if (message->memory_partition_id == memory_partition_id)
+		queue_message* message = list_get(queue_new_pokemon.messages, i);
+		if (message->message->memory_partition_id == memory_partition_id)
 		{
-			list_remove(queue_new_pokemon->messages, i);
-			consolidate(partition);
+			list_remove(queue_new_pokemon.messages, i);
+			consolidate(memory_partition_id);
 			return;
 		}
 	}
 
-	for (int i = 0; i < list_size(queue_caught_pokemon->messages); i++)
+	for (int i = 0; i < list_size(queue_caught_pokemon.messages); i++)
 	{
-		queue_message* message = list_get(queue_new_pokemon->messages, i);
-		if (message->memory_partition_id == memory_partition_id)
+		queue_message* message = list_get(queue_new_pokemon.messages, i);
+		if (message->message->memory_partition_id == memory_partition_id)
 		{
-			list_remove(queue_new_pokemon->messages, i);
-			consolidate(partition);
+			list_remove(queue_new_pokemon.messages, i);
+			consolidate(memory_partition_id);
 			return;
 		}
 	}
 	
-	for (int i = 0; i < list_size(queue_get_pokemon->messages); i++)
+	for (int i = 0; i < list_size(queue_get_pokemon.messages); i++)
 	{
-		queue_message* message = list_get(queue_new_pokemon->messages, i);
-		if (message->memory_partition_id == memory_partition_id)
+		queue_message* message = list_get(queue_new_pokemon.messages, i);
+		if (message->message->memory_partition_id == memory_partition_id)
 		{
-			list_remove(queue_new_pokemon->messages, i);
-			consolidate(partition);
+			list_remove(queue_new_pokemon.messages, i);
+			consolidate(memory_partition_id);
 			return;
 		}
 	}
 	
-	for (int i = 0; i < list_size(queue_localized_pokemon->messages); i++)
+	for (int i = 0; i < list_size(queue_localized_pokemon.messages); i++)
 	{
-		queue_message* message = list_get(queue_new_pokemon->messages, i);
-		if (message->memory_partition_id == memory_partition_id)
+		queue_message* message = list_get(queue_new_pokemon.messages, i);
+		if (message->message->memory_partition_id == memory_partition_id)
 		{
-			list_remove(queue_new_pokemon->messages, i);
-			consolidate(partition);
+			list_remove(queue_new_pokemon.messages, i);
+			consolidate(memory_partition_id);
 			return;
 		}
 	}
 }
 
-void consolidate(t_memory_partition* memory_partition_to_consolidate) {
+void consolidate(uint32_t memory_partition_to_consolidate_id) {
+	t_memory_partition* memory_partition_to_consolidate;
+	for (int i = 0; i < list_size(memory_partitions); i++) {
+		t_memory_partition* part = list_get(memory_partitions, i);
+		 if (part->id == memory_partition_to_consolidate_id)
+		 {
+			 memory_partition_to_consolidate = part;
+		 }
+	}
+
 	if (string_equals_ignore_case(ALGORITMO_MEMORIA, "PARTICIONES"))
 	{
 		for (int i = 0; i < list_size(memory_partitions); i++)
@@ -453,10 +463,10 @@ void consolidate(t_memory_partition* memory_partition_to_consolidate) {
 			}
 		}
 	} else {
-		 int consolidated;
+		int consolidated;
 		do
 		{
-			consolidated = 0
+			consolidated = 0;
 
 			for (int i = 0; i < list_size(memory_partitions); i++)
 			{
@@ -502,9 +512,8 @@ void consolidate(t_memory_partition* memory_partition_to_consolidate) {
 				}
 			}
 			
-		} while (consolidated == 1)
+		} while (consolidated == 1);
 	}
-	
 }
 
 t_memory_partition* get_free_partition_particiones(uint32_t size) {
@@ -579,14 +588,14 @@ void perform_compaction() {
 	{
 		t_memory_partition* partition = list_get(occupied_partitions, i);
 		memcpy(compacted_memory + offset, memory + partition->begin, partition->partition_size);
-		partition->begin = compacted_memory + offset;
+		partition->begin = offset;
 		offset += partition->partition_size;
 		list_add(new_partitions, partition);
 	}
 
 	t_memory_partition* free_memory_partition = malloc(sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t) + sizeof(partition_status));
 	free_memory_partition->id = get_partition_id();
-	free_memory_partition->begin = compacted_memory + offset;
+	free_memory_partition->begin = offset;
 	free_memory_partition->partition_size = TAMANO_MEMORIA - offset;
 	free_memory_partition->lru_timestamp = 0;
 	free_memory_partition->status = FREE;
@@ -638,7 +647,7 @@ t_memory_partition* find_free_partition_bf(uint32_t size) {
 		if (best_partition == NULL && partition->status == FREE && partition->partition_size >= size)
 		{
 			best_partition = partition;
-		} else if (partition->status == FREE && partition->partition_size >= size && best_partition->partition_size > partition)
+		} else if (partition->status == FREE && partition->partition_size >= size && best_partition->partition_size > partition->partition_size)
 		{
 			best_partition = partition;
 		}
@@ -716,7 +725,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	case CAUGHT_POKEMON: ;
 		t_caught_pokemon* caught_pokemon = deserialize_caught_pokemon_message(client_socket,
 				&size);
-		msg->buffer = serialize_t_caught_pokemon_message(appeared_pokemon);
+		msg->buffer = serialize_t_caught_pokemon_message(caught_pokemon);
 
 		return_message_id(client_socket, msg->id);
 
@@ -764,8 +773,41 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		break;
 	case MESSAGE_RECEIVED: ;
 		process_message_received(client_socket);
+		break;
 	default:
 		pthread_exit(NULL);
+	}
+}
+
+void process_message_ack(queue queue, char* subscriptor_id, uint32_t received_message_id)
+{
+	for (int i = 0; i < list_size(queue.subscriptors); i++)
+	{
+		t_subscriptor* subscriptor = (t_subscriptor*) list_get(queue.subscriptors, i);
+
+		if (string_equals_ignore_case(subscriptor->subscriptor_info->subscriptor_id, subscriptor_id))
+		{
+			uint32_t subscriptor_socket = subscriptor->socket;
+
+			for (int j = 0; j < list_size(queue.messages); j++)
+			{
+				queue_message* message = (queue_message*) list_get(queue.messages, j);
+
+				if (message->message->id == received_message_id)
+				{
+					for (int k = 0; k < list_size(message->receivers); k++)
+					{
+						receiver* _receiver = (receiver*) list_get(message->receivers, k);
+
+						if (_receiver->receiver_socket == subscriptor_socket)
+						{
+							_receiver->received = 1;
+							return;
+						}
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -784,23 +826,25 @@ void process_message_received(uint32_t socket) {
 	uint32_t received_message_id;
 	recv(socket, &(received_message_id), sizeof(uint32_t), MSG_WAITALL);
 
+	queue queue;
+
 	switch (message_type) {
-	case NEW_POKEMON:
+	case NEW_POKEMON: ;
 		queue = queue_new_pokemon;
 		break;
-	case APPEARED_POKEMON:
+	case APPEARED_POKEMON: ;
 		queue = queue_appeared_pokemon;
 		break;
-	case CATCH_POKEMON:
+	case CATCH_POKEMON: ;
 		queue = queue_catch_pokemon;
 		break;
-	case CAUGHT_POKEMON:
+	case CAUGHT_POKEMON: ;
 		queue = queue_caught_pokemon;
 		break;
-	case GET_POKEMON:
+	case GET_POKEMON: ;
 		queue = queue_get_pokemon;
 		break;
-	case LOCALIZED_POKEMON:
+	case LOCALIZED_POKEMON: ;
 		queue = queue_localized_pokemon;
 		break;
 	default:
@@ -808,37 +852,6 @@ void process_message_received(uint32_t socket) {
 	}
 
 	process_message_ack(queue, subscriptor_id, received_message_id);
-}
-
-void process_message_ack(queue queue, char* subscriptor_id, uint32_t received_message_id)
-{
-	for (int i = 0; i < list_size(queue->subscriptors); i++)
-	{
-		t_subscriptor* subscriptor = (t_subscriptor*) list_get(queue->subscriptors, i);
-
-		if (string_equals_ignore_case(subscriptor->subscriptor_info->subscriptor_id, subscriptor_id))
-		{
-			uint32_t subscriptor_socket = subscriptor->socket;
-			for (int j = 0; j < list_size(queue->messages); j++)
-			{
-				queue_message* queue_message = (queue_message*) list_get(queue->messages, j);
-
-				if (queue_message->message->id == received_message_id)
-				{
-					for (int k = 0; k < list_size(queue->receivers); k++)
-					{
-						receiver* receiver = (receiver*) list_get(queue->receivers, k);
-
-						if (receiver->receiver_socket == subscriptor->socket)
-						{
-							receiver->received = 1;
-							return;
-						}
-					}
-				}
-			}
-		}
-	}
 }
 
 void process_new_subscription(uint32_t socket) {
@@ -920,12 +933,12 @@ void process_new_subscription(uint32_t socket) {
 void process_subscriptor(uint32_t* socket, t_subscription_petition* subscription_petition, queue queue) {
 	send_all_messages(socket, subscription_petition, queue);
 
-	uint64_t end_subscription_time = (unsigned long)time(NULL);
-	if (susbcription_petition->time < 0)
+	uint32_t end_subscription_time = (unsigned long)time(NULL);
+	if (subscription_petition->duration < 0)
 	{
 		end_subscription_time += 60000;
 	} else {
-		end_subscription_time += susbcription_petition->time;
+		end_subscription_time += subscription_petition->duration;
 	}
 
 	event_code code;
@@ -946,9 +959,9 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 	uint32_t already_subscribed;
 
 
-	for (int i = 0; i < list_size(queue->subscriptors); i++)
+	for (int i = 0; i < list_size(queue.subscriptors); i++)
 	{
-		t_subscriptor* subscriptor = list_get(queue->subscriptors, i);
+		t_subscriptor* subscriptor = list_get(queue.subscriptors, i);
 		
 		if (string_equals_ignore_case(subscriptor->subscriptor_info->subscriptor_id, subscription_petition->subscriptor_id))
 		{
@@ -1026,21 +1039,12 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 	}
 }
 
-static void sig_usr(int signo){
-	if (signo == SIGUSR1){
-		dump_memory();
-	} else{
-		err_sys("received unexpected signal");
-	}
-	return;
-}
-
-void  err_sys(char* msg) {
+static void  err_sys(char* msg) {
   printf("%s \n", msg);
   exit(-1);
 }
 
-void dump_memory(){
+static void dump_memory(){
 	 time_t rawtime;
 	 struct tm * timeinfo;
 
@@ -1067,4 +1071,13 @@ void dump_memory(){
 		fprintf(dump_file,"Particion %d: %X - %X.\t [%d]\t Size:%d b\t LRU:%d\t Cola:%d(FALTA EL TIPO DE COLA)\t ID:%d\n", i, begin, (begin+partition_size), status, partition_size, lru_timestamp, partition_size, id);
 	 }
 	fclose(dump_file);
+}
+
+static void sig_usr(int signo){
+	if (signo == SIGUSR1){
+		dump_memory();
+	} else{
+		err_sys("received unexpected signal");
+	}
+	return;
 }

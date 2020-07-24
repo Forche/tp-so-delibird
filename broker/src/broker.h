@@ -99,12 +99,13 @@ void delete_partition_and_consolidate_fifo();
 void delete_partition_and_consolidate_lru();
 void perform_compaction();
 void delete_and_consolidate(uint32_t memory_partition_id);
-void consolidate(t_memory_partition* memory_partition_to_consolidate);
+void consolidate(uint32_t memory_partition_to_consolidate_id);
 
 uint32_t get_message_id();
+uint32_t get_partition_id();
 
 static void sig_usr(int signo);
-void  err_sys(char* msg);
-void dump_memory();
+static void err_sys(char* msg);
+static void dump_memory();
 
 #endif
