@@ -113,7 +113,7 @@ void* serialize_message(t_message* message, uint32_t* bytes_to_send) {
 }
 
 void validate_arg_count(uint32_t arg_count, uint32_t payload_args) {
-	//TODO: Throw exception if arg_count != payload_args
+
 }
 
 t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count,
@@ -488,6 +488,7 @@ t_message* receive_message(uint32_t event_code, uint32_t socket) {
 	buffer = malloc(sizeof(uint32_t) + size);
 	buffer->size = size;
 	message->buffer = buffer;
+	free(buffer);
 
 	return message;
 }
@@ -571,8 +572,8 @@ t_caught_pokemon* deserialize_caught_pokemon_message(uint32_t socket,
 
 	t_log* logger = logger_init();
 	*size = 1;
-	char* str_result = malloc(*size);
-	sprintf(str_result, "%d", caught_pokemon->result);
+	char* str_result = string_new();
+	str_result= string_from_format("%d", caught_pokemon->result);
 	log_info(logger, str_result);
 	log_destroy(logger);
 	free(str_result);
@@ -603,18 +604,15 @@ t_get_pokemon* deserialize_get_pokemon_message(uint32_t socket, uint32_t* size) 
 t_localized_pokemon* deserialize_localized_pokemon_message(uint32_t socket, uint32_t* size) {
 	uint32_t pokemon_len;
 	uint32_t count;
-	recv(socket, &(pokemon_len), sizeof(uint32_t),
-	MSG_WAITALL);
-	recv(socket, &(count), sizeof(uint32_t),
-	MSG_WAITALL);
+	recv(socket, &(pokemon_len), sizeof(uint32_t), MSG_WAITALL);
+	recv(socket, &(count), sizeof(uint32_t), MSG_WAITALL);
 
 	*size = 2 * sizeof(uint32_t) + pokemon_len + 2*count;
 	t_localized_pokemon* localized_pokemon = malloc(*size);
 	localized_pokemon->pokemon_len = pokemon_len;
 	localized_pokemon->positions_count = count;
 	localized_pokemon->pokemon = malloc(localized_pokemon->pokemon_len);
-	recv(socket, localized_pokemon->pokemon, localized_pokemon->pokemon_len,
-	MSG_WAITALL);
+	recv(socket, localized_pokemon->pokemon, localized_pokemon->pokemon_len, MSG_WAITALL);
 	recv(socket, localized_pokemon->positions, 2*count, MSG_WAITALL);
 
 	t_log* logger = logger_init();

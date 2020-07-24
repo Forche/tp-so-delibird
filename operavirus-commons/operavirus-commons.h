@@ -12,6 +12,9 @@
 #include<commons/string.h>
 #include<commons/log.h>
 #include<commons/collections/dictionary.h>
+#include "connection.h"
+#include "thread.h"
+#include <errno.h>
 
 typedef enum {
 	NEW_POKEMON = 1,
@@ -157,12 +160,15 @@ t_subscription_petition* build_new_subscription(event_code code, char* my_ip, ch
 void make_subscription_to(t_subscription_petition* suscription, char* broker_ip,
 		char* broker_port, uint32_t reconnect_time, t_log* logger, void handle_event(uint32_t*));
 
+void validate_arg_count(uint32_t arg_count, uint32_t payload_args);
+
 void send_message(uint32_t client_socket, event_code event_code, uint32_t id,
 		uint32_t correlative_id, t_buffer* buffer);
 t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count,
 		char* payload_content[], char* sender_id, char* sender_ip,
 		uint32_t sender_port);
 void* serialize_message(t_message* message, uint32_t* bytes_to_send);
+
 
 t_buffer* serialize_t_new_pokemon_message(t_new_pokemon* new_pokemon);
 t_buffer* serialize_new_pokemon_message(char* payload_content[]);
@@ -179,7 +185,7 @@ t_buffer* serialize_caught_pokemon_message(char* payload_content[]);
 t_buffer* serialize_t_get_pokemon_message(t_get_pokemon* get_pokemon);
 t_buffer* serialize_get_pokemon_message(char* payload_content[]);
 
-t_buffer* serialize_t_localized_pokemon_message(t_localized_pokemon* get_pokemon);
+t_buffer* serialize_t_localized_pokemon_message(t_localized_pokemon* localized_pokemon);
 t_buffer* serialize_localized_pokemon_message(char* payload_content[]);
 
 t_buffer* serialize_t_new_subscriptor_message(t_subscription_petition* subscription_petition);
@@ -188,6 +194,7 @@ t_buffer* serialize_new_subscriptor_message(char* payload_content[], char* sende
 t_buffer* serialize_t_message_received_message(t_message_received* message_received);
 t_buffer* serialize_message_received_message(char* payload_content[], char* sender_id, char* sender_ip, uint32_t received_message_id);
 
+t_buffer* serialize_message_received_message(char* payload_content[], char* sender_id, char* sender_ip, uint32_t received_message_id);
 t_buffer* serialize_t_message_received(t_message_received* message_received);
 
 t_message* receive_message(uint32_t event_code, uint32_t socket);

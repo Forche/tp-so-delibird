@@ -70,6 +70,7 @@ char* ALGORITMO_PARTICION_LIBRE;
 char* ALGORITMO_REEMPLAZO;
 char* ALGORITMO_MEMORIA;
 int FRECUENCIA_COMPACTACION;
+char* LOG_FILE;
 void* memory;
 t_list* memory_partitions;
 pthread_mutex_t mutex_message_id;
@@ -107,5 +108,7 @@ uint32_t get_partition_id();
 static void sig_usr(int signo);
 static void err_sys(char* msg);
 static void dump_memory();
+
+t_log* logger_init_broker();
 
 #endif

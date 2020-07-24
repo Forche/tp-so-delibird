@@ -19,7 +19,7 @@ void server_init(void) {
 	partition_count = 0;
 	queues_init();
 	int sv_socket;
-	t_config* config = config_create("broker.config");
+	t_config* config = config_create("/home/utnso/tp-2020-1c-Operavirus/broker/broker.config");
 	char* IP = config_get_string_value(config, "IP_BROKER");
 	char* PORT = config_get_string_value(config, "PUERTO_BROKER");
 	ALGORITMO_PARTICION_LIBRE = config_get_string_value(config, "ALGORITMO_PARTICION_LIBRE");
@@ -28,7 +28,7 @@ void server_init(void) {
 	TAMANO_MEMORIA = config_get_int_value(config, "TAMANO_MEMORIA");
 	TAMANO_MINIMO_PARTICION = config_get_int_value(config, "TAMANO_MINIMO_PARTICION");
 	FRECUENCIA_COMPACTACION = config_get_int_value(config, "FRECUENCIA_COMPACTACION");
-
+	LOG_FILE = config_get_string_value(config, "LOG_FILE");
 	memory_init();
 
 	struct addrinfo hints, *servinfo, *p;
@@ -139,7 +139,7 @@ void wait_for_client(uint32_t sv_socket) {
 }
 
 void serve_client(uint32_t* socket) {
-	t_log* logger = logger_init();
+	t_log* logger = logger_init_broker();
 	log_info(logger, "Proceso conectado al broker.");
 	log_destroy(logger);
 	event_code code;
@@ -218,7 +218,7 @@ uint32_t store_payload_bs(void* payload, uint32_t size, uint32_t message_id) {
 	partition->occupied_timestamp = (unsigned long)time(NULL);
 	partition->content_size = size;
 
-	t_log* logger = logger_init();
+	t_log* logger = logger_init_broker();
 	log_info(logger, "Almacenado mensaje con id %d en memoria, posicion de inicio: %d.", message_id, partition->begin);
 	log_destroy(logger);
 
@@ -256,7 +256,7 @@ uint32_t store_payload_particiones(void* payload, uint32_t size, uint32_t messag
 	// Update resized free partition in list
 	for (int i = 0; i < list_size(memory_partitions); i++)
 	{
-		
+
 		t_memory_partition* p = list_get(memory_partitions, i);
 
 		if (p->id == partition->id)
@@ -266,7 +266,7 @@ uint32_t store_payload_particiones(void* payload, uint32_t size, uint32_t messag
 		}
 	}
 
-	t_log* logger = logger_init();
+	t_log* logger = logger_init_broker();
 	log_info(logger, "Almacenado mensaje con id %d en memoria, posicion de inicio: %d.", message_id, new_partition->begin);
 	log_destroy(logger);
 
@@ -318,7 +318,7 @@ void delete_partition_and_consolidate_fifo() {
 	partition->lru_timestamp = 0;
 	partition->occupied_timestamp = 0;
 	partition->content_size = 0;
-	t_log* logger = logger_init();
+	t_log* logger = logger_init_broker();
 	log_info(logger, "Eliminada particion con id %d, cuya posicion de inicio es %d.", partition->id, partition->begin);
 	log_destroy(logger);
 	delete_and_consolidate(smallest_id);
@@ -344,14 +344,14 @@ void delete_partition_and_consolidate_lru() {
 			smallest_lru_timestamp = partition->lru_timestamp;
 		}
 	}
-	
+
 	// Set as FREE the partition which ID is memory_partition_id
 	t_memory_partition* partition = list_get(memory_partitions, index_to_free);
 	partition->status = FREE;
 	partition->lru_timestamp = 0;
 	partition->occupied_timestamp = 0;
 	partition->content_size = 0;
-	t_log* logger = logger_init();
+	t_log* logger = logger_init_broker();
 	log_info(logger, "Eliminada particion con id %d, cuya posicion de inicio es %d.", partition->id, partition->begin);
 	log_destroy(logger);
 	delete_and_consolidate(smallest_id);
@@ -497,7 +497,7 @@ void consolidate(uint32_t memory_partition_to_consolidate_id) {
 							t_memory_partition* partition_to_consolidate = list_get(memory_partitions, j);
 							if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
 							{
-								t_log* logger = logger_init();
+								t_log* logger = logger_init_broker();
 								log_info(logger, "Asociada particion con id %d, cuya posicion de inicio es %d, con la particion con id %d, cuya posicion de inicio es %d.", partition->id, partition->begin, memory_partition_to_consolidate->id, memory_partition_to_consolidate->begin);
 								log_destroy(logger);
 								list_remove(memory_partitions, j);
@@ -522,7 +522,7 @@ void consolidate(uint32_t memory_partition_to_consolidate_id) {
 							t_memory_partition* partition_to_consolidate = list_get(memory_partitions, j);
 							if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
 							{
-								t_log* logger = logger_init();
+								t_log* logger = logger_init_broker();
 								log_info(logger, "Asociada particion con id %d, cuya posicion de inicio es %d, con la particion con id %d, cuya posicion de inicio es %d.", partition->id, partition->begin, memory_partition_to_consolidate->id, memory_partition_to_consolidate->begin);
 								log_destroy(logger);
 								list_remove(memory_partitions, i);
@@ -534,7 +534,7 @@ void consolidate(uint32_t memory_partition_to_consolidate_id) {
 					}
 				}
 			}
-			
+
 		} while (consolidated == 1);
 	}
 }
@@ -630,7 +630,7 @@ void perform_compaction() {
 	memory_partitions = new_partitions;
 	free(memory);
 	memory = compacted_memory;
-	t_log* logger = logger_init();
+	t_log* logger = logger_init_broker();
 	log_info(logger, "Memoria compactada.");
 	log_destroy(logger);
 }
@@ -700,11 +700,11 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	
 	switch (event_code) {
 	case NEW_POKEMON: ;
-		t_log* logger = logger_init();
+		logger = logger_init();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-		msg->buffer->payload = deserialize_new_pokemon_message(client_socket,
-				&size);
-		msg->buffer->size = size;
+
+		t_new_pokemon* new_pokemon = deserialize_new_pokemon_message(client_socket,	&size);
+		msg->buffer = serialize_t_new_pokemon_message(new_pokemon);
 
 		return_message_id(client_socket, msg->id);
 
@@ -722,8 +722,9 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 
 		break;
 	case APPEARED_POKEMON: ;
-		t_log* logger = logger_init();
+		logger = logger_init_broker();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
+
 		t_appeared_pokemon* appeared_pokemon = deserialize_appeared_pokemon_message(client_socket, &size);
 		msg->buffer = serialize_t_appeared_pokemon_message(appeared_pokemon);
 
@@ -742,12 +743,13 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		store_message(msg, queue_appeared_pokemon, queue_appeared_pokemon.subscriptors);
 		break;
 	case CATCH_POKEMON: ;
-		t_log* logger = logger_init();
+		logger = logger_init_broker();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-		msg->buffer->payload = deserialize_catch_pokemon_message(client_socket,
-				&size);
-		msg->buffer->size = size;
-		return_message_id(client_socket, msg->id);
+
+		t_catch_pokemon* catch_pokemon = deserialize_catch_pokemon_message(client_socket, &size);
+		msg->buffer = serialize_t_catch_pokemon_message(catch_pokemon);
+
+				return_message_id(client_socket, msg->id);
 
 		for (i = 0; i < list_size(queue_catch_pokemon.subscriptors); i++) {
 			t_subscriptor* subscriptor = list_get(
@@ -762,11 +764,11 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		store_message(msg, queue_catch_pokemon, queue_catch_pokemon.subscriptors);
 		break;
 	case CAUGHT_POKEMON: ;
-		t_log* logger = logger_init();
+		logger = logger_init_broker();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-		t_caught_pokemon* caught_pokemon = deserialize_caught_pokemon_message(client_socket,
-				&size);
-		msg->buffer = serialize_t_caught_pokemon_message(caught_pokemon);
+
+		t_caught_pokemon* caught_pokemon = deserialize_caught_pokemon_message(client_socket, &size);
+		msg->buffer = serialize_t_caught_pokemon_message(catch_pokemon);
 
 		return_message_id(client_socket, msg->id);
 
@@ -783,11 +785,11 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		store_message(msg, queue_caught_pokemon, queue_caught_pokemon.subscriptors);
 		break;
 	case GET_POKEMON: ;
-		t_log* logger = logger_init();
+		logger = logger_init_broker();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-		msg->buffer->payload = deserialize_get_pokemon_message(client_socket,
-				&size);
-		msg->buffer->size = size;
+
+		t_get_pokemon* get_pokemon = deserialize_get_pokemon_message(client_socket, &size);
+		msg->buffer = serialize_t_get_pokemon_message(get_pokemon);
 
 		for (i = 0; i < list_size(queue_get_pokemon.subscriptors); i++) {
 			t_subscriptor* subscriptor = list_get(
@@ -802,11 +804,11 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		store_message(msg, queue_get_pokemon, queue_get_pokemon.subscriptors);
 		break;
 	case LOCALIZED_POKEMON: ;
-		t_log* logger = logger_init();
+		logger = logger_init_broker();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-		msg->buffer->payload = deserialize_localized_pokemon_message(
-				client_socket, &size);
-		msg->buffer->size = size;
+
+		t_localized_pokemon* localized_pokemon = deserialize_localized_pokemon_message(client_socket, &size);
+		msg->buffer = serialize_t_localized_pokemon_message(localized_pokemon);
 
 		for (i = 0; i < list_size(queue_localized_pokemon.subscriptors); i++) {
 			t_subscriptor* subscriptor = list_get(
@@ -854,7 +856,7 @@ void process_message_ack(queue queue, char* subscriptor_id, uint32_t received_me
 						if (_receiver->receiver_socket == subscriptor_socket)
 						{
 							_receiver->received = 1;
-							logger = logger_init();
+							logger = logger_init_broker();
 							log_info(logger, "Mensaje con id %d, de tipo %d, recibido por el suscriptor cuyo socket es %d, y su id es %s.", received_message_id, message->message->event_code, subscriptor_socket, subscriptor_id);
 							log_destroy(logger);
 							return;
@@ -978,7 +980,7 @@ void process_new_subscription(uint32_t socket) {
 		pthread_exit(NULL);
 	}
 
-	t_log* logger = logger_init();
+	t_log* logger = logger_init_broker();
 	log_info(logger, "Subscripcion recibida de %s al broker para la queue %d", subcription_petition->subscriptor_id, subcription_petition->queue);
 	log_destroy(logger);
 
@@ -1068,7 +1070,7 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 				buffer->payload = content;
 				send_message(*socket, subscription_petition->queue, message->message->id,
 												message->message->correlative_id, buffer);
-				logger = logger_init();
+				logger = logger_init_broker();
 				log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", message->message->id, subscription_petition->queue, *socket);
 				log_destroy(logger);
 
@@ -1112,7 +1114,7 @@ static void dump_memory(){
 	FILE* dump_file;
 	dump_file = fopen("dump.txt","w");
 	if(dump_file == NULL){
-		logger = logger_init();
+		logger = logger_init_broker();
 		log_info(logger,"Error al crear el dump");
 		log_destroy(logger);
 		exit(1);
@@ -1216,4 +1218,9 @@ static void sig_usr(int signo){
 		err_sys("received unexpected signal");
 	}
 	return;
+}
+
+t_log* logger_init_broker() {
+	return log_create(LOG_FILE, "broker", true,
+			LOG_LEVEL_INFO);
 }
