@@ -209,7 +209,7 @@ t_buffer* serialize_message_received_message(char* payload_content[],
 	message_received_ptr->subscriptor_len = strlen(sender_id) + 1;
 	message_received_ptr->subscriptor_id = sender_id;
 	message_received_ptr->message_type = string_to_event_code(payload_content[0]);
-	message_received_ptr->received_message_id = received_message_id);
+	message_received_ptr->received_message_id = received_message_id;
 
 	return serialize_t_message_received_message(message_received_ptr);
 }
