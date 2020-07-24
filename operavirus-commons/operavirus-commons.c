@@ -202,6 +202,45 @@ t_buffer* serialize_t_new_subscriptor_message(t_subscription_petition* subscript
 	return buffer;
 }
 
+t_buffer* serialize_message_received_message(char* payload_content[],
+	char* sender_id, char* sender_ip, uint32_t received_message_id) {
+	t_message_received* message_received_ptr = malloc(
+			sizeof(t_message_received));
+	message_received_ptr->subscriptor_len = strlen(sender_id) + 1;
+	message_received_ptr->subscriptor_id = sender_id;
+	message_received_ptr->message_type = string_to_event_code(payload_content[0]);
+	message_received_ptr->received_message_id = received_message_id;
+
+	return serialize_t_message_received_message(message_received_ptr);
+}
+
+t_buffer* serialize_t_message_received_message(t_message_received* message_received_ptr) {
+	t_message_received message_received_msg = (*message_received_ptr);
+	t_buffer* buffer = malloc(sizeof(t_buffer));
+	buffer->size = message_received_ptr->subscriptor_len + 2 * sizeof(uint32_t)
+			+ sizeof(event_code);
+
+	void* payload = malloc(buffer->size);
+	int offset = 0;
+
+	memcpy(payload + offset, &message_received_msg.subscriptor_len,
+			sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+	memcpy(payload + offset, message_received_msg.subscriptor_id,
+			message_received_msg.subscriptor_len);
+	offset += message_received_msg.subscriptor_len;
+	memcpy(payload + offset, &message_received_msg.message_type, sizeof(event_code));
+	offset += sizeof(event_code);
+	memcpy(payload + offset, &message_received_msg.received_message_id,
+				sizeof(uint32_t));
+
+	buffer->payload = payload;
+
+	free(message_received_ptr);
+
+	return buffer;
+}
+
 t_buffer* serialize_new_pokemon_message(char* payload_content[]) {
 	t_new_pokemon* new_pokemon_ptr = malloc(sizeof(t_new_pokemon));
 	new_pokemon_ptr->pokemon_len = strlen(payload_content[0]) + 1;
