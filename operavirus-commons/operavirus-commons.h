@@ -28,13 +28,6 @@ typedef enum {
 } event_code;
 
 typedef struct {
-	uint32_t subscriptor_len;
-	char* subscriptor_id;
-	event_code message_type;
-	uint32_t received_message_id;
-} t_message_received;
-
-typedef struct {
 	uint32_t size;
 	void* payload;
 } t_buffer;
@@ -102,6 +95,13 @@ typedef struct {
 } t_subscription_petition;
 
 typedef struct {
+	uint32_t subscriptor_len;
+	char* subscriptor_id;
+	event_code message_type;
+	uint32_t received_message_id;
+} t_message_received;
+
+typedef struct {
 	t_subscription_petition* subscriptor_info;
 	uint32_t socket;
 } t_subscriptor;
@@ -159,7 +159,6 @@ void* serialize_message(t_message* message, uint32_t* bytes_to_send);
 t_buffer* serialize_t_new_pokemon_message(t_new_pokemon* new_pokemon);
 t_buffer* serialize_new_pokemon_message(char* payload_content[]);
 
-
 t_buffer* serialize_t_appeared_pokemon_message(t_appeared_pokemon* appeared_pokemon);
 t_buffer* serialize_appeared_pokemon_message(char* payload_content[]);
 
@@ -175,8 +174,11 @@ t_buffer* serialize_get_pokemon_message(char* payload_content[]);
 t_buffer* serialize_t_localized_pokemon_message(t_localized_pokemon* localized_pokemon);
 t_buffer* serialize_localized_pokemon_message(char* payload_content[]);
 
-t_buffer* serialize_new_subscriptor_message(char* payload_content[], char* sender_id, char* sender_ip, uint32_t sender_port);
 t_buffer* serialize_t_new_subscriptor_message(t_subscription_petition* subscription_petition);
+t_buffer* serialize_new_subscriptor_message(char* payload_content[], char* sender_id, char* sender_ip, uint32_t sender_port);
+
+t_buffer* serialize_t_message_received_message(t_message_received* message_received);
+t_buffer* serialize_message_received_message(char* payload_content[], char* sender_id, char* sender_ip, uint32_t received_message_id);
 
 t_buffer* serialize_message_received_message(char* payload_content[], char* sender_id, char* sender_ip, uint32_t received_message_id);
 t_buffer* serialize_t_message_received(t_message_received* message_received);

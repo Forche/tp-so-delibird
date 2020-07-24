@@ -301,7 +301,7 @@ void delete_partition_and_consolidate_fifo() {
 
 	for (int i = 0; i < list_size(memory_partitions); i++)
 	{
-
+		
 		t_memory_partition* partition = list_get(memory_partitions, i);
 
 		if ((i == 0) || (partition->occupied_timestamp < smallest_ocuppied_timestamp))
@@ -311,7 +311,7 @@ void delete_partition_and_consolidate_fifo() {
 			smallest_ocuppied_timestamp = partition->occupied_timestamp;
 		}
 	}
-
+	
 	// Set as FREE the partition which ID is memory_partition_id
 	t_memory_partition* partition = list_get(memory_partitions, index_to_free);
 	partition->status = FREE;
@@ -334,7 +334,7 @@ void delete_partition_and_consolidate_lru() {
 
 	for (int i = 0; i < list_size(memory_partitions); i++)
 	{
-
+		
 		t_memory_partition* partition = list_get(memory_partitions, i);
 
 		if ((i == 0) || (partition->lru_timestamp < smallest_lru_timestamp))
@@ -381,7 +381,7 @@ void delete_and_consolidate(uint32_t memory_partition_id)
 			return;
 		}
 	}
-
+	
 	for (int i = 0; i < list_size(queue_catch_pokemon.messages); i++)
 	{
 		queue_message* message = list_get(queue_new_pokemon.messages, i);
@@ -403,7 +403,7 @@ void delete_and_consolidate(uint32_t memory_partition_id)
 			return;
 		}
 	}
-
+	
 	for (int i = 0; i < list_size(queue_get_pokemon.messages); i++)
 	{
 		queue_message* message = list_get(queue_new_pokemon.messages, i);
@@ -414,7 +414,7 @@ void delete_and_consolidate(uint32_t memory_partition_id)
 			return;
 		}
 	}
-
+	
 	for (int i = 0; i < list_size(queue_localized_pokemon.messages); i++)
 	{
 		queue_message* message = list_get(queue_new_pokemon.messages, i);
@@ -722,7 +722,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 
 		break;
 	case APPEARED_POKEMON: ;
-		logger = logger_init();
+		t_log* logger = logger_init();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
 		t_appeared_pokemon* appeared_pokemon = deserialize_appeared_pokemon_message(client_socket, &size);
 		msg->buffer = serialize_t_appeared_pokemon_message(appeared_pokemon);
@@ -742,7 +742,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		store_message(msg, queue_appeared_pokemon, queue_appeared_pokemon.subscriptors);
 		break;
 	case CATCH_POKEMON: ;
-		logger = logger_init();
+		t_log* logger = logger_init();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
 		msg->buffer->payload = deserialize_catch_pokemon_message(client_socket,
 				&size);
@@ -762,7 +762,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		store_message(msg, queue_catch_pokemon, queue_catch_pokemon.subscriptors);
 		break;
 	case CAUGHT_POKEMON: ;
-		logger = logger_init();
+		t_log* logger = logger_init();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
 		t_caught_pokemon* caught_pokemon = deserialize_caught_pokemon_message(client_socket,
 				&size);
@@ -783,7 +783,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		store_message(msg, queue_caught_pokemon, queue_caught_pokemon.subscriptors);
 		break;
 	case GET_POKEMON: ;
-		logger = logger_init();
+		t_log* logger = logger_init();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
 		msg->buffer->payload = deserialize_get_pokemon_message(client_socket,
 				&size);
@@ -802,7 +802,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 		store_message(msg, queue_get_pokemon, queue_get_pokemon.subscriptors);
 		break;
 	case LOCALIZED_POKEMON: ;
-		logger = logger_init();
+		t_log* logger = logger_init();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
 		msg->buffer->payload = deserialize_localized_pokemon_message(
 				client_socket, &size);
@@ -1017,7 +1017,7 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 	for (int i = 0; i < list_size(queue.subscriptors); i++)
 	{
 		t_subscriptor* subscriptor = list_get(queue.subscriptors, i);
-
+		
 		if (string_equals_ignore_case(subscriptor->subscriptor_info->subscriptor_id, subscription_petition->subscriptor_id))
 		{
 			old_socket = subscriptor->socket;
@@ -1037,7 +1037,7 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 			for (int j = 0; j < list_size(message->receivers); j++)
 			{
 				receiver* receiver = list_get(message->receivers, j);
-
+				
 				if (receiver->receiver_socket == old_socket && receiver->received == 1)
 				{
 					already_received = 1;
@@ -1085,7 +1085,7 @@ void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_p
 					for (int n = 0; n < list_size(message->receivers); n++)
 					{
 						receiver* receiver = list_get(message->receivers, n);
-
+						
 						if (receiver->receiver_socket == old_socket)
 						{
 							receiver->receiver_socket = *socket;
