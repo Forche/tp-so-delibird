@@ -86,10 +86,11 @@ int main(int argc, char* argv[]) {
 	return EXIT_SUCCESS;
 }
 
-void handle_event(uint32_t* socket) {
+int handle_event(uint32_t* socket) {
 	event_code code;
-	if (recv(*socket, &code, sizeof(event_code), MSG_WAITALL) == -1) {
-		code = -1;
+	int bytes = recv(*socket, &code, sizeof(event_code), MSG_WAITALL);
+	if (bytes == -1 || bytes == 0) {
+		return 0;
 	}
 		t_message* msg = receive_message(code, *socket);
 		uint32_t size;
@@ -117,6 +118,7 @@ void handle_event(uint32_t* socket) {
 
 		t_buffer* buffer_received = serialize_t_message_received(message_received);
 		send_message(socket, MESSAGE_RECEIVED, msg->id, msg->correlative_id, buffer_received);
+		return 1;
 }
 
 void handle_localized(t_message* msg) {
@@ -330,8 +332,9 @@ void subscribe_to(event_code code) {
 	} else {
 		log_info(logger, "Conectada cola code %d al broker", code);
 		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
-		while(1) {
-			handle_event(&broker_connection);
+		int still_connected = 1;
+		while(still_connected) {
+			still_connected = handle_event(&broker_connection);
 		}
 		log_error(logger, "Se desconecto del broker");
 		close(broker_connection);
