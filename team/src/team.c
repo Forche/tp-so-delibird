@@ -7,15 +7,16 @@ void print_pokemons(char* key, int* value) {
 
 int main(int argc, char* argv[]) {
 
-	char* file_config = "team.config";
-
+	char* string = string_new();
+	string_append(&string, "/home/utnso/tp-2020-1c-Operavirus/team/");
 	if(argc == 2) {
-		file_config = strcat(argv[1],".config");
+		string_append(&string, argv[1]);
+	} else {
+		string_append(&string, "team.config");
 	}
-	config = config_create(file_config);
+
+	config = config_create(string);
 	char* LOG_FILE = config_get_string_value(config, "LOG_FILE");
-
-
 
 	pokemon_received_to_catch = list_create();
 	trainers = list_create();
@@ -27,9 +28,6 @@ int main(int argc, char* argv[]) {
 	matched_deadlocks = list_create();
 	to_deadlock = list_create();
 	queue_deadlock = list_create();
-
-	log_info(logger, "argc %d", argc);
-	log_info(logger, "config %s", file_config);
 
 	ID = config_get_string_value(config, "ID");
 	char* POSICIONES_ENTRENADORES = config_get_string_value(config, "POSICIONES_ENTRENADORES");
