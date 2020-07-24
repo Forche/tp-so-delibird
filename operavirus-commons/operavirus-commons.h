@@ -23,8 +23,16 @@ typedef enum {
 	CAUGHT_POKEMON = 4,
 	GET_POKEMON = 5,
 	LOCALIZED_POKEMON = 6,
-	NEW_SUBSCRIPTOR = 7
+	NEW_SUBSCRIPTOR = 7,
+	MESSAGE_RECEIVED = 8
 } event_code;
+
+typedef struct {
+	uint32_t subscriptor_len;
+	char* subscriptor_id;
+	event_code message_type;
+	uint32_t received_message_id;
+} t_message_received;
 
 typedef struct {
 	uint32_t size;
@@ -169,6 +177,8 @@ t_buffer* serialize_localized_pokemon_message(char* payload_content[]);
 
 t_buffer* serialize_new_subscriptor_message(char* payload_content[], char* sender_id, char* sender_ip, uint32_t sender_port);
 t_buffer* serialize_t_new_subscriptor_message(t_subscription_petition* subscription_petition);
+
+t_buffer* serialize_t_message_received(t_message_received* message_received);
 
 t_message* receive_message(uint32_t event_code, uint32_t socket);
 t_message* deserialize_message(event_code event_code, t_buffer* buffer);

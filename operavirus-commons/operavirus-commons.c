@@ -415,6 +415,29 @@ t_buffer* serialize_t_localized_pokemon_message(t_localized_pokemon* localized_p
 	return buffer;
 }
 
+t_buffer* serialize_t_message_received(t_message_received* message_received) {
+	t_message_received message_received_msg = (*message_received);
+
+	t_buffer* buffer = malloc(sizeof(t_buffer));
+	buffer->size = 3 * sizeof(uint32_t) + message_received->subscriptor_len;
+
+	void* payload = malloc(buffer->size);
+	int offset = 0;
+
+	memcpy(payload + offset, &message_received_msg.subscriptor_len, sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+	memcpy(payload + offset, message_received_msg.subscriptor_id, message_received_msg.subscriptor_len);
+	offset += message_received_msg.subscriptor_len;
+	memcpy(payload + offset, &message_received_msg.message_type, sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+	memcpy(payload + offset, &message_received_msg.received_message_id, sizeof(uint32_t));
+
+	buffer->payload = payload;
+
+	free(message_received);
+	return buffer;
+}
+
 t_message* receive_message(uint32_t event_code, uint32_t client_socket) {
 	t_buffer* buffer;
 	t_message* message = malloc(sizeof(t_message));

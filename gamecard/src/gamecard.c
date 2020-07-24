@@ -17,7 +17,6 @@ int main(void) {
 	init_loggers();
 	tall_grass_metadata_info();
 	open_bitmap();
-
 	sem_t sem_gameCard_up;
 	sem_init(&sem_gameCard_up, 0, 0);
 	pthread_mutex_init(&mutexBitmap,NULL);
@@ -35,7 +34,7 @@ int main(void) {
 }
 
 void read_config() {
-	config = config_create("/home/utnso/workspace/tp-2020-1c-Operavirus/gamecard/gamecard.config");
+	config = config_create("/home/utnso/tp-2020-1c-Operavirus/gamecard/gamecard.config");
 
 	TIEMPO_DE_REINTENTO_CONEXION = config_get_int_value(config, "TIEMPO_DE_REINTENTO_CONEXION");
 	TIEMPO_DE_REINTENTO_OPERACION = config_get_int_value(config, "TIEMPO_DE_REINTENTO_OPERACION");
@@ -49,7 +48,7 @@ void read_config() {
 }
 
 void init_loggers() {
-	logger = log_create("/home/utnso/workspace/tp-2020-1c-Operavirus/gamecard/gamecard.log", "gamecard", true, LOG_LEVEL_INFO); //true porque escribe tambien la consola
+	logger = log_create("/home/utnso/tp-2020-1c-Operavirus/gamecard/gamecard.log", "gamecard", true, LOG_LEVEL_INFO); //true porque escribe tambien la consola
 }
 
 void shutdown_gamecard() {
@@ -67,7 +66,6 @@ void create_subscription_threads() {
 }
 
 void subscribe_to(event_code code) {
-<<<<<<< HEAD
 	t_subscription_petition* new_subscription = build_new_subscription(code, IP_GAMECARD, "Game Card", atoi(PUERTO_GAMECARD));
 
 	t_buffer* buffer = serialize_t_new_subscriptor_message(new_subscription);
@@ -86,10 +84,8 @@ void subscribe_to(event_code code) {
 		}
 	}
 
-=======
-	t_subscription_petition* new_subscription = build_new_subscription(code, IP_GAMECARD, "Game Card", PUERTO_GAMECARD);
+	new_subscription = build_new_subscription(code, IP_GAMECARD, "Game Card", PUERTO_GAMECARD);
 	make_subscription_to(new_subscription, IP_BROKER, PUERTO_BROKER, TIEMPO_DE_REINTENTO_CONEXION, logger, handle_event);
->>>>>>> parent of 91420f5... arreglo puerto. cambio log
 }
 
 
@@ -102,31 +98,43 @@ void gamecard_listener() {
 }
 
 
-void handle_event(uint32_t* client_socket) {
+int handle_event(uint32_t* client_socket) {
 	event_code code;
-	if (recv(*client_socket, &code, sizeof(event_code), MSG_WAITALL) == -1)
-		code = -1;
-
+	int bytes = recv(*client_socket, &code, sizeof(event_code), MSG_WAITALL);
+	if (bytes == -1 || bytes == 0) {
+			return 0;
+	}
 	//TODO: reintento conexion con broker
 	t_message* msg = receive_message(code, *client_socket);
-	//log_info(logger, "Recibo el msg: [Code:%d|Id:%d|Correlative Id:%d] de client socket: %d adress socket: %d",msg->event_code,msg->id, msg->correlative_id, *client_socket, client_socket);
 	uint32_t size;
+	t_message_received* message_received = malloc(sizeof(t_message_received));
+
 	switch (code) {
 	case NEW_POKEMON: ;
 		msg->buffer = deserialize_new_pokemon_message(*client_socket, &size);
 		create_thread_with_param(handle_new_pokemon, msg, "handle_new_pokemon");
+		message_received->message_type = NEW_POKEMON;
 
 		break;
 	case CATCH_POKEMON: ;
 		msg->buffer = deserialize_catch_pokemon_message(*client_socket, &size);
 		create_thread_with_param(handle_catch_pokemon, msg, "handle_catch");
+		message_received->message_type = CATCH_POKEMON;
 
 		break;
 	case GET_POKEMON: ;
 		msg->buffer = deserialize_get_pokemon_message(*client_socket, &size);
 		create_thread_with_param(handle_get_pokemon, msg, "handle_get");
+		message_received->message_type = GET_POKEMON;
 		break;
 	}
+	message_received->received_message_id = msg->id;
+	message_received->subscriptor_len = string_length("Game Card") + 1;
+	message_received->subscriptor_id = "Game Card";
+
+	t_buffer* buffer_received = serialize_t_message_received(message_received);
+	send_message(socket, MESSAGE_RECEIVED, msg->id, msg->correlative_id, buffer_received);
+	return 1;
 	//TODO:free(msg);
 }
 
@@ -149,7 +157,7 @@ void handle_get_pokemon(t_message* msg){
 			send_localized_to_broker(localized_pokemon, msg->id);
 		}
 		close_file_pokemon(path_pokemon);
-		list_destroy(pokemon_positions);
+		//list_destroy(pokemon_positions);
 	}
 
 }
@@ -177,6 +185,9 @@ uint32_t* positions_to_uint32(t_list* pokemon_positions){
 void send_localized_to_broker(t_localized_pokemon* localized_pokemon, uint32_t id){
 	t_buffer* buffer = serialize_t_localized_pokemon_message(localized_pokemon);
 	uint32_t connection = connect_to(IP_BROKER,PUERTO_BROKER);
+	if(connection == -1) {
+		log_error(logger, "No se pudo enviar el localized al broker. No se pudo conectar al broker");
+	}
 	send_message(connection, LOCALIZED_POKEMON, id, 0, buffer);
 	//free(buffer);
 }
@@ -213,6 +224,9 @@ void handle_catch_pokemon(t_message* msg){
 void send_caught_to_broker(t_caught_pokemon* caught_pokemon, uint32_t id){
 	t_buffer* buffer = serialize_t_caught_pokemon_message(caught_pokemon);
 	uint32_t connection = connect_to(IP_BROKER,PUERTO_BROKER);
+	if(connection == -1) {
+		log_error(logger, "No se pudo enviar el caught al broker. No se pudo conectar al broker");
+	}
 	send_message(connection, CAUGHT_POKEMON, id, 0, buffer);
 	//free(buffer);
 }
@@ -273,7 +287,9 @@ void handle_new_pokemon(t_message* msg){
 
 	t_list* pokemon_positions = ckeck_position_exists_new_pokemon(path_pokemon,new_pokemon);
 	write_positions_on_files(pokemon_positions, path_pokemon);
+
 	close_file_pokemon(path_pokemon);
+
 	t_appeared_pokemon* appeared_pokemon = create_appeared_pokemon(new_pokemon->pokemon_len, new_pokemon->pokemon, new_pokemon->pos_x, new_pokemon->pos_y);
 	send_appeared_to_broker(appeared_pokemon, msg->id);
 	free(path_pokemon);
@@ -309,6 +325,9 @@ t_list* ckeck_position_exists_new_pokemon(char* path_pokemon, t_new_pokemon* pok
 void send_appeared_to_broker(t_appeared_pokemon* appeared_pokemon, uint32_t id){
 	t_buffer* buffer = serialize_t_appeared_pokemon_message(appeared_pokemon);
 	uint32_t connection = connect_to(IP_BROKER,PUERTO_BROKER);
+	if(connection == -1) {
+		log_error(logger, "No se pudo enviar el appeared al broker. No se pudo conectar al broker");
+	}
 	send_message(connection, APPEARED_POKEMON, id, 0, buffer);
 	//free(buffer);
 }
@@ -411,12 +430,14 @@ void destroy_position(t_position* position){
 t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_positions){
 	t_config* metadata = config_create(metadata_path);
 	char** actual_blocks = config_get_array_value(metadata, "BLOCKS");
-	char* blocks_as_array_of_char = config_get_string_value(metadata, "BLOCKS");
+	//char* blocks_as_array_of_char = config_get_string_value(metadata, "BLOCKS");
+	char* blocks_as_array_of_char = string_new();
 	int quantity_actual_blocks = 0;
 	t_list* blocks_as_char =  list_create();
 
 	while(actual_blocks[quantity_actual_blocks]!=NULL){
 		list_add(blocks_as_char, actual_blocks[quantity_actual_blocks]);
+		blocks_as_array_of_char = add_block_to_array(blocks_as_array_of_char, actual_blocks[quantity_actual_blocks]);
 		quantity_actual_blocks++;
 	}
 
@@ -425,6 +446,7 @@ t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_po
 		int new_block = get_available_block();
 		blocks_are_enough -= 1;
 		actual_blocks[quantity_actual_blocks] = string_from_format("%d", new_block);
+		blocks_as_array_of_char = add_block_to_array(blocks_as_array_of_char, actual_blocks[quantity_actual_blocks]);
 		quantity_actual_blocks++;
 
 		list_add(blocks_as_char, string_from_format("%d",new_block));
@@ -451,11 +473,23 @@ t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_po
 	}
 	free(actual_blocks);*/
 	config_save(metadata);
-	config_destroy(metadata);
+	//config_destroy(metadata);
 	//TODO:free(blocks_as_array_of_char);
 	free(size_array);
 
 	return blocks_as_char;
+}
+
+char* add_block_to_array(char* blocks_as_array, char* block_to_add){
+	if(string_length(blocks_as_array)){
+		blocks_as_array[(string_length(blocks_as_array))-1] = ',';
+		string_append(&blocks_as_array,block_to_add);
+		char* close_block = "]\0";
+		string_append(&blocks_as_array,close_block);
+	} else {
+		blocks_as_array = string_from_format("[%s]\0",block_to_add);
+	}
+	return blocks_as_array;
 }
 
 char** metadata_blocks_to_actual_blocks(char* metadata_blocks){
@@ -610,8 +644,7 @@ t_list* get_positions_from_buffer(char* buffer){
 		while (array_buffer_positions[index_position]!=NULL){
 			char** string_position = string_split(array_buffer_positions[index_position], "=");
 			char** only_positions = string_split(string_position[0], "-");
-			int quantity = atoi(string_position[1]);
-			t_position* new_position = create_position(atoi(only_positions[0]), atoi(only_positions[1]), quantity);
+			t_position* new_position = create_position(atoi(only_positions[0]), atoi(only_positions[1]), atoi(string_position[1]));
 
 			list_add(positions, new_position);
 			free(only_positions[0]);
@@ -631,7 +664,7 @@ t_list* get_positions_from_buffer(char* buffer){
 }
 
 t_position* create_position(int x, int y, int pokemon_quantity){
-	t_position* new_position = malloc( sizeof(t_position) );
+	t_position* new_position = malloc(sizeof(t_position));
 	new_position->pos_x = x;
 	new_position->pos_y = y;
 	new_position->count = pokemon_quantity;

@@ -63,7 +63,7 @@ void create_listener_thread();
 void gamecard_listener();
 void create_subscription_threads();
 
-void handle_event(uint32_t* socket);
+int handle_event(uint32_t* socket);
 void handle_new_pokemon(t_message* msg);
 void handle_catch_pokemon(t_message* msg);
 void handle_get_pokemon(t_message* msg);
