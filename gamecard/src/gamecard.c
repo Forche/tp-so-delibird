@@ -87,7 +87,7 @@ void subscribe_to(event_code code) {
 	}
 
 	new_subscription = build_new_subscription(code, IP_GAMECARD, "Game Card", PUERTO_GAMECARD);
-	make_subscription_to(new_subscription, IP_BROKER, PUERTO_BROKER, TIEMPO_DE_REINTENTO_CONEXION, logger, handle_event);
+	subscribe_to(code);
 }
 
 
@@ -277,7 +277,7 @@ t_position* ckeck_position_exists_catch_pokemon(char* path_pokemon, t_catch_poke
 }
 
 void handle_new_pokemon(t_message* msg){
-	t_new_pokemon* new_pokemon = (t_new_pokemon*) msg->buffer;
+	t_new_pokemon* new_pokemon = msg->buffer;
 	pthread_mutex_lock(&mutexDirectory);
 	check_pokemon_directory(new_pokemon->pokemon, msg->event_code);
 	pthread_mutex_unlock(&mutexDirectory);

@@ -700,11 +700,11 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	
 	switch (event_code) {
 	case NEW_POKEMON: ;
-		t_log* logger = logger_init_broker();
+		logger = logger_init();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-		msg->buffer->payload = deserialize_new_pokemon_message(client_socket,
-				&size);
-		msg->buffer->size = size;
+
+		t_new_pokemon* new_pokemon = deserialize_new_pokemon_message(client_socket,	&size);
+		msg->buffer = serialize_t_new_pokemon_message(new_pokemon);
 
 		return_message_id(client_socket, msg->id);
 
@@ -724,6 +724,7 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	case APPEARED_POKEMON: ;
 		logger = logger_init_broker();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
+
 		t_appeared_pokemon* appeared_pokemon = deserialize_appeared_pokemon_message(client_socket, &size);
 		msg->buffer = serialize_t_appeared_pokemon_message(appeared_pokemon);
 
@@ -744,10 +745,11 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	case CATCH_POKEMON: ;
 		logger = logger_init_broker();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-		msg->buffer->payload = deserialize_catch_pokemon_message(client_socket,
-				&size);
-		msg->buffer->size = size;
-		return_message_id(client_socket, msg->id);
+
+		t_catch_pokemon* catch_pokemon = deserialize_catch_pokemon_message(client_socket, &size);
+		msg->buffer = serialize_t_catch_pokemon_message(catch_pokemon);
+
+				return_message_id(client_socket, msg->id);
 
 		for (i = 0; i < list_size(queue_catch_pokemon.subscriptors); i++) {
 			t_subscriptor* subscriptor = list_get(
@@ -764,9 +766,9 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	case CAUGHT_POKEMON: ;
 		logger = logger_init_broker();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-		t_caught_pokemon* caught_pokemon = deserialize_caught_pokemon_message(client_socket,
-				&size);
-		msg->buffer = serialize_t_caught_pokemon_message(caught_pokemon);
+
+		t_caught_pokemon* caught_pokemon = deserialize_caught_pokemon_message(client_socket, &size);
+		msg->buffer = serialize_t_caught_pokemon_message(catch_pokemon);
 
 		return_message_id(client_socket, msg->id);
 
@@ -785,9 +787,9 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	case GET_POKEMON: ;
 		logger = logger_init_broker();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-		msg->buffer->payload = deserialize_get_pokemon_message(client_socket,
-				&size);
-		msg->buffer->size = size;
+
+		t_get_pokemon* get_pokemon = deserialize_get_pokemon_message(client_socket, &size);
+		msg->buffer = serialize_t_get_pokemon_message(get_pokemon);
 
 		for (i = 0; i < list_size(queue_get_pokemon.subscriptors); i++) {
 			t_subscriptor* subscriptor = list_get(
@@ -804,9 +806,9 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	case LOCALIZED_POKEMON: ;
 		logger = logger_init_broker();
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-		msg->buffer->payload = deserialize_localized_pokemon_message(
-				client_socket, &size);
-		msg->buffer->size = size;
+
+		t_localized_pokemon* localized_pokemon = deserialize_localized_pokemon_message(client_socket, &size);
+		msg->buffer = serialize_t_localized_pokemon_message(localized_pokemon);
 
 		for (i = 0; i < list_size(queue_localized_pokemon.subscriptors); i++) {
 			t_subscriptor* subscriptor = list_get(
