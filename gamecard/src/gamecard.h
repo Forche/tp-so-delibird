@@ -81,6 +81,7 @@ int check_pokemon_directory(char* pokemon, event_code code);
 void check_if_file_is_open(char* path);
 
 int get_available_block();
+char** add_new_actual_blocks(char** actual_blocks, char* new_block);
 char* read_blocks_content(char* path_pokemon);
 t_list* get_positions_from_buffer(char* buffer);
 t_position* create_position(int x, int y, int pokemon_quantity);

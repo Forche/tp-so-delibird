@@ -58,11 +58,11 @@ void shutdown_gamecard() {
 }
 
 void create_subscription_threads() {
-	pthread_t thread_new = create_thread_with_param(subscribe_to, NEW_POKEMON, "subscribe NEW_POKEMON");
+	//pthread_t thread_new = create_thread_with_param(subscribe_to, NEW_POKEMON, "subscribe NEW_POKEMON");
 	sleep(2);
-	pthread_t thread_catch = create_thread_with_param(subscribe_to, CATCH_POKEMON, "subscribe CATCH_POKEMON");
+	//pthread_t thread_catch = create_thread_with_param(subscribe_to, CATCH_POKEMON, "subscribe CATCH_POKEMON");
 	sleep(2);
-	pthread_t thread_get = create_thread_with_param(subscribe_to, GET_POKEMON, "subscribe GET_POKEMON");
+	//pthread_t thread_get = create_thread_with_param(subscribe_to, GET_POKEMON, "subscribe GET_POKEMON");
 }
 
 void subscribe_to(event_code code) {
@@ -205,7 +205,7 @@ void handle_catch_pokemon(t_message* msg){
 		pthread_mutex_unlock(&mutexMetadataPath);
 		t_position* position = ckeck_position_exists_catch_pokemon(path_pokemon,catch_pokemon);
 		if(position != NULL){
-			log_info(logger, "El pokemon se encuentra en la posicion x:%d-y:%d", position->pos_x, position->pos_y);
+			log_info(logger, "El pokemon %s se encuentra en la posicion x:%d-y:%d",catch_pokemon->pokemon, position->pos_x, position->pos_y);
 			if(position->count == 1){
 				remove_position(position, path_pokemon);
 			} else {
@@ -238,7 +238,7 @@ void decrease_position(t_position* position, char* path_pokemon){
 	int pos = position_list(pokemon_positions,position);
 	t_position* position_in_list = list_get(pokemon_positions,pos);
 
-	log_info(logger,"Restamos 1 a %d total: %d en %s", position_in_list->count, position_in_list->count - 1, path_pokemon);
+	log_info(logger,"Restamos 1 a %d total: %d en %s del archivo %s", position_in_list->count, position_in_list->count - 1, path_pokemon, path_pokemon);
 	position_in_list->count -=1;
 	list_replace(pokemon_positions,pos,position_in_list);
 
@@ -430,7 +430,6 @@ void destroy_position(t_position* position){
 t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_positions){
 	t_config* metadata = config_create(metadata_path);
 	char** actual_blocks = config_get_array_value(metadata, "BLOCKS");
-	//char* blocks_as_array_of_char = config_get_string_value(metadata, "BLOCKS");
 	char* blocks_as_array_of_char = string_new();
 	int quantity_actual_blocks = 0;
 	t_list* blocks_as_char =  list_create();
@@ -445,8 +444,7 @@ t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_po
 	while(blocks_are_enough > 0){
 		int new_block = get_available_block();
 		blocks_are_enough -= 1;
-		actual_blocks[quantity_actual_blocks] = string_from_format("%d", new_block);
-		blocks_as_array_of_char = add_block_to_array(blocks_as_array_of_char, actual_blocks[quantity_actual_blocks]);
+		blocks_as_array_of_char = add_block_to_array(blocks_as_array_of_char, string_from_format("%d", new_block));
 		quantity_actual_blocks++;
 
 		list_add(blocks_as_char, string_from_format("%d",new_block));
@@ -461,7 +459,7 @@ t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_po
 		quantity_actual_blocks--;
 	}
 
-	log_info(logger,"Bloques a guardar:%s",blocks_as_array_of_char);
+	log_info(logger,"Bloques a guardar para el archivo %s:%s",metadata_path, blocks_as_array_of_char);
 	dictionary_put(metadata->properties, "BLOCKS", blocks_as_array_of_char);
 	char* size_array = string_new();
 	string_append_with_format(&size_array,"%d", size_array_positions);
