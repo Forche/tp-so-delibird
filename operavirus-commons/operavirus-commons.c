@@ -454,18 +454,6 @@ t_buffer* serialize_t_localized_pokemon_message(t_localized_pokemon* localized_p
 	return buffer;
 }
 
-t_buffer* serialize_message_received_message(char* payload_content[],
-		char* sender_id, char* sender_ip, uint32_t received_message_id) {
-	t_message_received* message_received_ptr = malloc(
-			sizeof(t_message_received));
-	message_received_ptr->subscriptor_len = strlen(sender_id) + 1;
-	message_received_ptr->subscriptor_id = sender_id;
-	message_received_ptr->message_type = string_to_event_code(payload_content[0]);
-	message_received_ptr->received_message_id = received_message_id;
-
-	return serialize_t_message_received(message_received_ptr);
-}
-
 t_buffer* serialize_t_message_received(t_message_received* message_received) {
 	t_message_received message_received_msg = (*message_received);
 
