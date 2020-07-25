@@ -810,7 +810,7 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
 
 		t_caught_pokemon *caught_pokemon = deserialize_caught_pokemon_message(client_socket, &size);
-		msg->buffer = serialize_t_caught_pokemon_message(catch_pokemon);
+		msg->buffer = serialize_t_caught_pokemon_message(caught_pokemon);
 
 		return_message_id(client_socket, msg->id);
 
