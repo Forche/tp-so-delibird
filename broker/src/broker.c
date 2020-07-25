@@ -99,7 +99,9 @@ void memory_init()
 	memory_partitions = list_create();
 
 	t_memory_partition *first_memory_partition = malloc(sizeof(t_memory_partition));
+	pthread_mutex_lock(&mutex_memory_partition_id);
 	first_memory_partition->id = get_partition_id();
+	pthread_mutex_unlock(&mutex_memory_partition_id);
 	first_memory_partition->begin = 0;
 	first_memory_partition->partition_size = first_partition_size;
 	first_memory_partition->lru_timestamp = 0; // Free partitions should not have lru_timestamp value !== 0
@@ -118,17 +120,13 @@ void memory_init()
 
 uint32_t get_message_id()
 {
-	pthread_mutex_lock(&mutex_message_id);
 	message_count++;
-	pthread_mutex_unlock(&mutex_message_id);
 	return message_count;
 }
 
 uint32_t get_partition_id()
 {
-	pthread_mutex_lock(&mutex_memory_partition_id);
 	partition_count++;
-	pthread_mutex_unlock(&mutex_memory_partition_id);
 	return partition_count;
 }
 
@@ -177,11 +175,11 @@ void wait_for_client(uint32_t sv_socket)
 
 	uint32_t addr_size = sizeof(struct sockaddr_in);
 
-	uint32_t client_socket;
+	uint32_t* client_socket = malloc(sizeof(int));
 
-	if ((client_socket = accept(sv_socket, (void *)&client_addr, &addr_size)) != -1)
+	if ((*client_socket = accept(sv_socket, (void *)&client_addr, &addr_size)) != -1)
 	{
-		pthread_create(&thread, NULL, (void *)serve_client, &client_socket);
+		pthread_create(&thread, NULL, (void *)serve_client, client_socket);
 		list_add(threads, &thread);
 		pthread_detach(thread);
 	}
@@ -255,7 +253,9 @@ uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id)
 		partition_size_to_use = partition_size_to_use / 2;
 		// Divide partition in two, use the first one
 		t_memory_partition *first_half = malloc(sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t) + sizeof(partition_status));
+		pthread_mutex_lock(&mutex_memory_partition_id);
 		first_half->id = get_partition_id();
+		pthread_mutex_unlock(&mutex_memory_partition_id);
 		first_half->begin = partition->begin;
 		first_half->partition_size = partition_size_to_use;
 		first_half->lru_timestamp = 0;
@@ -271,7 +271,9 @@ uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id)
 		list_add(memory_partitions, first_half);
 
 		t_memory_partition *second_half = malloc(sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t) + sizeof(partition_status));
+		pthread_mutex_lock(&mutex_memory_partition_id);
 		second_half->id = get_partition_id();
+		pthread_mutex_unlock(&mutex_memory_partition_id);
 		second_half->begin = partition->begin + partition_size_to_use;
 		second_half->partition_size = partition_size_to_use;
 		second_half->lru_timestamp = 0;
@@ -331,7 +333,9 @@ uint32_t store_payload_particiones(void *payload, uint32_t size, uint32_t messag
 	new_partition->status = OCCUPIED;
 	new_partition->lru_timestamp = (unsigned long)time(NULL);
 	new_partition->occupied_timestamp = (unsigned long)time(NULL);
+	pthread_mutex_lock(&mutex_memory_partition_id);
 	new_partition->id = get_partition_id();
+	pthread_mutex_unlock(&mutex_memory_partition_id);
 	list_add(memory_partitions, new_partition);
 
 	log_info(logger, "Almacenado mensaje con id %d en memoria, posicion de inicio %d", message_id, new_partition->begin);
@@ -705,7 +709,9 @@ void perform_compaction()
 	}
 
 	t_memory_partition *free_memory_partition = malloc(sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t) + sizeof(partition_status));
+	pthread_mutex_lock(&mutex_memory_partition_id);
 	free_memory_partition->id = get_partition_id();
+	pthread_mutex_unlock(&mutex_memory_partition_id);
 	free_memory_partition->begin = offset;
 	free_memory_partition->partition_size = TAMANO_MEMORIA - offset;
 	free_memory_partition->lru_timestamp = 0;
@@ -784,20 +790,23 @@ t_memory_partition *find_free_partition_bf(uint32_t size)
 void process_request(uint32_t event_code, uint32_t client_socket)
 {
 	t_message *msg = receive_message(event_code, client_socket);
+	pthread_mutex_lock(&mutex_message_id);
 	msg->id = get_message_id();
+	pthread_mutex_unlock(&mutex_message_id);
 	uint32_t size;
 	uint32_t i;
 
 	switch (event_code)
 	{
 	case NEW_POKEMON:;
-		log_info(logger, "Llegada de mensaje para la queue %s", event_code_to_string(event_code));
-
 		t_new_pokemon *new_pokemon = deserialize_new_pokemon_message(client_socket, &size);
 		msg->buffer = serialize_t_new_pokemon_message(new_pokemon);
 
+		log_info(logger, "Llegada de mensaje para la queue %s, Pokemon %s", event_code_to_string(event_code), new_pokemon->pokemon);
+
 		return_message_id(client_socket, msg->id);
 
+		pthread_mutex_lock(&queue_new_pokemon->mutex_subscriptors);
 		for (i = 0; i < list_size(queue_new_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(
@@ -806,19 +815,21 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 						 msg->correlative_id, msg->buffer);
 			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
 		}
+		pthread_mutex_unlock(&queue_new_pokemon->mutex_subscriptors);
 
 		//Add message to memory
 		store_message(msg, queue_new_pokemon, queue_new_pokemon->subscriptors);
 
 		break;
 	case APPEARED_POKEMON:;
-		log_info(logger, "Llegada de mensaje para la queue %s", event_code_to_string(event_code));
-
 		t_appeared_pokemon *appeared_pokemon = deserialize_appeared_pokemon_message(client_socket, &size);
 		msg->buffer = serialize_t_appeared_pokemon_message(appeared_pokemon);
 
+		log_info(logger, "Llegada de mensaje para la queue %s, Pokemon %s", event_code_to_string(event_code), appeared_pokemon->pokemon);
+
 		return_message_id(client_socket, msg->id);
 
+		pthread_mutex_lock(&queue_appeared_pokemon->mutex_subscriptors);
 		for (i = 0; i < list_size(queue_appeared_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(
@@ -827,19 +838,20 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 						 msg->correlative_id, msg->buffer);
 			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
 		}
-
+		pthread_mutex_unlock(&queue_appeared_pokemon->mutex_subscriptors);
 
 		//Add message to memory
 		store_message(msg, queue_appeared_pokemon, queue_appeared_pokemon->subscriptors);
 		break;
 	case CATCH_POKEMON:;
-		log_info(logger, "Llegada de mensaje para la queue %s", event_code_to_string(event_code));
-
 		t_catch_pokemon *catch_pokemon = deserialize_catch_pokemon_message(client_socket, &size);
 		msg->buffer = serialize_t_catch_pokemon_message(catch_pokemon);
 
+		log_info(logger, "Llegada de mensaje para la queue %s, Pokemon %s", event_code_to_string(event_code), catch_pokemon->pokemon);
+
 		return_message_id(client_socket, msg->id);
 
+		pthread_mutex_lock(&queue_catch_pokemon->mutex_subscriptors);
 		for (i = 0; i < list_size(queue_catch_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(
@@ -848,18 +860,20 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 						 msg->correlative_id, msg->buffer);
 			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
 		}
+		pthread_mutex_unlock(&queue_catch_pokemon->mutex_subscriptors);
 
 		//Add message to memory
 		store_message(msg, queue_catch_pokemon, queue_catch_pokemon->subscriptors);
 		break;
 	case CAUGHT_POKEMON:;
-		log_info(logger, "Llegada de mensaje para la queue %s", event_code_to_string(event_code));
-
 		t_caught_pokemon *caught_pokemon = deserialize_caught_pokemon_message(client_socket, &size);
 		msg->buffer = serialize_t_caught_pokemon_message(caught_pokemon);
 
+		log_info(logger, "Llegada de mensaje para la queue %s, result %d", event_code_to_string(event_code), caught_pokemon->result);
+
 		return_message_id(client_socket, msg->id);
 
+		pthread_mutex_lock(&queue_caught_pokemon->mutex_subscriptors);
 		for (i = 0; i < list_size(queue_caught_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(
@@ -868,16 +882,18 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 						 msg->correlative_id, msg->buffer);
 			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
 		}
+		pthread_mutex_unlock(&queue_caught_pokemon->mutex_subscriptors);
 
 		//Add message to memory
 		store_message(msg, queue_caught_pokemon, queue_caught_pokemon->subscriptors);
 		break;
 	case GET_POKEMON:;
-		log_info(logger, "Llegada de mensaje para la queue %s", event_code_to_string(event_code));
-
 		t_get_pokemon *get_pokemon = deserialize_get_pokemon_message(client_socket, &size);
 		msg->buffer = serialize_t_get_pokemon_message(get_pokemon);
 
+		log_info(logger, "Llegada de mensaje para la queue %s, Pokemon %s", event_code_to_string(event_code), get_pokemon->pokemon);
+
+		pthread_mutex_lock(&queue_get_pokemon->mutex_subscriptors);
 		for (i = 0; i < list_size(queue_get_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(
@@ -886,16 +902,18 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 						 msg->correlative_id, msg->buffer);
 			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
 		}
+		pthread_mutex_unlock(&queue_get_pokemon->mutex_subscriptors);
 
 		//Add message to memory
 		store_message(msg, queue_get_pokemon, queue_get_pokemon->subscriptors);
 		break;
 	case LOCALIZED_POKEMON:;
-		log_info(logger, "Llegada de mensaje para la queue %s", event_code_to_string(event_code));
-
 		t_localized_pokemon *localized_pokemon = deserialize_localized_pokemon_message(client_socket, &size);
 		msg->buffer = serialize_t_localized_pokemon_message(localized_pokemon);
 
+		log_info(logger, "Llegada de mensaje para la queue %s, Pokemon %s", event_code_to_string(event_code), localized_pokemon->pokemon);
+
+		pthread_mutex_lock(&queue_localized_pokemon->mutex_subscriptors);
 		for (i = 0; i < list_size(queue_localized_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(
@@ -904,6 +922,7 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 						 msg->correlative_id, msg->buffer);
 			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
 		}
+		pthread_mutex_unlock(&queue_localized_pokemon->mutex_subscriptors);
 
 		//Add message to memory
 		store_message(msg, queue_localized_pokemon, queue_localized_pokemon->subscriptors);
@@ -1040,27 +1059,39 @@ void process_new_subscription(uint32_t socket)
 	switch (subcription_petition->queue)
 	{
 	case NEW_POKEMON:
+		pthread_mutex_lock(&queue_new_pokemon->mutex_subscriptors);
 		list_add(queue_new_pokemon->subscriptors, subscriptor);
+		pthread_mutex_unlock(&queue_new_pokemon->mutex_subscriptors);
 		queue = queue_new_pokemon;
 		break;
 	case APPEARED_POKEMON:
+		pthread_mutex_lock(&queue_appeared_pokemon->mutex_subscriptors);
 		list_add(queue_appeared_pokemon->subscriptors, subscriptor);
+		pthread_mutex_unlock(&queue_appeared_pokemon->mutex_subscriptors);
 		queue = queue_appeared_pokemon;
 		break;
 	case CATCH_POKEMON:
+		pthread_mutex_lock(&queue_catch_pokemon->mutex_subscriptors);
 		list_add(queue_catch_pokemon->subscriptors, subscriptor);
+		pthread_mutex_unlock(&queue_catch_pokemon->mutex_subscriptors);
 		queue = queue_catch_pokemon;
 		break;
 	case CAUGHT_POKEMON:
+		pthread_mutex_lock(&queue_caught_pokemon->mutex_subscriptors);
 		list_add(queue_caught_pokemon->subscriptors, subscriptor);
+		pthread_mutex_unlock(&queue_caught_pokemon->mutex_subscriptors);
 		queue = queue_caught_pokemon;
 		break;
 	case GET_POKEMON:
+		pthread_mutex_lock(&queue_get_pokemon->mutex_subscriptors);
 		list_add(queue_get_pokemon->subscriptors, subscriptor);
+		pthread_mutex_unlock(&queue_get_pokemon->mutex_subscriptors);
 		queue = queue_get_pokemon;
 		break;
 	case LOCALIZED_POKEMON:
+		pthread_mutex_lock(&queue_localized_pokemon->mutex_subscriptors);
 		list_add(queue_localized_pokemon->subscriptors, subscriptor);
+		pthread_mutex_unlock(&queue_localized_pokemon->mutex_subscriptors);
 		queue = queue_localized_pokemon;
 		break;
 	default:

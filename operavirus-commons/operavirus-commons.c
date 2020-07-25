@@ -476,7 +476,6 @@ t_buffer* serialize_t_message_received(t_message_received* message_received) {
 }
 
 t_message* receive_message(uint32_t event_code, uint32_t socket) {
-	t_buffer* buffer;
 	uint32_t id;
 	uint32_t correlative_id;
 	uint32_t size;
@@ -485,13 +484,12 @@ t_message* receive_message(uint32_t event_code, uint32_t socket) {
 	recv(socket, &correlative_id, sizeof(uint32_t), MSG_WAITALL);
 	recv(socket, &size, sizeof(uint32_t), MSG_WAITALL);
 
-	buffer = malloc(sizeof(uint32_t) + size);
 	t_message* message = malloc(sizeof(t_message));
 	message->id = id;
 	message->correlative_id = correlative_id;
 	message->event_code = event_code;
-	buffer->size = size;
-	message->buffer = buffer;
+	message->buffer = malloc(sizeof(uint32_t) + size);
+	message->buffer->size = size;
 
 	return message;
 }
