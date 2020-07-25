@@ -223,13 +223,13 @@ void handle_catch_pokemon(t_message* msg){
 	send_caught_to_broker(caught_pokemon, msg->id);
 }
 
-void send_caught_to_broker(t_caught_pokemon* caught_pokemon, uint32_t id){
+void send_caught_to_broker(t_caught_pokemon* caught_pokemon, uint32_t correlative_id){
 	t_buffer* buffer = serialize_t_caught_pokemon_message(caught_pokemon);
 	uint32_t connection = connect_to(IP_BROKER,PUERTO_BROKER);
 	if(connection == -1) {
 		log_error(logger, "No se pudo enviar el caught al broker. No se pudo conectar al broker");
 	}
-	send_message(connection, CAUGHT_POKEMON, id, 0, buffer);
+	send_message(connection, CAUGHT_POKEMON, 0, correlative_id, buffer);
 	//free(buffer);
 }
 
