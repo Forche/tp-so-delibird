@@ -216,6 +216,7 @@ void delete_message(t_message* message);
 void free_connection(uint32_t client_socket);
 
 event_code string_to_event_code(char* code);
+char* event_code_to_string(event_code code);
 t_log* logger_init();
 
 #endif

@@ -641,3 +641,20 @@ event_code string_to_event_code(char* code) {
 		return -1;
 	}
 }
+
+char* event_code_to_string(event_code code) {
+	switch (code) {
+	case LOCALIZED_POKEMON:
+		return "LOCALIZED_POKEMON";
+	case CAUGHT_POKEMON:
+		return "CAUGHT_POKEMON";
+	case APPEARED_POKEMON:
+		return "APPEARED_POKEMON";
+	case NEW_POKEMON:
+		return "NEW_POKEMON";
+	case CATCH_POKEMON:
+		return "CATCH_POKEMON";
+	case GET_POKEMON:
+		return "GET_POKEMON";
+	}
+}

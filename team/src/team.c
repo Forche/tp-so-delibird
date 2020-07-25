@@ -330,7 +330,7 @@ void subscribe_to(event_code code) {
 		sleep(TIEMPO_RECONEXION);
 		subscribe_to(code);
 	} else {
-		log_info(logger, "Conectada cola code %d al broker", code);
+		log_info(logger, "Conectada cola code %s al broker", event_code_to_string(code));
 		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
 		int still_connected = 1;
 		while(still_connected) {
