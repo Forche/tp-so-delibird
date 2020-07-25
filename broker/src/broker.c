@@ -223,7 +223,8 @@ uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id)
 		first_half->lru_timestamp = 0;
 		first_half->occupied_timestamp = 0;
 		first_half->status = FREE;
-		first_half->father = string_append(&(partition->father), partition->side);
+		string_append(&(partition->father), partition->side);
+		first_half->father = partition->father;
 		first_half->side = "0";
 
 		list_add(memory_partitions, first_half);
@@ -235,10 +236,11 @@ uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id)
 		second_half->lru_timestamp = 0;
 		second_half->occupied_timestamp = 0;
 		second_half->status = FREE;
-		second_half->father = string_append(&(partition->father), partition->side);
+		second_half->father = partition->father;
 		second_half->side = "1";
 
 		list_add(memory_partitions, second_half);
+		free(partition);
 
 		partition = first_half;
 	}
