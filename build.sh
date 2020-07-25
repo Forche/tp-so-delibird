@@ -18,3 +18,6 @@ cd /home/utnso/tp-2020-1c-Operavirus/gamecard/Debug
 make all
 cd
 
+cd /home/utnso/tp-2020-1c-Operavirus/create_tall_grass/Debug
+make all
+cd
