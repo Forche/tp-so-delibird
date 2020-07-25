@@ -213,8 +213,9 @@ void send_get(char* pokemon) {
 	if(broker_connection == -1) {
 		log_error(logger, "Error de comunicacion con el broker, realizando operacion get default");
 	} else {
-		t_get_pokemon* get_pokemon = malloc(strlen(pokemon) + sizeof(uint32_t));
-		get_pokemon->pokemon_len = strlen(pokemon);
+		uint32_t length_pokemon = strlen(pokemon) + 1;
+		t_get_pokemon* get_pokemon = malloc(length_pokemon + sizeof(uint32_t));
+		get_pokemon->pokemon_len = length_pokemon;
 		get_pokemon->pokemon = pokemon;
 		t_buffer* buffer = serialize_t_get_pokemon_message(get_pokemon);
 		send_message(broker_connection, GET_POKEMON, NULL, NULL, buffer);
