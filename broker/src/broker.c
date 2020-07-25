@@ -81,7 +81,7 @@ void memory_init()
 		first_partition_size = 1;
 		int reached_maximum_size = 0;
 
-		while (first_partition_size < TAMANO_MEMORIA || reached_maximum_size == 1)
+		while (first_partition_size < TAMANO_MEMORIA && reached_maximum_size == 0)
 		{
 			uint32_t new_partition_size = first_partition_size * 2;
 			if (new_partition_size <= TAMANO_MEMORIA)
@@ -229,14 +229,13 @@ uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id)
 {
 	// Search for partition and return it, if no partition is found return a partition with id=-1
 	t_memory_partition *partition = get_free_partition_bs(size);
+	t_memory_partition *first_half;
 
 	for (int i = 0; i < list_size(memory_partitions); i++) {
 		t_memory_partition *part = list_get(memory_partitions, i);
 		if (part->id == partition->id)
 		{
-			pthread_mutex_lock(&mutex_memory_partitions);
 			list_remove(memory_partitions, i);
-			pthread_mutex_unlock(&mutex_memory_partitions);
 		}
 	}
 
@@ -252,7 +251,7 @@ uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id)
 	{
 		partition_size_to_use = partition_size_to_use / 2;
 		// Divide partition in two, use the first one
-		t_memory_partition *first_half = malloc(sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t) + sizeof(partition_status));
+		t_memory_partition *first_half = malloc(sizeof(t_memory_partition));
 		pthread_mutex_lock(&mutex_memory_partition_id);
 		first_half->id = get_partition_id();
 		pthread_mutex_unlock(&mutex_memory_partition_id);
@@ -261,16 +260,16 @@ uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id)
 		first_half->lru_timestamp = 0;
 		first_half->occupied_timestamp = 0;
 		first_half->status = FREE;
-		string_append(&(partition->father), partition->side);
 		first_half->father = malloc(strlen(partition->father) + 1);
-		first_half->father = partition->father;
-		strcpy(first_half->father, partition->father);
+		string_append(&(partition->father), partition->side);
+		//strcpy(first_half->father, partition->father);
+		first_half->father = string_from_format("%s", partition->father);
 		first_half->side = "0";
 		pthread_mutex_init(&(first_half->mutex_partition), NULL);
 
 		list_add(memory_partitions, first_half);
 
-		t_memory_partition *second_half = malloc(sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t) + sizeof(partition_status));
+		t_memory_partition *second_half = malloc(sizeof(t_memory_partition));
 		pthread_mutex_lock(&mutex_memory_partition_id);
 		second_half->id = get_partition_id();
 		pthread_mutex_unlock(&mutex_memory_partition_id);
@@ -280,24 +279,22 @@ uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id)
 		second_half->occupied_timestamp = 0;
 		second_half->status = FREE;
 		second_half->father = malloc(strlen(partition->father) + 1);
-		strcpy(second_half->father, partition->father);
+		//strcpy(second_half->father, partition->father);
+		second_half->father = string_from_format("%s", partition->father);
 		second_half->side = "1";
 		pthread_mutex_init(&(second_half->mutex_partition), NULL);
 
 		list_add(memory_partitions, second_half);
-		free(partition);
-
-		partition = first_half;
 	}
 
 	// Copy into memory
 	int offset = partition->begin;
 	memcpy(memory + offset, payload, size);
 
-	partition->status = OCCUPIED;
-	partition->lru_timestamp = (unsigned long)time(NULL);
-	partition->occupied_timestamp = (unsigned long)time(NULL);
-	partition->content_size = size;
+	first_half->status = OCCUPIED;
+	first_half->lru_timestamp = (unsigned long)time(NULL);
+	first_half->occupied_timestamp = (unsigned long)time(NULL);
+	first_half->content_size = size;
 
 	log_info(logger, "Almacenado mensaje con id %d en memoria, posicion de inicio: %d", message_id, partition->begin);
 
@@ -325,10 +322,8 @@ uint32_t store_payload_particiones(void *payload, uint32_t size, uint32_t messag
 	new_partition->partition_size = size;
 	new_partition->content_size = size;
 
-	pthread_mutex_lock(&partition->mutex_partition);
 	partition->begin = partition->begin + size;
 	partition->partition_size = partition->partition_size - size;
-	pthread_mutex_unlock(&partition->mutex_partition);
 
 	new_partition->status = OCCUPIED;
 	new_partition->lru_timestamp = (unsigned long)time(NULL);
@@ -373,15 +368,15 @@ void delete_partition_and_consolidate_fifo()
 	// Because we assign partition IDs incrementally
 	// Causing older partitions to have lower ID values
 	uint32_t smallest_id;
-	uint64_t smallest_ocuppied_timestamp;
-	int index_to_free;
+	uint64_t smallest_ocuppied_timestamp = 9999999999;
+	int index_to_free = 0;
 
 	for (int i = 0; i < list_size(memory_partitions); i++)
 	{
 
 		t_memory_partition *partition = list_get(memory_partitions, i);
 
-		if (((i == 0) || (partition->occupied_timestamp < smallest_ocuppied_timestamp)) && partition->status == OCCUPIED)
+		if (partition->occupied_timestamp < smallest_ocuppied_timestamp && partition->status == OCCUPIED)
 		{
 			smallest_id = partition->id;
 			index_to_free = i;
@@ -408,14 +403,14 @@ void delete_partition_and_consolidate_lru()
 	// (Not taking into account when accessing for compacting)
 	uint32_t smallest_id;
 	int index_to_free;
-	uint64_t smallest_lru_timestamp;
+	uint64_t smallest_lru_timestamp = 9999999999;
 
 	for (int i = 0; i < list_size(memory_partitions); i++)
 	{
 
 		t_memory_partition *partition = list_get(memory_partitions, i);
 
-		if (((i == 0) || (partition->lru_timestamp < smallest_lru_timestamp)) && partition->status == OCCUPIED)
+		if (partition->lru_timestamp < smallest_lru_timestamp && partition->status == OCCUPIED)
 		{
 			index_to_free = i;
 			smallest_id = partition->id;
@@ -587,7 +582,6 @@ void consolidate(uint32_t memory_partition_to_consolidate_id)
 								partition->side = string_substring(memory_partition_to_consolidate->father, father_length - 1, father_length);
 								memory_partition_to_consolidate = partition;
 								consolidated = 1;
-								free(partition_to_consolidate);
 							}
 						}
 					}
@@ -608,7 +602,7 @@ void consolidate(uint32_t memory_partition_to_consolidate_id)
 							t_memory_partition *partition_to_consolidate = list_get(memory_partitions, j);
 							if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
 							{
-								log_info(logger, "Asociada particion con id %d, cuya posicion de inicio es %d, con la particion con id %d, cuya posicion de inicio es %d", partition->id, partition->begin, memory_partition_to_consolidate->id, memory_partition_to_consolidate->begin);
+								log_info(logger, "Asociada particion con id %d, cuya posicion de inicio es %d, con su buddy cuyo id %d, y su posicion de inicio es %d", partition->id, partition->begin, memory_partition_to_consolidate->id, memory_partition_to_consolidate->begin);
 								list_remove(memory_partitions, i);
 								partition_to_consolidate->partition_size += partition->partition_size;
 								int father_length = strlen(partition->father);
@@ -616,7 +610,6 @@ void consolidate(uint32_t memory_partition_to_consolidate_id)
 								partition_to_consolidate->side = string_substring(partition->father, father_length - 1, father_length);
 								memory_partition_to_consolidate = partition_to_consolidate;
 								consolidated = 1;
-								free(partition);
 							}
 						}
 					}
@@ -802,7 +795,7 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 		t_new_pokemon *new_pokemon = deserialize_new_pokemon_message(client_socket, &size);
 		msg->buffer = serialize_t_new_pokemon_message(new_pokemon);
 
-		log_info(logger, "Llegada de mensaje para la queue %s, Pokemon %s", event_code_to_string(event_code), new_pokemon->pokemon);
+		log_info(logger, "Llegada de mensaje para la queue %s", event_code_to_string(event_code));
 
 		return_message_id(client_socket, msg->id);
 
@@ -847,7 +840,7 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 		t_catch_pokemon *catch_pokemon = deserialize_catch_pokemon_message(client_socket, &size);
 		msg->buffer = serialize_t_catch_pokemon_message(catch_pokemon);
 
-		log_info(logger, "Llegada de mensaje para la queue %s, Pokemon %s", event_code_to_string(event_code), catch_pokemon->pokemon);
+		log_info(logger, "Llegada de mensaje para la queue %s", event_code_to_string(event_code));
 
 		return_message_id(client_socket, msg->id);
 
@@ -1098,7 +1091,7 @@ void process_new_subscription(uint32_t socket)
 		pthread_exit(NULL);
 	}
 
-	log_info(logger, "Subscripcion recibida de %s al broker para la queue %d", subcription_petition->subscriptor_id, event_code_to_string(subcription_petition->queue));
+	log_info(logger, "Subscripcion recibida de %s al broker para la queue %s", subcription_petition->subscriptor_id, event_code_to_string(subcription_petition->queue));
 
 	process_subscriptor(&(subscriptor->socket), subcription_petition, queue);
 }
@@ -1121,10 +1114,14 @@ void process_subscriptor(uint32_t *socket, t_subscription_petition *subscription
 
 	while ((unsigned long)time(NULL) < end_subscription_time)
 	{
-		if (recv(*socket, &code, sizeof(event_code), MSG_WAITALL) == -1)
+		int bytes = recv(*socket, &code, sizeof(event_code), MSG_WAITALL);
+		if (bytes == -1 || bytes == 0)
 			code = -1;
 
-		process_request(code, *socket);
+		if ((unsigned long)time(NULL) < end_subscription_time)
+		{
+			process_request(code, *socket);
+		}
 	}
 
 	pthread_exit(NULL);
@@ -1148,7 +1145,6 @@ void send_all_messages(uint32_t *socket, t_subscription_petition *subscription_p
 		}
 	}
 
-	pthread_mutex_lock(&mutex_memory_partitions);
 	pthread_mutex_lock(&queue_to_use->mutex_messages);
 	for (i = 0; i < list_size(queue_to_use->messages); i++)
 	{
@@ -1174,6 +1170,7 @@ void send_all_messages(uint32_t *socket, t_subscription_petition *subscription_p
 			uint32_t partition_id = message->message->memory_partition_id;
 			uint32_t j = 0;
 
+			pthread_mutex_lock(&mutex_memory_partitions);
 			while (j < list_size(memory_partitions) && (((t_memory_partition *)list_get(memory_partitions, j))->id != partition_id))
 			{
 				j++;
@@ -1181,6 +1178,7 @@ void send_all_messages(uint32_t *socket, t_subscription_petition *subscription_p
 
 			if (j >= list_size(memory_partitions))
 			{
+				pthread_mutex_unlock(&mutex_memory_partitions);
 				return; //ERROR, MESSAGE NOT FOUND
 			}
 			else
@@ -1217,9 +1215,9 @@ void send_all_messages(uint32_t *socket, t_subscription_petition *subscription_p
 					}
 				}
 			}
+			pthread_mutex_unlock(&mutex_memory_partitions);
 		}
 	}
-	pthread_mutex_unlock(&mutex_memory_partitions);
 	pthread_mutex_unlock(&queue_to_use->mutex_messages);
 }
 
@@ -1332,7 +1330,7 @@ static void dump_memory()
 			}
 		}*/
 
-		fprintf(dump_file, "Partition %d: %X - %X.\t [%d]\t Size:%d b\t LRU:%d\t Queue:%d \t ID:%d\n", i, begin, (begin + partition_size), status, partition_size, lru_timestamp, partition_size, "Cola", memory_partition_id);
+		fprintf(dump_file, "Partition %d: %#05x - %#05x.\t [%d]\t Size:%d b\t LRU:%d\t Queue:%s \t ID:%d\n", i, begin, (begin + partition_size), status, partition_size, lru_timestamp, "Cola", memory_partition_id);
 	}
 	fclose(dump_file);
 }
