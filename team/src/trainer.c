@@ -34,7 +34,7 @@ void trainer_catch_pokemon(t_trainer* trainer) {
 
 void handle_catch(t_trainer* trainer) {
 	t_pcb_trainer* pcb_trainer = trainer->pcb_trainer;
-	if (pcb_trainer->result_catch == 1) { //Tiene basura y sale por true
+	if (pcb_trainer->result_catch == 1) {
 		add_to_dictionary(trainer->caught, pcb_trainer->pokemon_to_catch->pokemon);
 
 		pthread_mutex_lock(&mutex_caught_pokemons);
@@ -202,11 +202,11 @@ void trainer_must_go_on(t_trainer* trainer, t_deadlock_matcher* deadlock_matcher
 		if(deadlock_matcher == NULL) {
 			t_match_pokemon_trainer* to_exec = NULL;
 			pthread_mutex_lock(&mutex_matches);
-			log_info(logger, "Estimacion actual para entrenador activo %d: %f", trainer->name, trainer->estimacion_actual);
+			log_trace(logger, "Estimacion actual para entrenador activo %d: %f", trainer->name, trainer->estimacion_actual);
 			for(i = 0; i < list_size(matches); i++) {
 				t_match_pokemon_trainer* match_pokemon_trainer = list_get(matches, i);
 				double estimacion = calculate_estimacion_actual_rafaga(match_pokemon_trainer->closest_trainer);
-				log_info(logger, "Estimacion actual para entrenador %d: %f", match_pokemon_trainer->closest_trainer->name, estimacion);
+				log_trace(logger, "Estimacion actual para entrenador %d: %f", match_pokemon_trainer->closest_trainer->name, estimacion);
 				if(is_first || estimacion < aux) {
 					is_first = false;
 					aux = estimacion;
@@ -220,11 +220,11 @@ void trainer_must_go_on(t_trainer* trainer, t_deadlock_matcher* deadlock_matcher
 		} else {
 			t_deadlock_matcher* to_exec = NULL;
 			pthread_mutex_lock(&mutex_queue_deadlocks);
-			log_info(logger, "Estimacion actual para entrenador activo %d: %f", trainer->name, trainer->estimacion_actual);
+			log_trace(logger, "Estimacion actual para entrenador activo %d: %f", trainer->name, trainer->estimacion_actual);
 			for(i = 0; i < list_size(queue_deadlock); i++) {
 				t_deadlock_matcher* deadlock_matcher = list_get(queue_deadlock, i);
 				double estimacion = calculate_estimacion_actual_rafaga(deadlock_matcher->trainer1);
-				log_info(logger, "Estimacion actual para entrenador %d: %f", deadlock_matcher->trainer1->name, estimacion);
+				log_trace(logger, "Estimacion actual para entrenador %d: %f", deadlock_matcher->trainer1->name, estimacion);
 				if(is_first || estimacion < aux) {
 					is_first = false;
 					aux = estimacion;
@@ -339,7 +339,7 @@ t_trainer* obtener_trainer_mensaje(t_message* msg) {
 	for(i = 0; i < list_size(trainers); i++) {
 		t_trainer* trainer = list_get(trainers, i);
 		if(trainer->pcb_trainer->id_message == msg->correlative_id) {
-			log_info(logger, "Respuesta caught asociada a trainer pos x %d pos y %d", trainer->pos_x, trainer->pos_y);
+			log_trace(logger, "Respuesta caught asociada a trainer pos x %d pos y %d", trainer->pos_x, trainer->pos_y);
 			return trainer;
 		}
 	}

@@ -87,7 +87,7 @@ t_match_pokemon_trainer* planner_sjf() {
 	for(i = 0; i < list_size(matches); i++) {
 		t_match_pokemon_trainer* match_pokemon_trainer = list_get(matches, i);
 		double estimacion = calculate_estimacion_actual_rafaga(match_pokemon_trainer->closest_trainer);
-		log_info(logger, "Estimacion actual para entrenador %d: %f", match_pokemon_trainer->closest_trainer->name, estimacion);
+		log_trace(logger, "Estimacion actual para entrenador %d: %f", match_pokemon_trainer->closest_trainer->name, estimacion);
 		if(is_first || estimacion < aux) {
 			is_first = false;
 			aux = estimacion;
@@ -119,7 +119,7 @@ t_deadlock_matcher* planner_deadlock_sjf() {
 	for(i = 0; i < list_size(queue_deadlock); i++) {
 		t_deadlock_matcher* deadlock_matcher = list_get(queue_deadlock, i);
 		double estimacion = calculate_estimacion_actual_rafaga(deadlock_matcher->trainer1);
-		log_info(logger, "Estimacion actual para entrenador %d: %f", deadlock_matcher->trainer1->name, estimacion);
+		log_trace(logger, "Estimacion actual para entrenador %d: %f", deadlock_matcher->trainer1->name, estimacion);
 		if(is_first || estimacion < aux) {
 			is_first = false;
 			aux = estimacion;

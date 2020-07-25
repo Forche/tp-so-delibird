@@ -132,8 +132,8 @@ char* get_pokemon_I_need(t_list* remaining, t_list* leftovers) {
 }
 
 void create_thread_add_to_queue_deadlocks(t_deadlock_matcher* deadlock_matcher) {
-	log_info(logger, "Estado entrenador %d: %d", deadlock_matcher->trainer1->name, deadlock_matcher->trainer1->status);
-	log_info(logger, "Estado entrenador %d: %d", deadlock_matcher->trainer2->name, deadlock_matcher->trainer2->status);
+	log_trace(logger, "Estado entrenador %d: %d", deadlock_matcher->trainer1->name, deadlock_matcher->trainer1->status);
+	log_trace(logger, "Estado entrenador %d: %d", deadlock_matcher->trainer2->name, deadlock_matcher->trainer2->status);
 	if((deadlock_matcher->trainer1->status == FULL || deadlock_matcher->trainer1->status == BLOCK) &&
 			(deadlock_matcher->trainer2->status == FULL || deadlock_matcher->trainer2->status == BLOCK)) {
 		add_to_queue_deadlocks(deadlock_matcher);
@@ -153,7 +153,7 @@ void add_to_queue_deadlocks_wait_status(t_deadlock_matcher* deadlock_matcher) {
 }
 
 void add_to_queue_deadlocks(t_deadlock_matcher* deadlock_matcher) {
-	log_info(logger, "Disponible a planificar deadlock entre entrenador %d y %d", deadlock_matcher->trainer1->name, deadlock_matcher->trainer2->name);
+	log_trace(logger, "Disponible a planificar deadlock entre entrenador %d y %d", deadlock_matcher->trainer1->name, deadlock_matcher->trainer2->name);
 	deadlock_matcher->trainer1->status = READY;
 	deadlock_matcher->trainer2->status = SWAPPING;
 	pthread_mutex_lock(&mutex_queue_deadlocks);

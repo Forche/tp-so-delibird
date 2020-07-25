@@ -377,13 +377,13 @@ void exchange_pokemons(t_deadlock_matcher* deadlock_matcher, bool with_validate_
 	uint32_t i;
 	for(i = 0;i < 4;i++) {
 		sleep(RETARDO_CICLO_CPU);
-		log_info(logger, "Un ciclo de intercambio");
+		log_trace(logger, "Un ciclo de intercambio");
 		increment_q_ciclos_cpu(trainer_1);
 		if(with_validate_desalojo) {
 			trainer_must_go_on(trainer_1, deadlock_matcher);
 		}
 	}
-	log_info(logger, "Ultimo ciclo de intercambio");
+	log_trace(logger, "Ultimo ciclo de intercambio");
 	increment_q_ciclos_cpu(trainer_1);
 	substract_from_dictionary(trainer_1->caught, pokemon_1);
 	substract_from_dictionary(trainer_2->caught, pokemon_2);
