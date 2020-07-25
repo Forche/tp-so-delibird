@@ -15,6 +15,7 @@ int main(int argc, char* argv[]) {
 
 	uint32_t connection;
 	t_config* config = config_create(string);
+	logger = log_create("log_gameboy.log", "gameboy", true, LOG_LEVEL_INFO);
 
 	char* BROKER_IP = config_get_string_value(config, "IP_BROKER");
 	char* BROKER_PORT = config_get_string_value(config, "PORT_BROKER");
@@ -35,6 +36,10 @@ int main(int argc, char* argv[]) {
 		connection = connect_to(GAMECARD_IP, GAMECARD_PORT);
 	} else {
 		return EXIT_FAILURE;
+	}
+
+	if(connection) {
+		log_info(logger, "Conectado a proceso %s", argv[1]);
 	}
 
 	char* payload_content[argc - 3];
@@ -72,10 +77,15 @@ int main(int argc, char* argv[]) {
 		listen(connection, SOMAXCONN);
 
 		send_message((uint32_t) connection, code, 0, 0, buffer);
+		log_info(logger, "Suscripto a cola de mensajes %s", argv[2]);
+		still_connected = 1;
+		pthread_t thread = create_thread_with_param(received_messages, connection, "received_messages");
 
-		while (1) {
-			process_message(&connection);
-		}
+		sleep(atoi(argv[3]));
+		log_info(logger, "Finalizo el tiempo de conexion");
+		close(connection);
+		config_destroy(config);
+		exit(0);
 	} else {
 		send_message(connection, code, 0, 0, buffer);
 	}
@@ -84,16 +94,50 @@ int main(int argc, char* argv[]) {
 	return EXIT_SUCCESS;
 }
 
-void process_message(uint32_t* socket) {
+void received_messages(uint32_t* socket) {
+	while (still_connected) {
+		still_connected = process_message(&socket);
+	}
+}
+
+int process_message(uint32_t* socket) {
 	event_code code;
-	if (recv(*socket, &code, sizeof(event_code), MSG_WAITALL) == -1)
-	{
-		code = -1;
+	int bytes = recv(*socket, &code, sizeof(event_code), MSG_WAITALL);
+	if (bytes == -1 || bytes == 0) {
+		return 0;
+	} else {
+		t_message* msg = receive_message(code, *socket);
+		uint32_t size;
+		t_message_received* message_received = malloc(sizeof(t_message_received));
+		switch (code) {
+		case LOCALIZED_POKEMON:
+			msg->buffer->payload = deserialize_localized_pokemon_message(*socket, &size);
+			log_info(logger, "Recibido LOCALIZED_POKEMON.");
+			break;
+		case CAUGHT_POKEMON:
+			msg->buffer->payload = deserialize_caught_pokemon_message(*socket, &size);
+			log_info(logger, "Recibido CAUGHT_POKEMON.");
+			break;
+		case APPEARED_POKEMON:
+			msg->buffer->payload = deserialize_appeared_pokemon_message(*socket, &size);
+			log_info(logger, "Recibido APPEARED_POKEMON.");
+			break;
+		case NEW_POKEMON:
+			msg->buffer->payload = deserialize_new_pokemon_message(*socket, &size);
+			log_info(logger, "Recibido NEW_POKEMON.");
+			break;
+		case CATCH_POKEMON:
+			msg->buffer->payload = deserialize_catch_pokemon_message(*socket, &size);
+			log_info(logger, "Recibido CATCH_POKEMON.");
+			break;
+		case GET_POKEMON:
+			msg->buffer->payload = deserialize_get_pokemon_message(*socket, &size);
+			log_info(logger, "Recibido GET_POKEMON.");
+			break;
+		}
+		return 1;
 	}
-	else
-	{
-		printf("Mensaje recibido. \n");
-	}
+
 }
 
 void wait_for_messages(uint32_t socket) {
@@ -119,3 +163,4 @@ void get_payload_content(int argc, char* argv[], char* payload_content[],
 		}
 	}
 }
+
