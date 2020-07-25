@@ -117,8 +117,8 @@ void validate_arg_count(uint32_t arg_count, uint32_t payload_args) {
 }
 
 t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count,
-		char* payload_content[], char* sender_id, char* sender_ip,
-		uint32_t sender_port) {
+	char* payload_content[], char* sender_id, char* sender_ip,
+	uint32_t sender_port) {
 	switch (event_code) {
 	case NEW_POKEMON:
 		validate_arg_count(arg_count, 4);
@@ -477,18 +477,21 @@ t_buffer* serialize_t_message_received(t_message_received* message_received) {
 
 t_message* receive_message(uint32_t event_code, uint32_t socket) {
 	t_buffer* buffer;
-	t_message* message = malloc(sizeof(t_message));
-	message->event_code = event_code;
-
-	recv(socket, &(message->id), sizeof(uint32_t), MSG_WAITALL);
-	recv(socket, &(message->correlative_id), sizeof(uint32_t),
-	MSG_WAITALL);
+	uint32_t id;
+	uint32_t correlative_id;
 	uint32_t size;
+
+	recv(socket, &id, sizeof(uint32_t), MSG_WAITALL);
+	recv(socket, &correlative_id, sizeof(uint32_t), MSG_WAITALL);
 	recv(socket, &size, sizeof(uint32_t), MSG_WAITALL);
+
 	buffer = malloc(sizeof(uint32_t) + size);
+	t_message* message = malloc(sizeof(t_message));
+	message->id = id;
+	message->correlative_id = correlative_id;
+	message->event_code = event_code;
 	buffer->size = size;
 	message->buffer = buffer;
-	free(buffer);
 
 	return message;
 }

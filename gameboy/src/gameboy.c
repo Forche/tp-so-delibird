@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
 
 		listen(connection, SOMAXCONN);
 
-		send_message((uint32_t) connection, code, 0, 0, buffer);
+		send_message(connection, code, 0, 0, buffer);
 		log_info(logger, "Suscripto a cola de mensajes %s", argv[2]);
 		still_connected = 1;
 		pthread_t thread = create_thread_with_param(received_messages, connection, "received_messages");

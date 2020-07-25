@@ -1,0 +1,6 @@
+Dump: 25/7/2020 10:32:21
+Partition 0: 17 - 1C.	 [0]	 Size:5 b	 LRU:0	 Queue:5 	 ID:134530884
+Partition 1: 1C - 31.	 [1]	 Size:21 b	 LRU:1595683861	 Queue:21 	 ID:134530884
+Partition 2: 31 - 42.	 [1]	 Size:17 b	 LRU:1595683862	 Queue:17 	 ID:134530884
+Partition 3: 42 - 43.	 [0]	 Size:1 b	 LRU:0	 Queue:1 	 ID:134530884
+Partition 4: 0 - 17.	 [1]	 Size:23 b	 LRU:1595683883	 Queue:23 	 ID:134530884
