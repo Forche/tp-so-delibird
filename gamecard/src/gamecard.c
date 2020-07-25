@@ -135,7 +135,7 @@ int handle_event(uint32_t* client_socket) {
 	message_received->subscriptor_id = "Game Card";
 
 	t_buffer* buffer_received = serialize_t_message_received(message_received);
-	send_message(socket, MESSAGE_RECEIVED, msg->id, msg->correlative_id, buffer_received);
+	send_message(client_socket, MESSAGE_RECEIVED, msg->id, msg->correlative_id, buffer_received);
 	return 1;
 	//TODO:free(msg);
 }

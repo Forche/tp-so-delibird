@@ -1,0 +1,9 @@
+Dump: 25/7/2020 15:12:12
+Partition 0: 00000 - 0x020.	 [0]	 Size:32 b	 LRU:0	 Queue:Cola 	 ID:2
+Partition 1: 0x020 - 0x040.	 [0]	 Size:32 b	 LRU:0	 Queue:Cola 	 ID:3
+Partition 2: 00000 - 0x010.	 [0]	 Size:16 b	 LRU:0	 Queue:Cola 	 ID:4
+Partition 3: 0x010 - 0x020.	 [0]	 Size:16 b	 LRU:0	 Queue:Cola 	 ID:5
+Partition 4: 00000 - 0x008.	 [0]	 Size:8 b	 LRU:0	 Queue:Cola 	 ID:6
+Partition 5: 0x008 - 0x010.	 [0]	 Size:8 b	 LRU:0	 Queue:Cola 	 ID:7
+Partition 6: 00000 - 0x004.	 [1]	 Size:4 b	 LRU:1595700518	 Queue:Cola 	 ID:8
+Partition 7: 0x004 - 0x008.	 [0]	 Size:4 b	 LRU:0	 Queue:Cola 	 ID:9

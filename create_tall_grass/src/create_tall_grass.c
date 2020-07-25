@@ -36,7 +36,7 @@ int main(int arg_quantity, char* argv[]) {
 }
 
 void read_config() {
-	config = config_create("/home/utnso/workspace/tp-2020-1c-Operavirus/gamecard/gamecard.config");
+	config = config_create("/home/utnso/tp-2020-1c-Operavirus/gamecard/gamecard.config");
 	PUNTO_MONTAJE = config_get_string_value(config, "PUNTO_MONTAJE_TALLGRASS");
 }
 
