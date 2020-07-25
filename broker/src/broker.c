@@ -191,10 +191,12 @@ void serve_client(uint32_t *socket)
 	log_info(logger, "Proceso conectado al broker");
 	event_code code;
 	int bytes = recv(*socket, &code, sizeof(event_code), MSG_WAITALL);
-	if (bytes == -1 || bytes == 0)
-		code = -1;
+	if (bytes == -1 || bytes == 0) {
+		return;
+	} else {
+		process_request(code, *socket);
+	}
 
-	process_request(code, *socket);
 }
 
 void store_message(t_message *message, queue* queue, t_list *receivers)
@@ -768,7 +770,8 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 	pthread_mutex_unlock(&mutex_message_id);
 	uint32_t size;
 	uint32_t i;
-
+	uint32_t bytes_to_send;
+	void* to_send;
 	switch (event_code)
 	{
 	case NEW_POKEMON:;
@@ -779,13 +782,16 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 
 		return_message_id(client_socket, msg->id);
 
+		bytes_to_send = msg->buffer->size + sizeof(uint32_t)
+				+ sizeof(event_code) + sizeof(uint32_t) + sizeof(uint32_t);
+		to_send = serialize_message(msg, &(bytes_to_send));
+
 		pthread_mutex_lock(&queue_new_pokemon->mutex_subscriptors);
 		for (i = 0; i < list_size(queue_new_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(
 				queue_new_pokemon->subscriptors, i);
-			send_message(subscriptor->socket, event_code, msg->id,
-						 msg->correlative_id, msg->buffer);
+			send(subscriptor->socket, to_send, bytes_to_send, 0);
 			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
 		}
 		pthread_mutex_unlock(&queue_new_pokemon->mutex_subscriptors);
@@ -802,13 +808,16 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 
 		return_message_id(client_socket, msg->id);
 
+		bytes_to_send = msg->buffer->size + sizeof(uint32_t)
+				+ sizeof(event_code) + sizeof(uint32_t) + sizeof(uint32_t);
+		to_send = serialize_message(msg, &(bytes_to_send));
+
 		pthread_mutex_lock(&queue_appeared_pokemon->mutex_subscriptors);
 		for (i = 0; i < list_size(queue_appeared_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(
 				queue_appeared_pokemon->subscriptors, i);
-			send_message(subscriptor->socket, event_code, msg->id,
-						 msg->correlative_id, msg->buffer);
+			send(subscriptor->socket, to_send, bytes_to_send, 0);
 			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
 		}
 		pthread_mutex_unlock(&queue_appeared_pokemon->mutex_subscriptors);
@@ -824,13 +833,16 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 
 		return_message_id(client_socket, msg->id);
 
+		bytes_to_send = msg->buffer->size + sizeof(uint32_t)
+				+ sizeof(event_code) + sizeof(uint32_t) + sizeof(uint32_t);
+		to_send = serialize_message(msg, &(bytes_to_send));
+
 		pthread_mutex_lock(&queue_catch_pokemon->mutex_subscriptors);
 		for (i = 0; i < list_size(queue_catch_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(
 				queue_catch_pokemon->subscriptors, i);
-			send_message(subscriptor->socket, event_code, msg->id,
-						 msg->correlative_id, msg->buffer);
+			send(subscriptor->socket, to_send, bytes_to_send, 0);
 			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
 		}
 		pthread_mutex_unlock(&queue_catch_pokemon->mutex_subscriptors);
@@ -846,13 +858,16 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 
 		return_message_id(client_socket, msg->id);
 
+		bytes_to_send = msg->buffer->size + sizeof(uint32_t)
+				+ sizeof(event_code) + sizeof(uint32_t) + sizeof(uint32_t);
+		to_send = serialize_message(msg, &(bytes_to_send));
+
 		pthread_mutex_lock(&queue_caught_pokemon->mutex_subscriptors);
 		for (i = 0; i < list_size(queue_caught_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(
 				queue_caught_pokemon->subscriptors, i);
-			send_message(subscriptor->socket, event_code, msg->id,
-						 msg->correlative_id, msg->buffer);
+			send(subscriptor->socket, to_send, bytes_to_send, 0);
 			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
 		}
 		pthread_mutex_unlock(&queue_caught_pokemon->mutex_subscriptors);
@@ -866,13 +881,16 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 
 		log_info(logger, "Llegada de mensaje para la queue %s, Pokemon %s", event_code_to_string(event_code), get_pokemon->pokemon);
 
+		bytes_to_send = msg->buffer->size + sizeof(uint32_t)
+				+ sizeof(event_code) + sizeof(uint32_t) + sizeof(uint32_t);
+		to_send = serialize_message(msg, &(bytes_to_send));
+
 		pthread_mutex_lock(&queue_get_pokemon->mutex_subscriptors);
 		for (i = 0; i < list_size(queue_get_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(
 				queue_get_pokemon->subscriptors, i);
-			send_message(subscriptor->socket, event_code, msg->id,
-						 msg->correlative_id, msg->buffer);
+			send(subscriptor->socket, to_send, bytes_to_send, 0);
 			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
 		}
 		pthread_mutex_unlock(&queue_get_pokemon->mutex_subscriptors);
@@ -886,13 +904,16 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 
 		log_info(logger, "Llegada de mensaje para la queue %s, Pokemon %s", event_code_to_string(event_code), localized_pokemon->pokemon);
 
+		bytes_to_send = msg->buffer->size + sizeof(uint32_t)
+				+ sizeof(event_code) + sizeof(uint32_t) + sizeof(uint32_t);
+		to_send = serialize_message(msg, &(bytes_to_send));
+
 		pthread_mutex_lock(&queue_localized_pokemon->mutex_subscriptors);
 		for (i = 0; i < list_size(queue_localized_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(
 				queue_localized_pokemon->subscriptors, i);
-			send_message(subscriptor->socket, event_code, msg->id,
-						 msg->correlative_id, msg->buffer);
+			send(subscriptor->socket, to_send, bytes_to_send, 0);
 			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
 		}
 		pthread_mutex_unlock(&queue_localized_pokemon->mutex_subscriptors);
@@ -1073,7 +1094,7 @@ void process_new_subscription(uint32_t socket)
 
 	log_info(logger, "Subscripcion recibida de %s al broker para la queue %s", subcription_petition->subscriptor_id, event_code_to_string(subcription_petition->queue));
 
-	process_subscriptor(&(subscriptor->socket), subcription_petition, queue);
+	//process_subscriptor(&(subscriptor->socket), subcription_petition, queue);
 }
 
 void process_subscriptor(uint32_t *socket, t_subscription_petition *subscription_petition, queue* queue_to_use)
