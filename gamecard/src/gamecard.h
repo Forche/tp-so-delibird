@@ -79,6 +79,7 @@ char* remove_last_block_from_array(char* blocks_as_array);
 
 int check_pokemon_directory(char* pokemon, event_code code);
 void check_if_file_is_open(char* path);
+void open_file_to_use(char* path);
 
 int get_available_block();
 char** add_new_actual_blocks(char** actual_blocks, char* new_block);

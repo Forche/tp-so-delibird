@@ -147,9 +147,7 @@ void handle_get_pokemon(t_message* msg){
 	pthread_mutex_unlock(&mutexDirectory);
 	if(exists_directory){
 		char* path_pokemon = string_from_format("%s/Files/%s/Metadata.bin", PUNTO_MONTAJE_TALLGRASS, get_pokemon->pokemon);
-		pthread_mutex_lock(&mutexMetadataPath);
 		check_if_file_is_open(path_pokemon);
-		pthread_mutex_unlock(&mutexMetadataPath);
 		char* blocks_content = read_blocks_content(path_pokemon);
 		sleep(TIEMPO_RETARDO_OPERACION);
 		t_list* pokemon_positions = get_positions_from_buffer(blocks_content);
@@ -202,9 +200,7 @@ void handle_catch_pokemon(t_message* msg){
 	pthread_mutex_unlock(&mutexDirectory);
 	if(exists_directory){
 		char* path_pokemon = string_from_format("%s/Files/%s/Metadata.bin", PUNTO_MONTAJE_TALLGRASS, catch_pokemon->pokemon);
-		pthread_mutex_lock(&mutexMetadataPath);
 		check_if_file_is_open(path_pokemon);
-		pthread_mutex_unlock(&mutexMetadataPath);
 		t_position* position = ckeck_position_exists_catch_pokemon(path_pokemon,catch_pokemon);
 		if(position != NULL){
 			log_info(logger, "El pokemon %s se encuentra en la posicion x:%d-y:%d",catch_pokemon->pokemon, position->pos_x, position->pos_y);
@@ -283,9 +279,8 @@ void handle_new_pokemon(t_message* msg){
 	pthread_mutex_unlock(&mutexDirectory);
 
 	char* path_pokemon = string_from_format("%s/Files/%s/Metadata.bin", PUNTO_MONTAJE_TALLGRASS, new_pokemon->pokemon);
-	pthread_mutex_lock(&mutexMetadataPath);
+
 	check_if_file_is_open(path_pokemon);
-	pthread_mutex_unlock(&mutexMetadataPath);
 
 	t_list* pokemon_positions = ckeck_position_exists_new_pokemon(path_pokemon,new_pokemon);
 	write_positions_on_files(pokemon_positions, path_pokemon);
@@ -345,6 +340,7 @@ t_appeared_pokemon* create_appeared_pokemon(uint32_t pokemon_len, char* pokemon,
 }
 
 void close_file_pokemon(char* path_pokemon){
+	pthread_mutex_lock(&mutexMetadataPath);
 	t_config* metadata = config_create(path_pokemon);
 	char* is_open = config_get_string_value(metadata, "OPEN");
 	if(string_equals_ignore_case(is_open, "Y") != 0){
@@ -355,6 +351,7 @@ void close_file_pokemon(char* path_pokemon){
 	log_info(logger, "Cerramos el archivo %s luego de utilizarlo",path_pokemon);
 	config_save(metadata);
 	config_destroy(metadata);
+	pthread_mutex_unlock(&mutexMetadataPath);
 }
 
 void add_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon){
@@ -673,17 +670,60 @@ t_position* create_position(int x, int y, int pokemon_quantity){
 
 
 void check_if_file_is_open(char* path){
+	/*pthread_mutex_lock(&mutexMetadataPath);
 	t_config* metadata = config_create(path);
 	char* is_open = config_get_string_value(metadata, "OPEN");
 	while(string_equals_ignore_case(is_open, "Y")){
 		log_info(logger,"El archivo %s esta abierto reintentando",path);
 		sleep(TIEMPO_DE_REINTENTO_OPERACION);
-		//t_config* metadata_in = config_create(path);
 		metadata = config_create(path);
 		is_open = config_get_string_value(metadata, "OPEN");
-		//TODO:config_destroy(metadata_in);
 	}
 	log_info(logger, "El archivo %s esta cerrado",path);
+	char* y = "Y";
+	config_set_value(metadata, "OPEN", y);
+	log_info(logger, "Abrimos el archivo %s para utilizarlo",path);
+	config_save(metadata);
+	config_destroy(metadata);
+	pthread_mutex_unlock(&mutexMetadataPath);
+	*/
+
+	//ver si esta cerrado
+	//si esta cerrado abrirlo y salir
+	//si esta abierto esperar y preguntar devuelta hasta que este cerrado, ahí abrirlo y salir
+
+	pthread_mutex_lock(&mutexMetadataPath);
+	t_config* metadata = config_create(path);
+	char* is_open = config_get_string_value(metadata, "OPEN");
+
+	if(string_equals_ignore_case(is_open, "N")){
+		log_info(logger, "El archivo %s esta cerrado",path);
+		open_file_to_use(path);
+		config_destroy(metadata);
+		pthread_mutex_unlock(&mutexMetadataPath);
+		return;
+	}
+	pthread_mutex_unlock(&mutexMetadataPath);
+
+	while(string_equals_ignore_case(is_open, "Y")) {
+		log_info(logger,"El archivo %s esta abierto reintentando",path);
+		sleep(TIEMPO_DE_REINTENTO_OPERACION);
+		pthread_mutex_lock(&mutexMetadataPath);
+		metadata = config_create(path);
+		is_open = config_get_string_value(metadata, "OPEN");
+		if(string_equals_ignore_case(is_open, "N")){
+			log_info(logger, "El archivo %s esta cerrado",path);
+			open_file_to_use(path);
+			config_destroy(metadata);
+			pthread_mutex_unlock(&mutexMetadataPath);
+			return;
+		}
+		pthread_mutex_unlock(&mutexMetadataPath);
+	}
+}
+
+void open_file_to_use(char* path){
+	t_config* metadata = config_create(path);
 	char* y = "Y";
 	config_set_value(metadata, "OPEN", y);
 	log_info(logger, "Abrimos el archivo %s para utilizarlo",path);
