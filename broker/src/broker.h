@@ -93,6 +93,8 @@ void queues_init();
 void wait_for_client(uint32_t);
 void process_request(uint32_t event_code, uint32_t socket);
 void process_new_subscription(uint32_t client_socket);
+uint32_t exist_in_queue(queue* queue, char* id);
+void replace_socket_in_queue_and_messages(queue* queue, char* subscription_to_add_id, uint32_t socket);
 void process_message_received(uint32_t client_socket);
 void serve_client(uint32_t* socket);
 void process_subscriptor(uint32_t* socket, t_subscription_petition* subscription_petition, queue* queue_to_use);
@@ -117,6 +119,7 @@ uint32_t get_message_id();
 uint32_t get_partition_id();
 
 static void sig_usr(int signo);
+static void sig_pipe(int signo);
 static void err_sys(char* msg);
 static void dump_memory();
 void process_message_ack(queue* queue, char *subscriptor_id, uint32_t received_message_id);

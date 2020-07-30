@@ -76,7 +76,7 @@ void subscribe_to(event_code code) {
 		sleep(TIEMPO_DE_REINTENTO_CONEXION);
 		subscribe_to(code);
 	} else {
-		log_info(logger, "Conectada cola code %d al broker", code);
+		log_info(logger, "Conectada cola code %s al broker", event_code_to_string(code));
 		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
 		int still_connected = 1;
 		while(still_connected) {
@@ -358,36 +358,6 @@ void close_file_pokemon(char* path_pokemon){
 	config_destroy(metadata);
 	pthread_mutex_unlock(&mutexMetadataPath);
 }
-
-/*void add_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon){
-	char* blocks_content = read_blocks_content(path_pokemon);
-	t_list* pokemon_positions = list_create();
-	pokemon_positions = get_positions_from_buffer(blocks_content);
-	t_position* new_position = create_position(pokemon->pos_x, pokemon->pos_y, pokemon->count);
-
-	bool _compare(t_position* position){
-		return (pokemon->pos_x == position->pos_x) && (pokemon->pos_y == position->pos_y);
-	}
-	t_position* find_position = NULL;
-	find_position = list_find(pokemon_positions, _compare);
-
-	if(find_position != NULL){
-		log_info(logger,"Sumamos %d a %d total: %d en %s", pokemon->count, find_position->count, pokemon->count + find_position->count, path_pokemon);
-		find_position->count += pokemon->count;
-		int position = position_list(pokemon_positions,find_position);
-		list_replace(pokemon_positions,position,find_position);
-
-	}else{
-		list_add(pokemon_positions, new_position);
-	}
-
-	write_positions_on_files(pokemon_positions, path_pokemon);
-
-	//free(new_position);
-	list_destroy(pokemon_positions);
-	close_file_pokemon(path_pokemon);
-
-}*/
 
 int position_list(t_list* pokemon_positions, t_position* find_position){
 	int i;
