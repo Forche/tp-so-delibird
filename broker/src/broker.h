@@ -30,6 +30,8 @@ typedef struct
 	t_list* receivers; // Type: receiver*
 } queue_message;
 
+t_subscriptor* sub;
+
 typedef struct
 {
 	t_list* messages; // Type: queue_message*

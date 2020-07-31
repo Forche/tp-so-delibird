@@ -86,6 +86,7 @@ void subscribe_to(event_code code);
 void team_listener();
 pthread_t create_thread_open_socket();
 void send_get_pokemons();
+void send_message_received_to_broker(t_message_received* message_received, uint32_t id, uint32_t correlative_id);
 void get_pokemon(char* pokemon, uint32_t* cant);
 void handle_localized(t_message* msg);
 void handle_caught(t_message* msg);

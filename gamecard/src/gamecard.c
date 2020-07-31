@@ -133,10 +133,23 @@ int handle_event(uint32_t* client_socket) {
 	message_received->subscriptor_len = string_length("Game Card") + 1;
 	message_received->subscriptor_id = "Game Card";
 
-	t_buffer* buffer_received = serialize_t_message_received(message_received);
-	send_message(client_socket, MESSAGE_RECEIVED, msg->id, msg->correlative_id, buffer_received);
+	send_message_received_to_broker(message_received, msg->id, msg->correlative_id);
+
 	return 1;
 	//TODO:free(msg);
+}
+
+void send_message_received_to_broker(t_message_received* message_received, uint32_t id, uint32_t correlative_id){
+	t_buffer* buffer_received = serialize_t_message_received(message_received);
+	uint32_t connection = connect_to(IP_BROKER,PUERTO_BROKER);
+	if(connection == -1) {
+			log_error(logger, "No se pudo enviar el ACK al broker. No se pudo conectar al broker");
+		} else {
+			log_info(logger, "Se envio el ACK al broker");
+		}
+
+	send_message(connection, MESSAGE_RECEIVED, id, correlative_id, buffer_received);
+
 }
 
 void handle_get_pokemon(t_message* msg){

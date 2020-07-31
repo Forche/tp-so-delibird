@@ -104,6 +104,7 @@ t_localized_pokemon* create_localized_pokemon(uint32_t pokemon_len,	char* pokemo
 void send_appeared_to_broker(t_appeared_pokemon* appeared_pokemon, uint32_t id);
 void send_caught_to_broker(t_caught_pokemon* caught_pokemon, uint32_t id);
 void send_localized_to_broker(t_localized_pokemon* localized_pokemon, uint32_t id);
+void send_message_received_to_broker(t_message_received* message_received, uint32_t id, uint32_t correlative_id);
 
 void tall_grass_metadata_info();
 void open_bitmap();

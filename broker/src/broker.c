@@ -201,7 +201,7 @@ void serve_client(uint32_t *socket)
 
 }
 
-void store_message(t_message *message, queue* queue, t_list *receivers)
+void store_message(t_message *message, queue* queue, t_list* subscriptor)
 {
 	t_memory_message *memory_message = malloc(sizeof(t_memory_message));
 	memory_message->id = message->id;
@@ -209,7 +209,7 @@ void store_message(t_message *message, queue* queue, t_list *receivers)
 	memory_message->event_code = message->event_code;
 
 	//Store payload and get its containing partition id
-	pthread_mutex_lock(&mutex_memory_partitions);
+	/*pthread_mutex_lock(&mutex_memory_partitions);
 	if (string_equals_ignore_case(ALGORITMO_MEMORIA, "PARTICIONES"))
 	{
 		memory_message->memory_partition_id = store_payload_particiones(message->buffer->payload, message->buffer->size, memory_message->id);
@@ -218,7 +218,16 @@ void store_message(t_message *message, queue* queue, t_list *receivers)
 	{
 		memory_message->memory_partition_id = store_payload_bs(message->buffer->payload, message->buffer->size, memory_message->id);
 	}
-	pthread_mutex_unlock(&mutex_memory_partitions);
+	pthread_mutex_unlock(&mutex_memory_partitions);*/
+
+	t_list* receivers = list_create();
+	for(int i = 0; i < list_size(subscriptor); i++){
+		t_subscriptor* sub = (t_subscriptor*)list_get(subscriptor,i);
+		receiver* rec = malloc(sizeof(receiver));
+		rec->received = 0;
+		rec->receiver_socket = sub->socket;
+		list_add(receivers, rec);
+	}
 
 	queue_message *queue_msg = malloc(sizeof(queue_message));
 	queue_msg->receivers = receivers;
@@ -940,21 +949,23 @@ void process_message_ack(queue* queue, char *subscriptor_id, uint32_t received_m
 	for (int i = 0; i < list_size(queue->subscriptors); i++)
 	{
 		t_subscriptor *subscriptor = (t_subscriptor *)list_get(queue->subscriptors, i);
-
+		//log_info(logger, "Suscriptor: %s", subscriptor->subscriptor_info->subscriptor_id);
 		if (string_equals_ignore_case(subscriptor->subscriptor_info->subscriptor_id, subscriptor_id))
 		{
+			//log_info(logger, "Subscriptor_id: %s", subscriptor_id);
 			uint32_t subscriptor_socket = subscriptor->socket;
 
 			for (int j = 0; j < list_size(queue->messages); j++)
 			{
 				queue_message *message = (queue_message *)list_get(queue->messages, j);
+				//log_info(logger, "Id mensaje: %d", message->message->id);
 
 				if (message->message->id == received_message_id)
 				{
 					for (int k = 0; k < list_size(message->receivers); k++)
 					{
 						receiver *_receiver = (receiver *)list_get(message->receivers, k);
-
+						//log_info(logger, "Receiver socket: %d", _receiver->receiver_socket);
 						if (_receiver->receiver_socket == subscriptor_socket)
 						{
 							_receiver->received = 1;
@@ -1009,7 +1020,7 @@ void process_message_received(uint32_t socket)
 	default:
 		pthread_exit(NULL);
 	}
-
+	//log_info(logger, "MESSAGE RECEIVE %s", subscriptor_id);
 	process_message_ack(queue, subscriptor_id, received_message_id);
 }
 
@@ -1141,7 +1152,7 @@ void process_new_subscription(uint32_t socket)
 
 	log_info(logger, "Subscripcion recibida de %s al broker para la queue %s", subcription_petition->subscriptor_id, event_code_to_string(subcription_petition->queue));
 
-	//process_subscriptor(&(subscriptor->socket), subcription_petition, queue);
+	process_subscriptor(&(subscriptor->socket), subcription_petition, queue);
 }
 
 uint32_t exist_in_queue(queue* queue, char* id){
@@ -1166,11 +1177,11 @@ void replace_socket_in_queue_and_messages(queue* queue, char* subscription_to_ad
 	//reemplazar el socket de los subscriptores y reemplazar en cada mensaje del suscriptor el socket
 	pthread_mutex_lock(&queue->mutex_subscriptors);
 	pthread_mutex_lock(&queue->mutex_messages);
-	t_subscriptor* sub_in_queue = NULL;
+	uint32_t old_socket;
 	for(int i = 0; i < list_size(queue->subscriptors);i++){
 		t_subscriptor* sub = ((t_subscriptor*)list_get(queue->subscriptors, i));
 		if(string_equals_ignore_case(sub->subscriptor_info->subscriptor_id, subscription_to_add_id)){
-			sub_in_queue = sub;
+			old_socket = sub->socket;
 			sub->socket = socket;
 			list_replace(queue->subscriptors, i, sub);
 		}
@@ -1180,7 +1191,11 @@ void replace_socket_in_queue_and_messages(queue* queue, char* subscription_to_ad
 		queue_message* mes = ((queue_message*)list_get(queue->messages, i));
 		for(int j = 0; i < list_size(mes->receivers); j++){
 			receiver* rec = ((receiver*)list_get(mes->receivers, j));
-			if(rec->receiver_socket == sub_in_queue->socket){
+			uint32_t new_old_socket = rec->receiver_socket;
+			log_info(logger,"NEW OLD SOCKET: %d", new_old_socket);
+			log_info(logger,"OLD SOCKET: %d", old_socket);
+			log_info(logger,"NEW SOCKET REC: %d", rec->receiver_socket);
+			if(new_old_socket == old_socket){
 				rec->receiver_socket = socket;
 			}
 			list_replace(mes->receivers, j, rec);
@@ -1210,7 +1225,7 @@ void process_subscriptor(uint32_t *socket, t_subscription_petition *subscription
 	{
 		int bytes = recv(*socket, &code, sizeof(event_code), MSG_WAITALL);
 		if (bytes == -1 || bytes == 0)
-			code = -1;
+			break;
 
 		if ((unsigned long)time(NULL) < end_subscription_time)
 		{
@@ -1227,6 +1242,7 @@ void send_all_messages(uint32_t *socket, t_subscription_petition *subscription_p
 	uint32_t old_socket;
 	uint32_t already_subscribed;
 
+	//lo hice en replace_socket_in_queue_and_messages-BLANCA
 	for (int i = 0; i < list_size(queue_to_use->subscriptors); i++)
 	{
 		t_subscriptor *subscriptor = list_get(queue_to_use->subscriptors, i);
@@ -1284,8 +1300,7 @@ void send_all_messages(uint32_t *socket, t_subscription_petition *subscription_p
 				t_buffer *buffer = malloc(sizeof(uint32_t) + partition->content_size);
 				buffer->size = partition->content_size;
 				buffer->payload = content;
-				send_message(*socket, subscription_petition->queue, message->message->id,
-							 message->message->correlative_id, buffer);
+				send_message(*socket, subscription_petition->queue, message->message->id, message->message->correlative_id, buffer);
 				log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", message->message->id, event_code_to_string(subscription_petition->queue), *socket);
 
 				partition->lru_timestamp = (unsigned long)time(NULL);
