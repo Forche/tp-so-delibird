@@ -595,8 +595,6 @@ t_get_pokemon* deserialize_get_pokemon_message(uint32_t socket, uint32_t* size) 
 	recv(socket, get_pokemon->pokemon, get_pokemon->pokemon_len,
 	MSG_WAITALL);
 
-	strcat(get_pokemon->pokemon, '\0');
-
 	t_log* logger = logger_init();
 	log_info(logger, get_pokemon->pokemon);
 	log_destroy(logger);
@@ -617,8 +615,6 @@ t_localized_pokemon* deserialize_localized_pokemon_message(uint32_t socket, uint
 	localized_pokemon->pokemon = malloc(localized_pokemon->pokemon_len + 1);
 	recv(socket, localized_pokemon->pokemon, localized_pokemon->pokemon_len, MSG_WAITALL);
 	recv(socket, localized_pokemon->positions, 2*count, MSG_WAITALL);
-
-	strcat(localized_pokemon->pokemon, '\0');
 
 	t_log* logger = logger_init();
 	log_info(logger, localized_pokemon->pokemon);
