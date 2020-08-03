@@ -221,6 +221,7 @@ void store_message(t_message *message, queue* queue, t_list* subscriptor)
 	pthread_mutex_unlock(&mutex_memory_partitions);*/
 
 	t_list* receivers = list_create();
+	pthread_mutex_lock(&queue->mutex_subscriptors);
 	for(int i = 0; i < list_size(subscriptor); i++){
 		t_subscriptor* sub = (t_subscriptor*)list_get(subscriptor,i);
 		receiver* rec = malloc(sizeof(receiver));
@@ -228,14 +229,15 @@ void store_message(t_message *message, queue* queue, t_list* subscriptor)
 		rec->receiver_socket = sub->socket;
 		list_add(receivers, rec);
 	}
+	pthread_mutex_unlock(&queue->mutex_subscriptors);
 
 	queue_message *queue_msg = malloc(sizeof(queue_message));
 	queue_msg->receivers = receivers;
 	queue_msg->message = memory_message;
 
-	pthread_mutex_lock(&(queue->mutex_messages));
+	pthread_mutex_lock(&queue->mutex_messages);
 	list_add(queue->messages, queue_msg);
-	pthread_mutex_unlock(&(queue->mutex_messages));
+	pthread_mutex_unlock(&queue->mutex_messages);
 }
 
 uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id)
@@ -808,7 +810,7 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 		pthread_mutex_unlock(&queue_new_pokemon->mutex_subscriptors);
 
 		//Add message to memory
-		store_message(msg, queue_new_pokemon, queue_new_pokemon->subscriptors);
+		//store_message(msg, queue_new_pokemon, queue_new_pokemon->subscriptors);
 
 		break;
 	case APPEARED_POKEMON:;
@@ -834,7 +836,7 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 		pthread_mutex_unlock(&queue_appeared_pokemon->mutex_subscriptors);
 
 		//Add message to memory
-		store_message(msg, queue_appeared_pokemon, queue_appeared_pokemon->subscriptors);
+		//store_message(msg, queue_appeared_pokemon, queue_appeared_pokemon->subscriptors);
 		break;
 	case CATCH_POKEMON:;
 		t_catch_pokemon *catch_pokemon = deserialize_catch_pokemon_message(client_socket, &size);
@@ -859,7 +861,7 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 		pthread_mutex_unlock(&queue_catch_pokemon->mutex_subscriptors);
 
 		//Add message to memory
-		store_message(msg, queue_catch_pokemon, queue_catch_pokemon->subscriptors);
+		//store_message(msg, queue_catch_pokemon, queue_catch_pokemon->subscriptors);
 		break;
 	case CAUGHT_POKEMON:;
 		t_caught_pokemon *caught_pokemon = deserialize_caught_pokemon_message(client_socket, &size);
@@ -884,7 +886,7 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 		pthread_mutex_unlock(&queue_caught_pokemon->mutex_subscriptors);
 
 		//Add message to memory
-		store_message(msg, queue_caught_pokemon, queue_caught_pokemon->subscriptors);
+		//store_message(msg, queue_caught_pokemon, queue_caught_pokemon->subscriptors);
 		break;
 	case GET_POKEMON:;
 		t_get_pokemon *get_pokemon = deserialize_get_pokemon_message(client_socket, &size);
@@ -908,7 +910,7 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 		pthread_mutex_unlock(&queue_get_pokemon->mutex_subscriptors);
 
 		//Add message to memory
-		store_message(msg, queue_get_pokemon, queue_get_pokemon->subscriptors);
+		//store_message(msg, queue_get_pokemon, queue_get_pokemon->subscriptors);
 		break;
 	case LOCALIZED_POKEMON:;
 		t_localized_pokemon *localized_pokemon = deserialize_localized_pokemon_message(client_socket, &size);
@@ -931,7 +933,7 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 		pthread_mutex_unlock(&queue_localized_pokemon->mutex_subscriptors);
 
 		//Add message to memory
-		store_message(msg, queue_localized_pokemon, queue_localized_pokemon->subscriptors);
+		//store_message(msg, queue_localized_pokemon, queue_localized_pokemon->subscriptors);
 		break;
 	case NEW_SUBSCRIPTOR:;
 		process_new_subscription(client_socket);
@@ -949,23 +951,19 @@ void process_message_ack(queue* queue, char *subscriptor_id, uint32_t received_m
 	for (int i = 0; i < list_size(queue->subscriptors); i++)
 	{
 		t_subscriptor *subscriptor = (t_subscriptor *)list_get(queue->subscriptors, i);
-		//log_info(logger, "Suscriptor: %s", subscriptor->subscriptor_info->subscriptor_id);
 		if (string_equals_ignore_case(subscriptor->subscriptor_info->subscriptor_id, subscriptor_id))
 		{
-			//log_info(logger, "Subscriptor_id: %s", subscriptor_id);
 			uint32_t subscriptor_socket = subscriptor->socket;
 
 			for (int j = 0; j < list_size(queue->messages); j++)
 			{
 				queue_message *message = (queue_message *)list_get(queue->messages, j);
-				//log_info(logger, "Id mensaje: %d", message->message->id);
 
 				if (message->message->id == received_message_id)
 				{
 					for (int k = 0; k < list_size(message->receivers); k++)
 					{
 						receiver *_receiver = (receiver *)list_get(message->receivers, k);
-						//log_info(logger, "Receiver socket: %d", _receiver->receiver_socket);
 						if (_receiver->receiver_socket == subscriptor_socket)
 						{
 							_receiver->received = 1;
@@ -1021,136 +1019,115 @@ void process_message_received(uint32_t socket)
 		pthread_exit(NULL);
 	}
 	//log_info(logger, "MESSAGE RECEIVE %s", subscriptor_id);
+	pthread_mutex_lock(&queue->mutex_subscriptors);
+	pthread_mutex_lock(&queue->mutex_messages);
 	process_message_ack(queue, subscriptor_id, received_message_id);
+	pthread_mutex_unlock(&queue->mutex_messages);
+	pthread_mutex_unlock(&queue->mutex_subscriptors);
 }
 
 void process_new_subscription(uint32_t socket)
 {
 	uint32_t subscriptor_len;
-	recv(socket, &(subscriptor_len), sizeof(uint32_t), MSG_WAITALL);
+		recv(socket, &(subscriptor_len), sizeof(uint32_t), MSG_WAITALL);
 
-	char *subscriptor_id = malloc(subscriptor_len);
-	recv(socket, subscriptor_id, subscriptor_len,
-		 MSG_WAITALL);
+		char *subscriptor_id = malloc(subscriptor_len);
+		recv(socket, subscriptor_id, subscriptor_len,
+			 MSG_WAITALL);
 
-	event_code queue_type;
-	recv(socket, &(queue_type), sizeof(event_code),
-		 MSG_WAITALL);
+		event_code queue_type;
+		recv(socket, &(queue_type), sizeof(event_code),
+			 MSG_WAITALL);
 
-	uint32_t ip_len;
-	recv(socket, &(ip_len), sizeof(uint32_t), MSG_WAITALL);
+		uint32_t ip_len;
+		recv(socket, &(ip_len), sizeof(uint32_t), MSG_WAITALL);
 
-	t_subscription_petition *subcription_petition = malloc(
-		subscriptor_len + ip_len + 4 * sizeof(uint32_t) + sizeof(event_code));
-	subcription_petition->subscriptor_len = subscriptor_len;
-	subcription_petition->subscriptor_id = subscriptor_id;
-	subcription_petition->ip_len = ip_len;
+		t_subscription_petition *subcription_petition = malloc(
+			subscriptor_len + ip_len + 4 * sizeof(uint32_t) + sizeof(event_code));
+		subcription_petition->subscriptor_len = subscriptor_len;
+		subcription_petition->subscriptor_id = subscriptor_id;
+		subcription_petition->ip_len = ip_len;
 
-	subcription_petition->queue = queue_type;
+		subcription_petition->queue = queue_type;
 
-	subcription_petition->ip = malloc(subcription_petition->ip_len);
-	recv(socket, subcription_petition->ip, subcription_petition->ip_len,
-		 MSG_WAITALL);
+		subcription_petition->ip = malloc(subcription_petition->ip_len);
+		recv(socket, subcription_petition->ip, subcription_petition->ip_len,
+			 MSG_WAITALL);
 
-	recv(socket, &(subcription_petition->port), sizeof(uint32_t), MSG_WAITALL);
+		recv(socket, &(subcription_petition->port), sizeof(uint32_t), MSG_WAITALL);
 
-	recv(socket, &(subcription_petition->duration), sizeof(uint32_t),
-		 MSG_WAITALL);
+		recv(socket, &(subcription_petition->duration), sizeof(uint32_t),
+			 MSG_WAITALL);
 
-	t_subscriptor *subscriptor = malloc(
-		sizeof(t_subscription_petition) + sizeof(uint32_t));
-	subscriptor->subscriptor_info = subcription_petition;
-	subscriptor->socket = socket;
+		t_subscriptor *subscriptor = malloc(
+			sizeof(t_subscription_petition) + sizeof(uint32_t));
+		subscriptor->subscriptor_info = subcription_petition;
+		subscriptor->socket = socket;
 
-	queue* queue;
-	uint32_t socket_subscription_to_add;
+		queue* queue;
+		uint32_t socket_exist;
+		switch (subcription_petition->queue)
+		{
+		case NEW_POKEMON: ;
+			socket_exist = exist_in_queue(queue_new_pokemon, subscriptor->subscriptor_info->subscriptor_id);
+			pthread_mutex_lock(&queue_new_pokemon->mutex_subscriptors);
+			if(socket_exist == 0){
+				list_add(queue_new_pokemon->subscriptors, subscriptor);
+			}
+			pthread_mutex_unlock(&queue_new_pokemon->mutex_subscriptors);
+			queue = queue_new_pokemon;
+			break;
+		case APPEARED_POKEMON: ;
+			socket_exist = exist_in_queue(queue_appeared_pokemon, subscriptor->subscriptor_info->subscriptor_id);
+			pthread_mutex_lock(&queue_appeared_pokemon->mutex_subscriptors);
+			if(socket_exist == 0){
+				list_add(queue_appeared_pokemon->subscriptors, subscriptor);
+			}
+			pthread_mutex_unlock(&queue_appeared_pokemon->mutex_subscriptors);
+			queue = queue_appeared_pokemon;
+			break;
+		case CATCH_POKEMON: ;
+			socket_exist = exist_in_queue(queue_catch_pokemon, subscriptor->subscriptor_info->subscriptor_id);
+			pthread_mutex_lock(&queue_catch_pokemon->mutex_subscriptors);
+			if(socket_exist == 0){
+				list_add(queue_catch_pokemon->subscriptors, subscriptor);
+			}
+			pthread_mutex_unlock(&queue_catch_pokemon->mutex_subscriptors);
+			queue = queue_catch_pokemon;
+			break;
+		case CAUGHT_POKEMON: ;
+			socket_exist = exist_in_queue(queue_caught_pokemon, subscriptor->subscriptor_info->subscriptor_id);
+			pthread_mutex_lock(&queue_caught_pokemon->mutex_subscriptors);
+			if(socket_exist == 0){
+				list_add(queue_caught_pokemon->subscriptors, subscriptor);
+			}
+			pthread_mutex_unlock(&queue_caught_pokemon->mutex_subscriptors);
+			queue = queue_caught_pokemon;
+			break;
+		case GET_POKEMON: ;
+			socket_exist = exist_in_queue(queue_get_pokemon, subscriptor->subscriptor_info->subscriptor_id);
+			pthread_mutex_lock(&queue_get_pokemon->mutex_subscriptors);
+			if(socket_exist == 0){
+				list_add(queue_get_pokemon->subscriptors, subscriptor);
+			}
+			pthread_mutex_unlock(&queue_get_pokemon->mutex_subscriptors);
+			queue = queue_get_pokemon;
+			break;
+		case LOCALIZED_POKEMON: ;
+			socket_exist = exist_in_queue(queue_localized_pokemon, subscriptor->subscriptor_info->subscriptor_id);
+			pthread_mutex_lock(&queue_localized_pokemon->mutex_subscriptors);
+			if(socket_exist == 0){
+				list_add(queue_localized_pokemon->subscriptors, subscriptor);
+			}
+			pthread_mutex_unlock(&queue_localized_pokemon->mutex_subscriptors);
+			queue = queue_localized_pokemon;
+			break;
+		default:
+			pthread_exit(NULL);
+		}
 
-	switch (subcription_petition->queue)
-	{
-	case NEW_POKEMON: ;
-	socket_subscription_to_add = exist_in_queue(queue_new_pokemon, subcription_petition->subscriptor_id);
+		log_info(logger, "Subscripcion recibida de %s al broker para la queue %s", subcription_petition->subscriptor_id, event_code_to_string(subcription_petition->queue));
 
-	if(socket_subscription_to_add == 0){
-		pthread_mutex_lock(&queue_new_pokemon->mutex_subscriptors);
-		list_add(queue_new_pokemon->subscriptors, subscriptor);
-		pthread_mutex_unlock(&queue_new_pokemon->mutex_subscriptors);
-		queue = queue_new_pokemon;
-	} else {
-		replace_socket_in_queue_and_messages(queue_new_pokemon, subcription_petition->subscriptor_id, socket);
-		queue = queue_new_pokemon;
-	}
-
-		break;
-	case APPEARED_POKEMON: ;
-	socket_subscription_to_add = exist_in_queue(queue_appeared_pokemon, subcription_petition->subscriptor_id);
-
-	if(socket_subscription_to_add == 0){
-		pthread_mutex_lock(&queue_appeared_pokemon->mutex_subscriptors);
-		list_add(queue_appeared_pokemon->subscriptors, subscriptor);
-		pthread_mutex_unlock(&queue_appeared_pokemon->mutex_subscriptors);
-		queue = queue_appeared_pokemon;
-	} else {
-		replace_socket_in_queue_and_messages(queue_appeared_pokemon, subcription_petition->subscriptor_id, socket);
-		queue = queue_appeared_pokemon;
-	}
-		break;
-	case CATCH_POKEMON: ;
-	socket_subscription_to_add = exist_in_queue(queue_catch_pokemon, subcription_petition->subscriptor_id);
-
-	if(socket_subscription_to_add == 0){
-		pthread_mutex_lock(&queue_catch_pokemon->mutex_subscriptors);
-		list_add(queue_catch_pokemon->subscriptors, subscriptor);
-		pthread_mutex_unlock(&queue_catch_pokemon->mutex_subscriptors);
-		queue = queue_catch_pokemon;
-	} else {
-		replace_socket_in_queue_and_messages(queue_catch_pokemon, subcription_petition->subscriptor_id, socket);
-		queue = queue_catch_pokemon;
-	}
-		break;
-	case CAUGHT_POKEMON: ;
-	socket_subscription_to_add = exist_in_queue(queue_caught_pokemon, subcription_petition->subscriptor_id);
-
-	if(socket_subscription_to_add == 0){
-		pthread_mutex_lock(&queue_caught_pokemon->mutex_subscriptors);
-		list_add(queue_caught_pokemon->subscriptors, subscriptor);
-		pthread_mutex_unlock(&queue_caught_pokemon->mutex_subscriptors);
-		queue = queue_caught_pokemon;
-	} else {
-		replace_socket_in_queue_and_messages(queue_caught_pokemon, subcription_petition->subscriptor_id, socket);
-		queue = queue_caught_pokemon;
-	}
-		break;
-	case GET_POKEMON: ;
-	socket_subscription_to_add = exist_in_queue(queue_get_pokemon, subcription_petition->subscriptor_id);
-
-	if(socket_subscription_to_add == 0){
-		pthread_mutex_lock(&queue_get_pokemon->mutex_subscriptors);
-		list_add(queue_get_pokemon->subscriptors, subscriptor);
-		pthread_mutex_unlock(&queue_get_pokemon->mutex_subscriptors);
-		queue = queue_get_pokemon;
-	} else {
-		replace_socket_in_queue_and_messages(queue_get_pokemon, subcription_petition->subscriptor_id, socket);
-		queue = queue_get_pokemon;
-	}
-		break;
-	case LOCALIZED_POKEMON: ;
-	socket_subscription_to_add = exist_in_queue(queue_localized_pokemon, subcription_petition->subscriptor_id);
-
-	if(socket_subscription_to_add == 0){
-		pthread_mutex_lock(&queue_localized_pokemon->mutex_subscriptors);
-		list_add(queue_localized_pokemon->subscriptors, subscriptor);
-		pthread_mutex_unlock(&queue_localized_pokemon->mutex_subscriptors);
-		queue = queue_localized_pokemon;
-	} else {
-		replace_socket_in_queue_and_messages(queue_localized_pokemon, subcription_petition->subscriptor_id, socket);
-		queue = queue_localized_pokemon;
-	}
-		break;
-	default:
-		pthread_exit(NULL);
-	}
-
-	log_info(logger, "Subscripcion recibida de %s al broker para la queue %s", subcription_petition->subscriptor_id, event_code_to_string(subcription_petition->queue));
 
 	process_subscriptor(&(subscriptor->socket), subcription_petition, queue);
 }
@@ -1161,7 +1138,7 @@ uint32_t exist_in_queue(queue* queue, char* id){
 	}
 	t_subscriptor* find_subscriptor = NULL;
 	uint32_t socket = 0;
-	pthread_mutex_lock(&(queue->mutex_subscriptors));
+	pthread_mutex_lock(&queue->mutex_subscriptors);
 	find_subscriptor = list_find(queue->subscriptors, _compare);
 	if(find_subscriptor != NULL){
 		log_info(logger, "El suscriptor esta en la queue, el socket es: %d", find_subscriptor->socket);
@@ -1169,7 +1146,7 @@ uint32_t exist_in_queue(queue* queue, char* id){
 	} else {
 		log_info(logger, "El suscriptor no esta en la queue, agregando");
 	}
-	pthread_mutex_unlock(&(queue->mutex_subscriptors));
+	pthread_mutex_unlock(&queue->mutex_subscriptors);
 	return socket;
 }
 
@@ -1192,9 +1169,6 @@ void replace_socket_in_queue_and_messages(queue* queue, char* subscription_to_ad
 		for(int j = 0; i < list_size(mes->receivers); j++){
 			receiver* rec = ((receiver*)list_get(mes->receivers, j));
 			uint32_t new_old_socket = rec->receiver_socket;
-			log_info(logger,"NEW OLD SOCKET: %d", new_old_socket);
-			log_info(logger,"OLD SOCKET: %d", old_socket);
-			log_info(logger,"NEW SOCKET REC: %d", rec->receiver_socket);
 			if(new_old_socket == old_socket){
 				rec->receiver_socket = socket;
 			}
@@ -1242,7 +1216,6 @@ void send_all_messages(uint32_t *socket, t_subscription_petition *subscription_p
 	uint32_t old_socket;
 	uint32_t already_subscribed;
 
-	//lo hice en replace_socket_in_queue_and_messages-BLANCA
 	for (int i = 0; i < list_size(queue_to_use->subscriptors); i++)
 	{
 		t_subscriptor *subscriptor = list_get(queue_to_use->subscriptors, i);
