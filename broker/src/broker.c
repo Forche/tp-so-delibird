@@ -1141,7 +1141,7 @@ void process_new_subscription(uint32_t socket)
 
 	log_info(logger, "Subscripcion recibida de %s al broker para la queue %s", subcription_petition->subscriptor_id, event_code_to_string(subcription_petition->queue));
 
-	//process_subscriptor(&(subscriptor->socket), subcription_petition, queue);
+	process_subscriptor(&(subscriptor->socket), subcription_petition, queue);
 }
 
 uint32_t exist_in_queue(queue* queue, char* id){
