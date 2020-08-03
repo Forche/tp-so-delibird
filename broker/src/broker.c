@@ -1215,7 +1215,7 @@ void send_all_messages(uint32_t *socket, t_subscription_petition *subscription_p
 	uint32_t i;
 	uint32_t old_socket;
 	uint32_t already_subscribed;
-
+	pthread_mutex_lock(&queue_to_use->mutex_subscriptors);
 	for (int i = 0; i < list_size(queue_to_use->subscriptors); i++)
 	{
 		t_subscriptor *subscriptor = list_get(queue_to_use->subscriptors, i);
@@ -1227,7 +1227,7 @@ void send_all_messages(uint32_t *socket, t_subscription_petition *subscription_p
 			already_subscribed = 1;
 		}
 	}
-
+	pthread_mutex_unlock(&queue_to_use->mutex_subscriptors);
 	pthread_mutex_lock(&queue_to_use->mutex_messages);
 	for (i = 0; i < list_size(queue_to_use->messages); i++)
 	{
