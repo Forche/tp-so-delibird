@@ -650,19 +650,10 @@ t_memory_partition *get_free_partition_particiones(uint32_t size)
 t_memory_partition *get_free_partition_bs(uint32_t size)
 {
 	uint32_t bs_size = 1;
-	int reached_maximum_size = 0;
 
-	while (bs_size < size && reached_maximum_size == 0)
+	while (bs_size < size)
 	{
-		uint32_t new_partition_size = bs_size * 2;
-		if (new_partition_size <= size)
-		{
-			bs_size = new_partition_size;
-		}
-		else
-		{
-			reached_maximum_size = 1;
-		}
+		bs_size = bs_size * 2;
 	}
 
 	t_memory_partition *partition_to_return = find_free_partition(bs_size);
