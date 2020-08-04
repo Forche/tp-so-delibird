@@ -248,6 +248,17 @@ uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id)
 	// Search for partition and return it, if no partition is found return a partition with id=-1
 	t_memory_partition *partition = get_free_partition_bs(size);
 
+	// Get the index of the partition
+	int part_index;
+	for (int i = 0; i < list_size(memory_partitions); i++)
+	{
+		t_memory_partition* p = list_get(memory_partitions, i);
+		if (p->id == partition->id)
+		{
+			part_index = i;
+		}
+	}
+
 	uint32_t minimum_size = size;
 	if (size <= TAMANO_MINIMO_PARTICION)
 	{
@@ -276,7 +287,7 @@ uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id)
 		first_half->side = "0";
 		pthread_mutex_init(&(first_half->mutex_partition), NULL);
 
-		list_add(memory_partitions, first_half);
+		list_add_in_index(memory_partitions, part_index, first_half);
 
 		t_memory_partition *second_half = malloc(sizeof(t_memory_partition));
 		pthread_mutex_lock(&mutex_memory_partition_id);
@@ -288,13 +299,11 @@ uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id)
 		second_half->occupied_timestamp = 0;
 		second_half->status = FREE;
 		second_half->father = malloc(strlen(partition->father) + 1);
-		string_append(&(partition->father), partition->side);
-		//strcpy(second_half->father, partition->father);
-		second_half->father = string_from_format("%s", partition->father);
+		strcpy(second_half->father, first_half->father);
 		second_half->side = "1";
 		pthread_mutex_init(&(second_half->mutex_partition), NULL);
 
-		list_add(memory_partitions, second_half);
+		list_add_in_index(memory_partitions, part_index + 1, second_half);
 
 		for (int i = 0; i < list_size(memory_partitions); i++) {
 			t_memory_partition *part = list_get(memory_partitions, i);
@@ -397,13 +406,12 @@ void delete_partition_and_consolidate_fifo()
 	// Causing older partitions to have lower ID values
 	uint32_t smallest_id;
 	uint64_t smallest_ocuppied_timestamp = 9999999999;
-	int index_to_free = 0;
+	int index_to_free;
 
 	for (int i = 0; i < list_size(memory_partitions); i++)
 	{
 
 		t_memory_partition *partition = list_get(memory_partitions, i);
-
 		if (partition->occupied_timestamp < smallest_ocuppied_timestamp && partition->status == OCCUPIED)
 		{
 			smallest_id = partition->id;
@@ -420,7 +428,7 @@ void delete_partition_and_consolidate_fifo()
 	partition->occupied_timestamp = 0;
 	partition->content_size = 0;
 
-	log_info(logger, "Eliminada particion con id %d, cuya posicion de inicio es %d", partition->id, partition->begin);
+	log_info(logger, "Liberada particion con id %d, cuya posicion de inicio es %d", partition->id, partition->begin);
 	delete_and_consolidate(smallest_id);
 }
 
@@ -451,7 +459,7 @@ void delete_partition_and_consolidate_lru()
 	partition->status = FREE;
 	partition->occupied_timestamp = 0;
 	partition->content_size = 0;
-	log_info(logger, "Eliminada particion con id %d, cuya posicion de inicio es %d y su tiempo de LRU es %d", partition->id, partition->begin, partition->lru_timestamp);
+	log_info(logger, "Liberada particion con id %d, cuya posicion de inicio es %d y su tiempo de LRU es %d", partition->id, partition->begin, partition->lru_timestamp);
 	partition->lru_timestamp = 0;
 	delete_and_consolidate(smallest_id);
 }
@@ -593,21 +601,33 @@ void consolidate(uint32_t memory_partition_to_consolidate_id)
 				t_memory_partition *partition = list_get(memory_partitions, i);
 				if (partition->status == FREE)
 				{
-					if (string_equals_ignore_case(memory_partition_to_consolidate->father, partition->father))
+					if (string_equals_ignore_case(memory_partition_to_consolidate->father, partition->father) && partition->id != memory_partition_to_consolidate->id && memory_partition_to_consolidate->partition_size == partition->partition_size)
 					{
 						for (int j = 0; j < list_size(memory_partitions); j++)
 						{
 							t_memory_partition *partition_to_consolidate = list_get(memory_partitions, j);
-							if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
+							if (memory_partition_to_consolidate->id == partition_to_consolidate->id && memory_partition_to_consolidate->status == FREE && partition->status == FREE)
 							{
-								log_info(logger, "Asociada particion con id %d, cuya posicion de inicio es %d, con su buddy cuyo id es %d, y su posicion de inicio es %d", partition->id, partition->begin, memory_partition_to_consolidate->id, memory_partition_to_consolidate->begin);
-								memory_partition_to_consolidate = list_remove(memory_partitions, j);
-								partition->partition_size += memory_partition_to_consolidate->partition_size;
-								int father_length = strlen(memory_partition_to_consolidate->father);
-								partition->father = string_substring(memory_partition_to_consolidate->father, 0, father_length - 1);
-								partition->side = string_substring(memory_partition_to_consolidate->father, father_length - 1, father_length);
-								memory_partition_to_consolidate = partition;
-								consolidated = 1;
+								if (partition->begin < memory_partition_to_consolidate->begin)
+								{
+									log_info(logger, "Asociada particion con id %d, cuya posicion de inicio es %d, con su buddy cuyo id es %d, y su posicion de inicio es %d", partition->id, partition->begin, memory_partition_to_consolidate->id, memory_partition_to_consolidate->begin);
+									memory_partition_to_consolidate = list_remove(memory_partitions, j);
+									partition->partition_size += memory_partition_to_consolidate->partition_size;
+									int father_length = strlen(memory_partition_to_consolidate->father);
+									partition->father = string_substring(memory_partition_to_consolidate->father, 0, father_length - 1);
+									partition->side = string_substring(memory_partition_to_consolidate->father, father_length - 1, father_length);
+									memory_partition_to_consolidate = partition;
+									consolidated = 1;
+								} else
+								{
+									log_info(logger, "Asociada particion con id %d, cuya posicion de inicio es %d, con su buddy cuyo id es %d, y su posicion de inicio es %d", partition->id, partition->begin, memory_partition_to_consolidate->id, memory_partition_to_consolidate->begin);
+									partition = list_remove(memory_partitions, i);
+									memory_partition_to_consolidate->partition_size += partition->partition_size;
+									int father_length = strlen(partition->father);
+									memory_partition_to_consolidate->father = string_substring(partition->father, 0, father_length - 1);
+									memory_partition_to_consolidate->side = string_substring(partition->father, father_length - 1, father_length);
+									consolidated = 1;
+								}
 							}
 						}
 					}
@@ -653,7 +673,14 @@ t_memory_partition *get_free_partition_particiones(uint32_t size)
 
 t_memory_partition *get_free_partition_bs(uint32_t size)
 {
-	t_memory_partition *partition_to_return = find_free_partition(size);
+	uint32_t bs_size = 1;
+
+	while (bs_size < size)
+	{
+		bs_size = bs_size * 2;
+	}
+
+	t_memory_partition *partition_to_return = find_free_partition(bs_size);
 
 	if (partition_to_return->id != -1)
 	{
@@ -663,7 +690,7 @@ t_memory_partition *get_free_partition_bs(uint32_t size)
 	while (true)
 	{
 		delete_partition_and_consolidate();
-		partition_to_return = find_free_partition(size);
+		partition_to_return = find_free_partition(bs_size);
 
 		if (partition_to_return->id != -1)
 		{
