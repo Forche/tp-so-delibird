@@ -285,9 +285,7 @@ uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id)
 		second_half->occupied_timestamp = 0;
 		second_half->status = FREE;
 		second_half->father = malloc(strlen(partition->father) + 1);
-		string_append(&(partition->father), partition->side);
-		//strcpy(second_half->father, partition->father);
-		second_half->father = string_from_format("%s", partition->father);
+		strcpy(second_half->father, first_half->father);
 		second_half->side = "1";
 		pthread_mutex_init(&(second_half->mutex_partition), NULL);
 
@@ -416,7 +414,7 @@ void delete_partition_and_consolidate_fifo()
 	partition->occupied_timestamp = 0;
 	partition->content_size = 0;
 
-	log_info(logger, "Eliminada particion con id %d, cuya posicion de inicio es %d", partition->id, partition->begin);
+	log_info(logger, "Liberada particion con id %d, cuya posicion de inicio es %d", partition->id, partition->begin);
 	delete_and_consolidate(smallest_id);
 }
 
@@ -447,7 +445,7 @@ void delete_partition_and_consolidate_lru()
 	partition->status = FREE;
 	partition->occupied_timestamp = 0;
 	partition->content_size = 0;
-	log_info(logger, "Eliminada particion con id %d, cuya posicion de inicio es %d y su tiempo de LRU es %d", partition->id, partition->begin, partition->lru_timestamp);
+	log_info(logger, "Liberada particion con id %d, cuya posicion de inicio es %d y su tiempo de LRU es %d", partition->id, partition->begin, partition->lru_timestamp);
 	partition->lru_timestamp = 0;
 	delete_and_consolidate(smallest_id);
 }
@@ -589,21 +587,33 @@ void consolidate(uint32_t memory_partition_to_consolidate_id)
 				t_memory_partition *partition = list_get(memory_partitions, i);
 				if (partition->status == FREE)
 				{
-					if (string_equals_ignore_case(memory_partition_to_consolidate->father, partition->father))
+					if (string_equals_ignore_case(memory_partition_to_consolidate->father, partition->father) && partition->id != memory_partition_to_consolidate->id && memory_partition_to_consolidate->partition_size == partition->partition_size)
 					{
 						for (int j = 0; j < list_size(memory_partitions); j++)
 						{
 							t_memory_partition *partition_to_consolidate = list_get(memory_partitions, j);
-							if (memory_partition_to_consolidate->id == partition_to_consolidate->id && partition->id != memory_partition_to_consolidate->id)
+							if (memory_partition_to_consolidate->id == partition_to_consolidate->id && memory_partition_to_consolidate->status == FREE && partition->status == FREE)
 							{
-								log_info(logger, "Asociada particion con id %d, cuya posicion de inicio es %d, con su buddy cuyo id es %d, y su posicion de inicio es %d", partition->id, partition->begin, memory_partition_to_consolidate->id, memory_partition_to_consolidate->begin);
-								memory_partition_to_consolidate = list_remove(memory_partitions, j);
-								partition->partition_size += memory_partition_to_consolidate->partition_size;
-								int father_length = strlen(memory_partition_to_consolidate->father);
-								partition->father = string_substring(memory_partition_to_consolidate->father, 0, father_length - 1);
-								partition->side = string_substring(memory_partition_to_consolidate->father, father_length - 1, father_length);
-								memory_partition_to_consolidate = partition;
-								consolidated = 1;
+								if (partition->begin < memory_partition_to_consolidate->begin)
+								{
+									log_info(logger, "Asociada particion con id %d, cuya posicion de inicio es %d, con su buddy cuyo id es %d, y su posicion de inicio es %d", partition->id, partition->begin, memory_partition_to_consolidate->id, memory_partition_to_consolidate->begin);
+									memory_partition_to_consolidate = list_remove(memory_partitions, j);
+									partition->partition_size += memory_partition_to_consolidate->partition_size;
+									int father_length = strlen(memory_partition_to_consolidate->father);
+									partition->father = string_substring(memory_partition_to_consolidate->father, 0, father_length - 1);
+									partition->side = string_substring(memory_partition_to_consolidate->father, father_length - 1, father_length);
+									memory_partition_to_consolidate = partition;
+									consolidated = 1;
+								} else
+								{
+									log_info(logger, "Asociada particion con id %d, cuya posicion de inicio es %d, con su buddy cuyo id es %d, y su posicion de inicio es %d", partition->id, partition->begin, memory_partition_to_consolidate->id, memory_partition_to_consolidate->begin);
+									partition = list_remove(memory_partitions, i);
+									memory_partition_to_consolidate->partition_size += partition->partition_size;
+									int father_length = strlen(partition->father);
+									memory_partition_to_consolidate->father = string_substring(partition->father, 0, father_length - 1);
+									memory_partition_to_consolidate->side = string_substring(partition->father, father_length - 1, father_length);
+									consolidated = 1;
+								}
 							}
 						}
 					}
