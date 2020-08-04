@@ -187,8 +187,8 @@ uint32_t* positions_to_uint32(t_list* pokemon_positions){
 	uint32_t* positions;
 	positions = malloc((list_size(pokemon_positions))*2);
 	for(int i = 0; i<(list_size(pokemon_positions));i++){
-		positions[i] = ((t_position*)pokemon_positions)->pos_x;
-		positions[i+1] = ((t_position*)pokemon_positions)->pos_y;
+		positions[i] = ((t_position*)(list_get(pokemon_positions,i)))->pos_x;
+		positions[i+1] = ((t_position*)(list_get(pokemon_positions,i)))->pos_y;
 	}
 	return positions;
 }

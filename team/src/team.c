@@ -61,9 +61,6 @@ int main(int argc, char* argv[]) {
 
 	init_sem();
 
-	send_get_pokemons();
-
-
 	sem_init(&sem_all_pokemons_caught, 0, 0);
 
 	pthread_t thread_appeared = create_thread_with_param(subscribe_to, APPEARED_POKEMON, "subscribe APPEARED_POKEMON");
@@ -71,6 +68,8 @@ int main(int argc, char* argv[]) {
 	pthread_t thread_caught = create_thread_with_param(subscribe_to, CAUGHT_POKEMON, "subscribe CAUGHT_POKEMON");
 	sleep(1);
 	pthread_t thread_localized = create_thread_with_param(subscribe_to, LOCALIZED_POKEMON, "subscribe LOCALIZED_POKEMON");
+
+	send_get_pokemons();
 
 	sem_wait(&sem_all_pokemons_caught);
 
@@ -139,10 +138,10 @@ void handle_localized(t_message* msg) {
 			localized_pokemon->pokemon, localized_pokemon->positions_count);
 
 	pthread_mutex_lock(&mutex_remaining_pokemons);
-	uint32_t cant_catch = dictionary_get(remaining_pokemons, localized_pokemon->pokemon);
+	uint32_t q_catch = dictionary_get(remaining_pokemons, localized_pokemon->pokemon);
 	pthread_mutex_unlock(&mutex_remaining_pokemons);
 
-	if(cant_catch) {
+	if(q_catch) {
 		uint32_t pos_x;
 		uint32_t pos_y = 1;
 		t_list* localized_appeared_pokemon = list_create();
@@ -152,6 +151,7 @@ void handle_localized(t_message* msg) {
 			appeared_pokemon->pokemon = localized_pokemon->pokemon;
 			appeared_pokemon->pos_x = localized_pokemon->positions[pos_x];
 			appeared_pokemon->pos_y = localized_pokemon->positions[pos_y];
+			log_info(logger, "X:%d-Y:%d", appeared_pokemon->pos_x, appeared_pokemon->pos_y);
 			list_add(localized_appeared_pokemon, appeared_pokemon);
 			pos_y = pos_y + 2;
 		}
