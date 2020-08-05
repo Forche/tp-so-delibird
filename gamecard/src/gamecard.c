@@ -444,6 +444,7 @@ void destroy_position(t_position* position){
 }
 
 t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_positions){
+	pthread_mutex_lock(&mutexMetadataPath);
 	t_config* metadata = config_create(metadata_path);
 	char** actual_blocks = config_get_array_value(metadata, "BLOCKS");
 	char* blocks_as_array_of_char = string_new();
@@ -487,6 +488,7 @@ t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_po
 	}
 	free(actual_blocks);*/
 	config_save(metadata);
+	pthread_mutex_unlock(&mutexMetadataPath);
 	//config_destroy(metadata);
 	//TODO:free(blocks_as_array_of_char);
 	free(size_array);

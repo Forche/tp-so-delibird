@@ -513,9 +513,9 @@ t_new_pokemon* deserialize_new_pokemon_message(uint32_t socket, uint32_t* size) 
 	recv(socket, &(new_pokemon->pos_y), sizeof(uint32_t), MSG_WAITALL);
 	recv(socket, &(new_pokemon->count), sizeof(uint32_t), MSG_WAITALL);
 
-	t_log* logger = logger_init();
+	/*t_log* logger = logger_init();
 	log_info(logger, new_pokemon->pokemon);
-	log_destroy(logger);
+	log_destroy(logger);*/
 
 	return new_pokemon;
 }
@@ -537,9 +537,9 @@ t_appeared_pokemon* deserialize_appeared_pokemon_message(uint32_t socket,
 	recv(socket, &(appeared_pokemon->pos_x), sizeof(uint32_t), MSG_WAITALL);
 	recv(socket, &(appeared_pokemon->pos_y), sizeof(uint32_t), MSG_WAITALL);
 
-	t_log* logger = logger_init();
+	/*t_log* logger = logger_init();
 	log_info(logger, appeared_pokemon->pokemon);
-	log_destroy(logger);
+	log_destroy(logger);*/
 
 	return appeared_pokemon;
 }
@@ -561,9 +561,9 @@ t_catch_pokemon* deserialize_catch_pokemon_message(uint32_t socket,
 	recv(socket, &(catch_pokemon->pos_x), sizeof(uint32_t), MSG_WAITALL);
 	recv(socket, &(catch_pokemon->pos_y), sizeof(uint32_t), MSG_WAITALL);
 
-	t_log* logger = logger_init();
+	/*t_log* logger = logger_init();
 	log_info(logger, catch_pokemon->pokemon);
-	log_destroy(logger);
+	log_destroy(logger);*/
 
 	return catch_pokemon;
 }
@@ -597,9 +597,9 @@ t_get_pokemon* deserialize_get_pokemon_message(uint32_t socket, uint32_t* size) 
 	recv(socket, get_pokemon->pokemon, get_pokemon->pokemon_len,
 	MSG_WAITALL);
 
-	t_log* logger = logger_init();
+	/*t_log* logger = logger_init();
 	log_info(logger, get_pokemon->pokemon);
-	log_destroy(logger);
+	log_destroy(logger);*/
 
 	return get_pokemon;
 }
@@ -621,9 +621,9 @@ t_localized_pokemon* deserialize_localized_pokemon_message(uint32_t socket, uint
 	recv(socket, localized_pokemon->pokemon, localized_pokemon->pokemon_len, MSG_WAITALL);
 	recv(socket, localized_pokemon->positions, size_q_positions, MSG_WAITALL);
 
-	t_log* logger = logger_init();
+	/*t_log* logger = logger_init();
 	log_info(logger, localized_pokemon->pokemon);
-	log_destroy(logger);
+	log_destroy(logger);*/
 
 	return localized_pokemon;
 }
