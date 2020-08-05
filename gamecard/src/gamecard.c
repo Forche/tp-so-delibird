@@ -108,23 +108,52 @@ int handle_event(uint32_t* client_socket) {
 	}
 	t_message* msg = receive_message(code, *client_socket);
 	uint32_t size;
+	char* pokemon_with_empty;
 	t_message_received* message_received = malloc(sizeof(t_message_received));
 
 	switch (code) {
 	case NEW_POKEMON: ;
 		msg->buffer = deserialize_new_pokemon_message(*client_socket, &size);
+
+		((t_new_pokemon*)msg->buffer)->pokemon_len +=1;
+		pokemon_with_empty = malloc(((t_new_pokemon*)msg->buffer)->pokemon_len);
+		for(int i = 0; i < (((t_new_pokemon*)msg->buffer)->pokemon_len -1); i++) {
+			pokemon_with_empty[i] = (((t_new_pokemon*)msg->buffer)->pokemon)[i];
+		}
+		pokemon_with_empty[((t_new_pokemon*)msg->buffer)->pokemon_len -1] = '\0';
+		((t_new_pokemon*)msg->buffer)->pokemon = pokemon_with_empty;
+		log_info(logger, "POKEMON NEW:%s", ((t_new_pokemon*)msg->buffer)->pokemon);
+
 		create_thread_with_param(handle_new_pokemon, msg, "handle_new_pokemon");
 		message_received->message_type = NEW_POKEMON;
 
 		break;
 	case CATCH_POKEMON: ;
 		msg->buffer = deserialize_catch_pokemon_message(*client_socket, &size);
+
+		((t_catch_pokemon*)msg->buffer)->pokemon_len +=1;
+		pokemon_with_empty = malloc(((t_catch_pokemon*)msg->buffer)->pokemon_len);
+		for(int i = 0; i < (((t_catch_pokemon*)msg->buffer)->pokemon_len -1); i++) {
+			pokemon_with_empty[i] = (((t_catch_pokemon*)msg->buffer)->pokemon)[i];
+		}
+		pokemon_with_empty[((t_catch_pokemon*)msg->buffer)->pokemon_len -1] = '\0';
+		((t_catch_pokemon*)msg->buffer)->pokemon = pokemon_with_empty;
+
 		create_thread_with_param(handle_catch_pokemon, msg, "handle_catch");
 		message_received->message_type = CATCH_POKEMON;
 
 		break;
 	case GET_POKEMON: ;
 		msg->buffer = deserialize_get_pokemon_message(*client_socket, &size);
+
+		((t_get_pokemon*)msg->buffer)->pokemon_len +=1;
+		pokemon_with_empty = malloc(((t_get_pokemon*)msg->buffer)->pokemon_len);
+		for(int i = 0; i < (((t_get_pokemon*)msg->buffer)->pokemon_len -1); i++) {
+			pokemon_with_empty[i] = (((t_get_pokemon*)msg->buffer)->pokemon)[i];
+		}
+		pokemon_with_empty[((t_get_pokemon*)msg->buffer)->pokemon_len -1] = '\0';
+		((t_get_pokemon*)msg->buffer)->pokemon = pokemon_with_empty;
+
 		create_thread_with_param(handle_get_pokemon, msg, "handle_get");
 		message_received->message_type = GET_POKEMON;
 		break;

@@ -66,7 +66,6 @@ pthread_t thread;
 t_log *logger;
 uint32_t message_count;
 uint32_t partition_count;
-t_list* threads;
 queue* queue_new_pokemon;
 queue* queue_appeared_pokemon;
 queue* queue_catch_pokemon;

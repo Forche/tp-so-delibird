@@ -32,7 +32,6 @@ int main(void)
 
 void server_init(void)
 {
-	threads = list_create();		   // Subscriptor threads list
 	message_count = 0;
 	partition_count = 0;
 	queues_init();
@@ -114,6 +113,8 @@ void memory_init()
 	{
 
 		first_memory_partition->father = string_new();
+		char* zero = "0";
+		first_memory_partition->father = string_from_format("%d", zero);
 		first_memory_partition->side = string_new(); // The root doesn't have father nor side
 	}
 
@@ -182,7 +183,6 @@ void wait_for_client(uint32_t sv_socket)
 	if ((*client_socket = accept(sv_socket, (void *)&client_addr, &addr_size)) != -1)
 	{
 		pthread_create(&thread, NULL, (void *)serve_client, client_socket);
-		list_add(threads, &thread);
 		pthread_detach(thread);
 	}
 }
@@ -209,7 +209,7 @@ void store_message(t_message *message, queue* queue, t_list* subscriptor)
 	memory_message->event_code = message->event_code;
 
 	//Store payload and get its containing partition id
-	/*pthread_mutex_lock(&mutex_memory_partitions);
+	pthread_mutex_lock(&mutex_memory_partitions);
 	if (string_equals_ignore_case(ALGORITMO_MEMORIA, "PARTICIONES"))
 	{
 		memory_message->memory_partition_id = store_payload_particiones(message->buffer->payload, message->buffer->size, memory_message->id);
@@ -218,12 +218,12 @@ void store_message(t_message *message, queue* queue, t_list* subscriptor)
 	{
 		memory_message->memory_partition_id = store_payload_bs(message->buffer->payload, message->buffer->size, memory_message->id);
 	}
-	pthread_mutex_unlock(&mutex_memory_partitions);*/
+	pthread_mutex_unlock(&mutex_memory_partitions);
 
-	pthread_mutex_lock(&queue->mutex_subscriptors);
-	pthread_mutex_lock(&queue->mutex_messages);
+
+
 	t_list* receivers = list_create();
-
+	pthread_mutex_lock(&queue->mutex_subscriptors);
 	for(int i = 0; i < list_size(subscriptor); i++){
 		t_subscriptor* sub = (t_subscriptor*)list_get(subscriptor,i);
 		receiver* rec = malloc(sizeof(receiver));
@@ -231,16 +231,16 @@ void store_message(t_message *message, queue* queue, t_list* subscriptor)
 		rec->receiver_socket = sub->socket;
 		list_add(receivers, rec);
 	}
-
+	pthread_mutex_unlock(&queue->mutex_subscriptors);
 
 	queue_message *queue_msg = malloc(sizeof(queue_message));
 	queue_msg->receivers = receivers;
 	queue_msg->message = memory_message;
 
-
+	pthread_mutex_lock(&queue->mutex_messages);
 	list_add(queue->messages, queue_msg);
 	pthread_mutex_unlock(&queue->mutex_messages);
-	pthread_mutex_unlock(&queue->mutex_subscriptors);
+
 }
 
 uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id)
@@ -832,8 +832,12 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 		for (i = 0; i < list_size(queue_new_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(queue_new_pokemon->subscriptors, i);
-			send(subscriptor->socket, to_send, bytes_to_send, 0);
-			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			int bytes_send = send(subscriptor->socket, to_send, bytes_to_send, 0);
+			if(bytes_send > 0){
+				log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			} else {
+				log_error(logger, "No se envio el mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			}
 		}
 		pthread_mutex_unlock(&queue_new_pokemon->mutex_subscriptors);
 
@@ -860,7 +864,7 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 			if(bytes_send > 0){
 				log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
 			} else {
-				log_info(logger, "No se envio el mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+				log_error(logger, "No se envio el mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
 			}
 		}
 		pthread_mutex_unlock(&queue_appeared_pokemon->mutex_subscriptors);
@@ -883,8 +887,12 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 		for (i = 0; i < list_size(queue_catch_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(queue_catch_pokemon->subscriptors, i);
-			send(subscriptor->socket, to_send, bytes_to_send, 0);
-			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			int bytes_send = send(subscriptor->socket, to_send, bytes_to_send, 0);
+			if(bytes_send > 0){
+				log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			} else {
+				log_error(logger, "No se envio el mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			}
 		}
 		pthread_mutex_unlock(&queue_catch_pokemon->mutex_subscriptors);
 
@@ -906,8 +914,12 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 		for (i = 0; i < list_size(queue_caught_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(queue_caught_pokemon->subscriptors, i);
-			send(subscriptor->socket, to_send, bytes_to_send, 0);
-			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			int bytes_send = send(subscriptor->socket, to_send, bytes_to_send, 0);
+			if(bytes_send > 0){
+				log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			} else {
+				log_error(logger, "No se envio el mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			}
 		}
 		pthread_mutex_unlock(&queue_caught_pokemon->mutex_subscriptors);
 
@@ -927,9 +939,12 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 		for (i = 0; i < list_size(queue_get_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(queue_get_pokemon->subscriptors, i);
-			log_info(logger, "Suscriptor: %s", subscriptor->subscriptor_info->subscriptor_id);
-			send(subscriptor->socket, to_send, bytes_to_send, 0);
-			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			int bytes_send = send(subscriptor->socket, to_send, bytes_to_send, 0);
+			if(bytes_send > 0){
+				log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			} else {
+				log_error(logger, "No se envio el mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			}
 		}
 		pthread_mutex_unlock(&queue_get_pokemon->mutex_subscriptors);
 
@@ -949,8 +964,12 @@ void process_request(uint32_t event_code, uint32_t client_socket)
 		for (i = 0; i < list_size(queue_localized_pokemon->subscriptors); i++)
 		{
 			t_subscriptor *subscriptor = list_get(queue_localized_pokemon->subscriptors, i);
-			send(subscriptor->socket, to_send, bytes_to_send, 0);
-			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			int bytes_send = send(subscriptor->socket, to_send, bytes_to_send, 0);
+			if(bytes_send > 0){
+				log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			} else {
+				log_error(logger, "No se envio el mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code_to_string(event_code), subscriptor->socket);
+			}
 		}
 		pthread_mutex_unlock(&queue_localized_pokemon->mutex_subscriptors);
 
@@ -1456,7 +1475,7 @@ static void sig_pipe(int signo)
 {
 	if (signo == SIGPIPE)
 	{
-		log_info(logger, "No se puede enviar mensaje al proceso. Esperando reconexion.");
+		log_error(logger, "No se puede enviar mensaje al proceso. Esperando reconexion.");
 	}
 	else
 	{
@@ -1467,6 +1486,5 @@ static void sig_pipe(int signo)
 
 t_log *logger_init_broker()
 {
-	return log_create(LOG_FILE, "broker", true,
-					  LOG_LEVEL_INFO);
+	return log_create(LOG_FILE, "broker", true, LOG_LEVEL_INFO);
 }
