@@ -1,0 +1,8 @@
+Dump: 6/8/2020 1:22:22
+Partition 0: 0x055 - 0x800.	 [L]	 Size:1963
+Partition 1: 00000 - 0x004.	 [X]	 Size:4 b	 LRU:1596687693	 Queue:CAUGHT_POKEMON 	 ID:1
+Partition 2: 0x004 - 0x008.	 [X]	 Size:4 b	 LRU:1596687693	 Queue:CAUGHT_POKEMON 	 ID:2
+Partition 3: 0x008 - 0x01b.	 [X]	 Size:19 b	 LRU:1596687690	 Queue:CATCH_POKEMON 	 ID:3
+Partition 4: 0x01b - 0x02f.	 [X]	 Size:20 b	 LRU:1596687691	 Queue:CATCH_POKEMON 	 ID:4
+Partition 5: 0x02f - 0x03f.	 [X]	 Size:16 b	 LRU:1596687692	 Queue:CATCH_POKEMON 	 ID:5
+Partition 6: 0x03f - 0x055.	 [X]	 Size:22 b	 LRU:1596687704	 Queue:CATCH_POKEMON 	 ID:7

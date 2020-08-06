@@ -76,7 +76,7 @@ void subscribe_to(event_code code) {
 		sleep(TIEMPO_DE_REINTENTO_CONEXION);
 		subscribe_to(code);
 	} else {
-		log_info(logger, "Conectada cola code %d al broker", code);
+		log_info(logger, "Conectada cola code %s al broker", event_code_to_string(code));
 		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
 		int still_connected = 1;
 		while(still_connected) {
@@ -87,7 +87,7 @@ void subscribe_to(event_code code) {
 	}
 
 	new_subscription = build_new_subscription(code, IP_GAMECARD, "Game Card", PUERTO_GAMECARD);
-	subscribe_to(code);
+	//subscribe_to(code);
 }
 
 
@@ -106,26 +106,53 @@ int handle_event(uint32_t* client_socket) {
 	if (bytes == -1 || bytes == 0) {
 			return 0;
 	}
-	//TODO: reintento conexion con broker
 	t_message* msg = receive_message(code, *client_socket);
 	uint32_t size;
+	char* pokemon_with_empty;
 	t_message_received* message_received = malloc(sizeof(t_message_received));
 
 	switch (code) {
 	case NEW_POKEMON: ;
 		msg->buffer = deserialize_new_pokemon_message(*client_socket, &size);
+
+		((t_new_pokemon*)msg->buffer)->pokemon_len +=1;
+		pokemon_with_empty = malloc(((t_new_pokemon*)msg->buffer)->pokemon_len);
+		for(int i = 0; i < (((t_new_pokemon*)msg->buffer)->pokemon_len -1); i++) {
+			pokemon_with_empty[i] = (((t_new_pokemon*)msg->buffer)->pokemon)[i];
+		}
+		pokemon_with_empty[((t_new_pokemon*)msg->buffer)->pokemon_len -1] = '\0';
+		((t_new_pokemon*)msg->buffer)->pokemon = pokemon_with_empty;
+
 		create_thread_with_param(handle_new_pokemon, msg, "handle_new_pokemon");
 		message_received->message_type = NEW_POKEMON;
 
 		break;
 	case CATCH_POKEMON: ;
 		msg->buffer = deserialize_catch_pokemon_message(*client_socket, &size);
+
+		((t_catch_pokemon*)msg->buffer)->pokemon_len +=1;
+		pokemon_with_empty = malloc(((t_catch_pokemon*)msg->buffer)->pokemon_len);
+		for(int i = 0; i < (((t_catch_pokemon*)msg->buffer)->pokemon_len -1); i++) {
+			pokemon_with_empty[i] = (((t_catch_pokemon*)msg->buffer)->pokemon)[i];
+		}
+		pokemon_with_empty[((t_catch_pokemon*)msg->buffer)->pokemon_len -1] = '\0';
+		((t_catch_pokemon*)msg->buffer)->pokemon = pokemon_with_empty;
+
 		create_thread_with_param(handle_catch_pokemon, msg, "handle_catch");
 		message_received->message_type = CATCH_POKEMON;
 
 		break;
 	case GET_POKEMON: ;
 		msg->buffer = deserialize_get_pokemon_message(*client_socket, &size);
+
+		((t_get_pokemon*)msg->buffer)->pokemon_len +=1;
+		pokemon_with_empty = malloc(((t_get_pokemon*)msg->buffer)->pokemon_len);
+		for(int i = 0; i < (((t_get_pokemon*)msg->buffer)->pokemon_len -1); i++) {
+			pokemon_with_empty[i] = (((t_get_pokemon*)msg->buffer)->pokemon)[i];
+		}
+		pokemon_with_empty[((t_get_pokemon*)msg->buffer)->pokemon_len -1] = '\0';
+		((t_get_pokemon*)msg->buffer)->pokemon = pokemon_with_empty;
+
 		create_thread_with_param(handle_get_pokemon, msg, "handle_get");
 		message_received->message_type = GET_POKEMON;
 		break;
@@ -134,23 +161,32 @@ int handle_event(uint32_t* client_socket) {
 	message_received->subscriptor_len = string_length("Game Card") + 1;
 	message_received->subscriptor_id = "Game Card";
 
-	t_buffer* buffer_received = serialize_t_message_received(message_received);
-	send_message(socket, MESSAGE_RECEIVED, msg->id, msg->correlative_id, buffer_received);
+	send_message_received_to_broker(message_received, msg->id, msg->correlative_id);
+
 	return 1;
 	//TODO:free(msg);
 }
 
+void send_message_received_to_broker(t_message_received* message_received, uint32_t id, uint32_t correlative_id){
+	t_buffer* buffer_received = serialize_t_message_received(message_received);
+	uint32_t connection = connect_to(IP_BROKER,PUERTO_BROKER);
+	if(connection == -1) {
+			log_error(logger, "No se pudo enviar el ACK al broker. No se pudo conectar al broker");
+		} else {
+			log_info(logger, "Se envio el ACK al broker");
+		}
+
+	send_message(connection, MESSAGE_RECEIVED, id, correlative_id, buffer_received);
+}
+
 void handle_get_pokemon(t_message* msg){
 	t_get_pokemon* get_pokemon = (t_get_pokemon*)msg->buffer;
-	pthread_mutex_lock(&mutexDirectory);
 	int exists_directory = check_pokemon_directory(get_pokemon->pokemon, msg->event_code);
-	pthread_mutex_unlock(&mutexDirectory);
 	if(exists_directory){
 		char* path_pokemon = string_from_format("%s/Files/%s/Metadata.bin", PUNTO_MONTAJE_TALLGRASS, get_pokemon->pokemon);
-		pthread_mutex_lock(&mutexMetadataPath);
 		check_if_file_is_open(path_pokemon);
-		pthread_mutex_unlock(&mutexMetadataPath);
 		char* blocks_content = read_blocks_content(path_pokemon);
+		log_info(logger, "El contenido de los bloques en %s es %s",path_pokemon, blocks_content);
 		sleep(TIEMPO_RETARDO_OPERACION);
 		t_list* pokemon_positions = get_positions_from_buffer(blocks_content);
 		uint32_t* positions_uint32 = positions_to_uint32(pokemon_positions);
@@ -178,8 +214,8 @@ uint32_t* positions_to_uint32(t_list* pokemon_positions){
 	uint32_t* positions;
 	positions = malloc((list_size(pokemon_positions))*2);
 	for(int i = 0; i<(list_size(pokemon_positions));i++){
-		positions[i] = ((t_position*)pokemon_positions)->pos_x;
-		positions[i+1] = ((t_position*)pokemon_positions)->pos_y;
+		positions[i] = ((t_position*)(list_get(pokemon_positions,i)))->pos_x;
+		positions[i+1] = ((t_position*)(list_get(pokemon_positions,i)))->pos_y;
 	}
 	return positions;
 }
@@ -189,6 +225,8 @@ void send_localized_to_broker(t_localized_pokemon* localized_pokemon, uint32_t i
 	uint32_t connection = connect_to(IP_BROKER,PUERTO_BROKER);
 	if(connection == -1) {
 		log_error(logger, "No se pudo enviar el localized al broker. No se pudo conectar al broker");
+	} else {
+		log_info(logger, "Se envio el localized al broker");
 	}
 	send_message(connection, LOCALIZED_POKEMON, id, 0, buffer);
 	//free(buffer);
@@ -197,14 +235,10 @@ void send_localized_to_broker(t_localized_pokemon* localized_pokemon, uint32_t i
 void handle_catch_pokemon(t_message* msg){
 	t_caught_pokemon* caught_pokemon = malloc(sizeof(t_appeared_pokemon));
 	t_catch_pokemon* catch_pokemon = (t_catch_pokemon*)msg->buffer;
-	pthread_mutex_lock(&mutexDirectory);
 	int exists_directory = check_pokemon_directory(catch_pokemon->pokemon, msg->event_code);
-	pthread_mutex_unlock(&mutexDirectory);
 	if(exists_directory){
 		char* path_pokemon = string_from_format("%s/Files/%s/Metadata.bin", PUNTO_MONTAJE_TALLGRASS, catch_pokemon->pokemon);
-		pthread_mutex_lock(&mutexMetadataPath);
 		check_if_file_is_open(path_pokemon);
-		pthread_mutex_unlock(&mutexMetadataPath);
 		t_position* position = ckeck_position_exists_catch_pokemon(path_pokemon,catch_pokemon);
 		if(position != NULL){
 			log_info(logger, "El pokemon %s se encuentra en la posicion x:%d-y:%d",catch_pokemon->pokemon, position->pos_x, position->pos_y);
@@ -223,25 +257,28 @@ void handle_catch_pokemon(t_message* msg){
 	send_caught_to_broker(caught_pokemon, msg->id);
 }
 
-void send_caught_to_broker(t_caught_pokemon* caught_pokemon, uint32_t id){
+void send_caught_to_broker(t_caught_pokemon* caught_pokemon, uint32_t correlative_id){
 	t_buffer* buffer = serialize_t_caught_pokemon_message(caught_pokemon);
 	uint32_t connection = connect_to(IP_BROKER,PUERTO_BROKER);
 	if(connection == -1) {
 		log_error(logger, "No se pudo enviar el caught al broker. No se pudo conectar al broker");
+	} else {
+		log_info(logger, "Se envio el caught al broker");
 	}
-	send_message(connection, CAUGHT_POKEMON, id, 0, buffer);
+	send_message(connection, CAUGHT_POKEMON, 0, correlative_id, buffer);
 	//free(buffer);
 }
 
 void decrease_position(t_position* position, char* path_pokemon){
 	char* blocks_content = read_blocks_content(path_pokemon);
+	log_info(logger, "El contenido de los bloques en %s es %s",path_pokemon, blocks_content);
 	t_list* pokemon_positions = get_positions_from_buffer(blocks_content);
 
 	int pos = position_list(pokemon_positions,position);
 	t_position* position_in_list = list_get(pokemon_positions,pos);
 
-	log_info(logger,"Restamos 1 a %d total: %d en %s del archivo %s", position_in_list->count, position_in_list->count - 1, path_pokemon, path_pokemon);
 	position_in_list->count -=1;
+	log_info(logger, "Restamos 1 pokemon de la posicion x:%d y:%d quedan %d en %s", position->pos_x, position->pos_y, position_in_list->count,path_pokemon);
 	list_replace(pokemon_positions,pos,position_in_list);
 
 
@@ -251,8 +288,10 @@ void decrease_position(t_position* position, char* path_pokemon){
 
 void remove_position(t_position* position, char* path_pokemon){
 	char* blocks_content = read_blocks_content(path_pokemon);
+	log_info(logger, "El contenido de los bloques en %s es %s",path_pokemon, blocks_content);
 	t_list* pokemon_positions = get_positions_from_buffer(blocks_content);
 	int position_from_list = position_list(pokemon_positions,position);
+	log_info(logger, "Restamos 1 pokemon de la posicion x:%d y:%d quedan 0, entonces removemos el pokemon de %s", position->pos_x, position->pos_y, path_pokemon);
 	list_remove(pokemon_positions,position_from_list);
 
 	write_positions_on_files(pokemon_positions, path_pokemon);
@@ -278,14 +317,11 @@ t_position* ckeck_position_exists_catch_pokemon(char* path_pokemon, t_catch_poke
 
 void handle_new_pokemon(t_message* msg){
 	t_new_pokemon* new_pokemon = msg->buffer;
-	pthread_mutex_lock(&mutexDirectory);
 	check_pokemon_directory(new_pokemon->pokemon, msg->event_code);
-	pthread_mutex_unlock(&mutexDirectory);
 
 	char* path_pokemon = string_from_format("%s/Files/%s/Metadata.bin", PUNTO_MONTAJE_TALLGRASS, new_pokemon->pokemon);
-	pthread_mutex_lock(&mutexMetadataPath);
+
 	check_if_file_is_open(path_pokemon);
-	pthread_mutex_unlock(&mutexMetadataPath);
 
 	t_list* pokemon_positions = ckeck_position_exists_new_pokemon(path_pokemon,new_pokemon);
 	write_positions_on_files(pokemon_positions, path_pokemon);
@@ -301,6 +337,7 @@ void handle_new_pokemon(t_message* msg){
 
 t_list* ckeck_position_exists_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon){
 	char* blocks_content = read_blocks_content(path_pokemon);
+	log_info(logger, "El contenido de los bloques en %s es %s",path_pokemon, blocks_content);
 	t_list* pokemon_positions = get_positions_from_buffer(blocks_content);
 	t_position* new_position = create_position(pokemon->pos_x, pokemon->pos_y, pokemon->count);
 
@@ -311,12 +348,13 @@ t_list* ckeck_position_exists_new_pokemon(char* path_pokemon, t_new_pokemon* pok
 	find_position = list_find(pokemon_positions, _compare);
 
 	if(find_position != NULL){
-		log_info(logger,"Sumamos %d a %d total: %d en %s", pokemon->count, find_position->count, pokemon->count + find_position->count, path_pokemon);
+		log_info(logger,"Sumamos %d a %d total: %d del pokemon %s en la posicion x:%d y:%d en %s", pokemon->count, find_position->count, pokemon->count + find_position->count, pokemon->pokemon, pokemon->pos_x, pokemon->pos_y, path_pokemon);
 		find_position->count += pokemon->count;
 		int position = position_list(pokemon_positions,find_position);
 		list_replace(pokemon_positions,position,find_position);
 
 	}else{
+		log_info(logger,"Agregamos %d %s en la posicion x:%d y:%d en %s",pokemon->count, pokemon->pokemon,pokemon->pos_x, pokemon->pos_y, path_pokemon);
 		list_add(pokemon_positions, new_position);
 	}
 
@@ -329,6 +367,8 @@ void send_appeared_to_broker(t_appeared_pokemon* appeared_pokemon, uint32_t id){
 	uint32_t connection = connect_to(IP_BROKER,PUERTO_BROKER);
 	if(connection == -1) {
 		log_error(logger, "No se pudo enviar el appeared al broker. No se pudo conectar al broker");
+	} else {
+		log_info(logger, "Se envio el appeared al broker");
 	}
 	send_message(connection, APPEARED_POKEMON, id, 0, buffer);
 	//free(buffer);
@@ -345,6 +385,7 @@ t_appeared_pokemon* create_appeared_pokemon(uint32_t pokemon_len, char* pokemon,
 }
 
 void close_file_pokemon(char* path_pokemon){
+	pthread_mutex_lock(&mutexMetadataPath);
 	t_config* metadata = config_create(path_pokemon);
 	char* is_open = config_get_string_value(metadata, "OPEN");
 	if(string_equals_ignore_case(is_open, "Y") != 0){
@@ -355,36 +396,7 @@ void close_file_pokemon(char* path_pokemon){
 	log_info(logger, "Cerramos el archivo %s luego de utilizarlo",path_pokemon);
 	config_save(metadata);
 	config_destroy(metadata);
-}
-
-void add_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon){
-	char* blocks_content = read_blocks_content(path_pokemon);
-	t_list* pokemon_positions = list_create();
-	pokemon_positions = get_positions_from_buffer(blocks_content);
-	t_position* new_position = create_position(pokemon->pos_x, pokemon->pos_y, pokemon->count);
-
-	bool _compare(t_position* position){
-		return (pokemon->pos_x == position->pos_x) && (pokemon->pos_y == position->pos_y);
-	}
-	t_position* find_position = NULL;
-	find_position = list_find(pokemon_positions, _compare);
-
-	if(find_position != NULL){
-		log_info(logger,"Sumamos %d a %d total: %d en %s", pokemon->count, find_position->count, pokemon->count + find_position->count, path_pokemon);
-		find_position->count += pokemon->count;
-		int position = position_list(pokemon_positions,find_position);
-		list_replace(pokemon_positions,position,find_position);
-
-	}else{
-		list_add(pokemon_positions, new_position);
-	}
-
-	write_positions_on_files(pokemon_positions, path_pokemon);
-
-	//free(new_position);
-	list_destroy(pokemon_positions);
-	close_file_pokemon(path_pokemon);
-
+	pthread_mutex_unlock(&mutexMetadataPath);
 }
 
 int position_list(t_list* pokemon_positions, t_position* find_position){
@@ -421,7 +433,7 @@ void write_positions_on_files(t_list* pokemon_positions, char* path_new_file){
 	int size_array_positions = string_length(array_positions);
 	t_list* writed_blocks = write_blocks_and_metadata(size_array_positions, array_positions, path_new_file);
 	free(array_positions);
-	log_info(logger, "Se genera el archivo %s con cantidad de bloques: %d y size= %d", path_new_file, list_size(writed_blocks), size_array_positions);
+	log_info(logger, "Se escribe el archivo %s con cantidad de bloques: %d y size= %d", path_new_file, list_size(writed_blocks), size_array_positions);
 	list_destroy(writed_blocks);
 }
 
@@ -430,6 +442,7 @@ void destroy_position(t_position* position){
 }
 
 t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_positions){
+	pthread_mutex_lock(&mutexMetadataPath);
 	t_config* metadata = config_create(metadata_path);
 	char** actual_blocks = config_get_array_value(metadata, "BLOCKS");
 	char* blocks_as_array_of_char = string_new();
@@ -473,6 +486,7 @@ t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_po
 	}
 	free(actual_blocks);*/
 	config_save(metadata);
+	pthread_mutex_unlock(&mutexMetadataPath);
 	//config_destroy(metadata);
 	//TODO:free(blocks_as_array_of_char);
 	free(size_array);
@@ -538,7 +552,7 @@ void remove_block_from_bitmap(char* block){
 
 t_list* write_blocks_and_metadata(int size_array_positions, char* array_positions, char* metadata_path){
 	int quantity_of_blocks = my_ceil(size_array_positions, block_size);
-	log_info(logger, "Cantidad de bloques a ocupar: [%d]", quantity_of_blocks);
+	log_info(logger, "Cantidad de bloques a ocupar: [%d] para %s", quantity_of_blocks, metadata_path);
 	t_list* blocks = pokemon_blocks(quantity_of_blocks, metadata_path, size_array_positions);
 
 	for(int i=0; i < quantity_of_blocks; i++){
@@ -549,10 +563,10 @@ t_list* write_blocks_and_metadata(int size_array_positions, char* array_position
 		string_append(&data,"\0");
 		char* block = list_get(blocks, i);
 
-		log_info(logger, "Se escriben [%d] bytes de registros, en el bloque: [%s]", size_positions_to_write, block);
+		log_info(logger, "Se escriben [%d] bytes de registros, en el bloque: [%s] para %s", size_positions_to_write, block, metadata_path);
 
 		write_positions_on_block(block, data);
-		log_info(logger, "Bloque escrito satisfactoriamente");
+		//log_info(logger, "Bloque escrito satisfactoriamente");
 		free(data);
 	}
 	return blocks;
@@ -587,6 +601,7 @@ void write_positions_on_block(char* block, char* data){
 		size_t bit_to_write = sizeof(*data);
 
 		fwrite(data, bit_to_write, data_length, file);
+		log_info(logger, "Se escribe el bloque %s en el File System", block);
 	}
 	sleep(TIEMPO_RETARDO_OPERACION);
 	fclose(file);
@@ -630,7 +645,7 @@ char* read_blocks_content(char* path_pokemon){
 	}
 	free(blocks);
 	free(buffer);
-	log_info(logger, "El contenido de los bloques es %s", blocks_content);
+	//log_info(logger, "El contenido de los bloques en %s es %s",path_pokemon, blocks_content);
 	config_destroy(metadata);
 	return blocks_content;
 }
@@ -673,17 +688,42 @@ t_position* create_position(int x, int y, int pokemon_quantity){
 
 
 void check_if_file_is_open(char* path){
+	//ver si esta cerrado
+	//si esta cerrado abrirlo y salir
+	//si esta abierto esperar y preguntar devuelta hasta que este cerrado, ahí abrirlo y salir
+
+	pthread_mutex_lock(&mutexMetadataPath);
 	t_config* metadata = config_create(path);
 	char* is_open = config_get_string_value(metadata, "OPEN");
-	while(string_equals_ignore_case(is_open, "Y")){
+
+	if(string_equals_ignore_case(is_open, "N")){
+		log_info(logger, "El archivo %s esta cerrado",path);
+		open_file_to_use(path);
+		config_destroy(metadata);
+		pthread_mutex_unlock(&mutexMetadataPath);
+		return;
+	}
+	pthread_mutex_unlock(&mutexMetadataPath);
+
+	while(string_equals_ignore_case(is_open, "Y")) {
 		log_info(logger,"El archivo %s esta abierto reintentando",path);
 		sleep(TIEMPO_DE_REINTENTO_OPERACION);
-		//t_config* metadata_in = config_create(path);
+		pthread_mutex_lock(&mutexMetadataPath);
 		metadata = config_create(path);
 		is_open = config_get_string_value(metadata, "OPEN");
-		//TODO:config_destroy(metadata_in);
+		if(string_equals_ignore_case(is_open, "N")){
+			log_info(logger, "El archivo %s esta cerrado",path);
+			open_file_to_use(path);
+			config_destroy(metadata);
+			pthread_mutex_unlock(&mutexMetadataPath);
+			return;
+		}
+		pthread_mutex_unlock(&mutexMetadataPath);
 	}
-	log_info(logger, "El archivo %s esta cerrado",path);
+}
+
+void open_file_to_use(char* path){
+	t_config* metadata = config_create(path);
 	char* y = "Y";
 	config_set_value(metadata, "OPEN", y);
 	log_info(logger, "Abrimos el archivo %s para utilizarlo",path);
@@ -694,10 +734,10 @@ void check_if_file_is_open(char* path){
 int check_pokemon_directory(char* pokemon, event_code code){
 	char* path_pokemon = string_from_format("%s/Files/%s", PUNTO_MONTAJE_TALLGRASS, pokemon);
 	struct stat stats;
+	pthread_mutex_lock(&mutexDirectory);
 	stat(path_pokemon, &stats);
 	int exist = (stat(path_pokemon, &stats) == 0);
-	//Si no existe el directorio en ese path, si es NEW_POKEMON lo crea, si es CATCH_POKEMON lo informa
-	//log_info(logger, "EXIST = %d", exist);
+	//Si no existe el directorio en ese path, si es NEW_POKEMON lo crea, si es CATCH_POKEMON o GET_POKEMON lo informa
 	if(exist == 0){
 		if(code == NEW_POKEMON){
 			log_info(logger, "Se crea el nuevo directorio con su metadata para %s", pokemon);
@@ -717,6 +757,7 @@ int check_pokemon_directory(char* pokemon, event_code code){
 			log_error(logger, "No existe el directorio para %s", pokemon);
 		}
 	}
+	pthread_mutex_unlock(&mutexDirectory);
 	free(path_pokemon);
 	return exist;
 }
@@ -745,7 +786,7 @@ void tall_grass_metadata_info(){
 	t_config* metadata  = config_create(path_metadata);
 	block_size = config_get_int_value(metadata, "BLOCK_SIZE");
 	blocks = config_get_int_value(metadata, "BLOCKS");
-
+	log_info(logger, "Existe el File System en %s con %d bloques de tamaño %d", PUNTO_MONTAJE_TALLGRASS, blocks, block_size);
 	config_destroy(metadata);
 	free(path_metadata);
 }

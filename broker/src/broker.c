@@ -1,11 +1,32 @@
 #include "broker.h"
 
 int main(void) {
-	if (signal(SIGUSR1, sig_usr) == SIG_ERR){
+	if (signal(SIGUSR1, sig_usr) == SIG_ERR) {
 		err_sys("Can't catch SIGUSR1");
+	} else if (signal(SIGPIPE, sig_pipe) == SIG_ERR) {
+		err_sys("Can't catch SIGPIPE");
 	}
 
 	pthread_mutex_init(&mutex_message_id, NULL);
+	pthread_mutex_init(&mutex_memory_partition_id, NULL);
+	pthread_mutex_init(&mutex_memory_partitions, NULL);
+
+	t_config *config = config_create(
+			"/home/utnso/tp-2020-1c-Operavirus/broker/broker.config");
+	IP = config_get_string_value(config, "IP_BROKER");
+	PORT = config_get_string_value(config, "PUERTO_BROKER");
+	ALGORITMO_PARTICION_LIBRE = config_get_string_value(config,
+			"ALGORITMO_PARTICION_LIBRE");
+	ALGORITMO_REEMPLAZO = config_get_string_value(config,
+			"ALGORITMO_REEMPLAZO");
+	ALGORITMO_MEMORIA = config_get_string_value(config, "ALGORITMO_MEMORIA");
+	TAMANO_MEMORIA = config_get_int_value(config, "TAMANO_MEMORIA");
+	TAMANO_MINIMO_PARTICION = config_get_int_value(config,
+			"TAMANO_MINIMO_PARTICION");
+	FRECUENCIA_COMPACTACION = config_get_int_value(config,
+			"FRECUENCIA_COMPACTACION");
+	LOG_FILE = config_get_string_value(config, "LOG_FILE");
+	logger = logger_init_broker();
 
 	server_init();
 
@@ -13,22 +34,11 @@ int main(void) {
 }
 
 void server_init(void) {
-	answered_messages = list_create(); // Answered messages list
-	threads = list_create(); // Subscriptor threads list
 	message_count = 0;
 	partition_count = 0;
 	queues_init();
 	int sv_socket;
-	t_config* config = config_create("/home/utnso/tp-2020-1c-Operavirus/broker/broker.config");
-	char* IP = config_get_string_value(config, "IP_BROKER");
-	char* PORT = config_get_string_value(config, "PUERTO_BROKER");
-	ALGORITMO_PARTICION_LIBRE = config_get_string_value(config, "ALGORITMO_PARTICION_LIBRE");
-	ALGORITMO_REEMPLAZO = config_get_string_value(config, "ALGORITMO_REEMPLAZO");
-	ALGORITMO_MEMORIA = config_get_string_value(config, "ALGORITMO_MEMORIA");
-	TAMANO_MEMORIA = config_get_int_value(config, "TAMANO_MEMORIA");
-	TAMANO_MINIMO_PARTICION = config_get_int_value(config, "TAMANO_MINIMO_PARTICION");
-	FRECUENCIA_COMPACTACION = config_get_int_value(config, "FRECUENCIA_COMPACTACION");
-	LOG_FILE = config_get_string_value(config, "LOG_FILE");
+
 	memory_init();
 
 	struct addrinfo hints, *servinfo, *p;
@@ -63,18 +73,19 @@ void server_init(void) {
 void memory_init() {
 	uint32_t first_partition_size;
 
-	if (string_equals_ignore_case(ALGORITMO_MEMORIA, "PARTICIONES"))
-	{
+	if (string_equals_ignore_case(ALGORITMO_MEMORIA, "PARTICIONES")) {
 		first_partition_size = TAMANO_MEMORIA;
 	} else {
 		first_partition_size = 1;
+		int reached_maximum_size = 0;
 
-		while (first_partition_size <= TAMANO_MEMORIA)
-		{
+		while (first_partition_size < TAMANO_MEMORIA
+				&& reached_maximum_size == 0) {
 			uint32_t new_partition_size = first_partition_size * 2;
-			if (new_partition_size <= TAMANO_MEMORIA)
-			{
+			if (new_partition_size <= TAMANO_MEMORIA) {
 				first_partition_size = new_partition_size;
+			} else {
+				reached_maximum_size = 1;
 			}
 		}
 	}
@@ -82,13 +93,24 @@ void memory_init() {
 	memory = malloc(first_partition_size);
 	memory_partitions = list_create();
 
-	t_memory_partition* first_memory_partition = malloc(sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t) + sizeof(partition_status));
+	t_memory_partition *first_memory_partition = malloc(
+			sizeof(t_memory_partition));
+	pthread_mutex_lock(&mutex_memory_partition_id);
 	first_memory_partition->id = get_partition_id();
+	pthread_mutex_unlock(&mutex_memory_partition_id);
 	first_memory_partition->begin = 0;
 	first_memory_partition->partition_size = first_partition_size;
 	first_memory_partition->lru_timestamp = 0; // Free partitions should not have lru_timestamp value !== 0
 	first_memory_partition->occupied_timestamp = 0;
 	first_memory_partition->status = FREE;
+	pthread_mutex_init(&(first_memory_partition->mutex_partition), NULL);
+	if (!string_equals_ignore_case(ALGORITMO_MEMORIA, "PARTICIONES")) {
+
+		first_memory_partition->father = string_new();
+		char* zero = "0";
+		first_memory_partition->father = string_from_format("%d", zero);
+		first_memory_partition->side = string_new(); // The root doesn't have father nor side
+	}
 
 	list_add(memory_partitions, first_memory_partition);
 }
@@ -104,23 +126,41 @@ uint32_t get_partition_id() {
 }
 
 void queues_init() {
-	queue_new_pokemon.messages = list_create();
-	queue_new_pokemon.subscriptors = list_create();
+	queue_new_pokemon = malloc(sizeof(queue));
+	queue_new_pokemon->messages = list_create();
+	queue_new_pokemon->subscriptors = list_create();
+	pthread_mutex_init(&queue_new_pokemon->mutex_messages, NULL);
+	pthread_mutex_init(&queue_new_pokemon->mutex_subscriptors, NULL);
 
-	queue_appeared_pokemon.messages = list_create();
-	queue_appeared_pokemon.subscriptors = list_create();
+	queue_appeared_pokemon = malloc(sizeof(queue));
+	queue_appeared_pokemon->messages = list_create();
+	queue_appeared_pokemon->subscriptors = list_create();
+	pthread_mutex_init(&queue_appeared_pokemon->mutex_messages, NULL);
+	pthread_mutex_init(&queue_appeared_pokemon->mutex_subscriptors, NULL);
 
-	queue_catch_pokemon.messages = list_create();
-	queue_catch_pokemon.subscriptors = list_create();
+	queue_catch_pokemon = malloc(sizeof(queue));
+	queue_catch_pokemon->messages = list_create();
+	queue_catch_pokemon->subscriptors = list_create();
+	pthread_mutex_init(&queue_catch_pokemon->mutex_messages, NULL);
+	pthread_mutex_init(&queue_catch_pokemon->mutex_subscriptors, NULL);
 
-	queue_caught_pokemon.messages = list_create();
-	queue_caught_pokemon.subscriptors = list_create();
+	queue_caught_pokemon = malloc(sizeof(queue));
+	queue_caught_pokemon->messages = list_create();
+	queue_caught_pokemon->subscriptors = list_create();
+	pthread_mutex_init(&queue_caught_pokemon->mutex_messages, NULL);
+	pthread_mutex_init(&queue_caught_pokemon->mutex_subscriptors, NULL);
 
-	queue_get_pokemon.messages = list_create();
-	queue_get_pokemon.subscriptors = list_create();
+	queue_get_pokemon = malloc(sizeof(queue));
+	queue_get_pokemon->messages = list_create();
+	queue_get_pokemon->subscriptors = list_create();
+	pthread_mutex_init(&queue_get_pokemon->mutex_messages, NULL);
+	pthread_mutex_init(&queue_get_pokemon->mutex_subscriptors, NULL);
 
-	queue_localized_pokemon.messages = list_create();
-	queue_localized_pokemon.subscriptors = list_create();
+	queue_localized_pokemon = malloc(sizeof(queue));
+	queue_localized_pokemon->messages = list_create();
+	queue_localized_pokemon->subscriptors = list_create();
+	pthread_mutex_init(&queue_localized_pokemon->mutex_messages, NULL);
+	pthread_mutex_init(&queue_localized_pokemon->mutex_subscriptors, NULL);
 }
 
 void wait_for_client(uint32_t sv_socket) {
@@ -128,83 +168,131 @@ void wait_for_client(uint32_t sv_socket) {
 
 	uint32_t addr_size = sizeof(struct sockaddr_in);
 
-	uint32_t client_socket;
+	uint32_t* client_socket = malloc(sizeof(int));
 
-	if ((client_socket = accept(sv_socket, (void*) &client_addr, &addr_size))
+	if ((*client_socket = accept(sv_socket, (void *) &client_addr, &addr_size))
 			!= -1) {
-		pthread_create(&thread, NULL, (void*) serve_client, &client_socket);
-		list_add(threads, &thread);
+		pthread_create(&thread, NULL, (void *) serve_client, client_socket);
 		pthread_detach(thread);
 	}
 }
 
-void serve_client(uint32_t* socket) {
-	t_log* logger = logger_init_broker();
-	log_info(logger, "Proceso conectado al broker.");
-	log_destroy(logger);
-	event_code code;
-	if (recv(*socket, &code, sizeof(event_code), MSG_WAITALL) == -1)
-		code = -1;
+void serve_client(uint32_t *socket) {
 
-	process_request(code, *socket);
+	log_info(logger, "Proceso conectado al broker");
+	event_code code;
+	int bytes = recv(*socket, &code, sizeof(event_code), MSG_WAITALL);
+	if (bytes == -1 || bytes == 0) {
+		return;
+	} else {
+		process_request(code, *socket);
+	}
+
 }
 
-void store_message(t_message* message, queue queue, t_list* receivers)
-{
-	t_memory_message* memory_message = malloc(sizeof(t_memory_message));
+void store_message(t_message *message, queue* queue, t_list* subscriptor) {
+	t_memory_message *memory_message = malloc(sizeof(t_memory_message));
 	memory_message->id = message->id;
 	memory_message->correlative_id = message->correlative_id;
 	memory_message->event_code = message->event_code;
 
 	//Store payload and get its containing partition id
-	if (string_equals_ignore_case(ALGORITMO_MEMORIA, "PARTICIONES"))
-	{
-		memory_message->memory_partition_id = store_payload_particiones(message->buffer->payload, message->buffer->size, memory_message->id);
+	pthread_mutex_lock(&mutex_memory_partitions);
+	if (string_equals_ignore_case(ALGORITMO_MEMORIA, "PARTICIONES")) {
+		memory_message->memory_partition_id = store_payload_particiones(
+				message->buffer->payload, message->buffer->size,
+				memory_message->id);
 	} else {
-		memory_message->memory_partition_id = store_payload_bs(message->buffer->payload, message->buffer->size, memory_message->id);
+		memory_message->memory_partition_id = store_payload_bs(
+				message->buffer->payload, message->buffer->size,
+				memory_message->id);
 	}
+	pthread_mutex_unlock(&mutex_memory_partitions);
 
-	queue_message* queue_message = malloc(sizeof(queue_message));
-	queue_message->receivers = receivers;
-	queue_message->message = memory_message;
+	t_list* receivers = list_create();
+	pthread_mutex_lock(&queue->mutex_subscriptors);
+	for (int i = 0; i < list_size(subscriptor); i++) {
+		t_subscriptor* sub = (t_subscriptor*) list_get(subscriptor, i);
+		receiver* rec = malloc(sizeof(receiver));
+		rec->received = 0;
+		rec->receiver_socket = sub->socket;
+		list_add(receivers, rec);
+	}
+	pthread_mutex_unlock(&queue->mutex_subscriptors);
 
-	list_add(queue.messages, queue_message);
+	queue_message *queue_msg = malloc(sizeof(queue_message));
+	queue_msg->receivers = receivers;
+	queue_msg->message = memory_message;
+
+	pthread_mutex_lock(&queue->mutex_messages);
+	list_add(queue->messages, queue_msg);
+	pthread_mutex_unlock(&queue->mutex_messages);
+
 }
 
-uint32_t store_payload_bs(void* payload, uint32_t size, uint32_t message_id) {
+uint32_t store_payload_bs(void *payload, uint32_t size, uint32_t message_id) {
 	// Search for partition and return it, if no partition is found return a partition with id=-1
-	t_memory_partition* partition = get_free_partition_bs(size);
+	t_memory_partition *partition = get_free_partition_bs(size);
+
+	// Get the index of the partition
+	int part_index;
+	for (int i = 0; i < list_size(memory_partitions); i++) {
+		t_memory_partition* p = list_get(memory_partitions, i);
+		if (p->id == partition->id) {
+			part_index = i;
+		}
+	}
+
 	uint32_t minimum_size = size;
-	if (size <= TAMANO_MINIMO_PARTICION)
-	{
+	if (size <= TAMANO_MINIMO_PARTICION) {
 		minimum_size = TAMANO_MINIMO_PARTICION;
 	}
 
 	uint32_t partition_size_to_use = partition->partition_size;
 
-	while (partition_size_to_use / 2 >= minimum_size)
-	{
+	while (partition_size_to_use / 2 >= minimum_size) {
 		partition_size_to_use = partition_size_to_use / 2;
 		// Divide partition in two, use the first one
-		t_memory_partition* first_half = malloc(sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t) + sizeof(partition_status));
+		t_memory_partition *first_half = malloc(sizeof(t_memory_partition));
+		pthread_mutex_lock(&mutex_memory_partition_id);
 		first_half->id = get_partition_id();
+		pthread_mutex_unlock(&mutex_memory_partition_id);
 		first_half->begin = partition->begin;
 		first_half->partition_size = partition_size_to_use;
 		first_half->lru_timestamp = 0;
 		first_half->occupied_timestamp = 0;
 		first_half->status = FREE;
+		first_half->father = malloc(strlen(partition->father) + 1);
+		string_append(&(partition->father), partition->side);
+		//strcpy(first_half->father, partition->father);
+		first_half->father = string_from_format("%s", partition->father);
+		first_half->side = "0";
+		pthread_mutex_init(&(first_half->mutex_partition), NULL);
 
-		list_add(memory_partitions, first_half);
+		list_add_in_index(memory_partitions, part_index, first_half);
 
-		t_memory_partition* second_half = malloc(sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t) + sizeof(partition_status));
+		t_memory_partition *second_half = malloc(sizeof(t_memory_partition));
+		pthread_mutex_lock(&mutex_memory_partition_id);
 		second_half->id = get_partition_id();
+		pthread_mutex_unlock(&mutex_memory_partition_id);
 		second_half->begin = partition->begin + partition_size_to_use;
 		second_half->partition_size = partition_size_to_use;
 		second_half->lru_timestamp = 0;
 		second_half->occupied_timestamp = 0;
 		second_half->status = FREE;
+		second_half->father = malloc(strlen(partition->father) + 1);
+		strcpy(second_half->father, first_half->father);
+		second_half->side = "1";
+		pthread_mutex_init(&(second_half->mutex_partition), NULL);
 
-		list_add(memory_partitions, second_half);
+		list_add_in_index(memory_partitions, part_index + 1, second_half);
+
+		for (int i = 0; i < list_size(memory_partitions); i++) {
+			t_memory_partition *part = list_get(memory_partitions, i);
+			if (part->id == partition->id) {
+				list_remove(memory_partitions, i);
+			}
+		}
 
 		partition = first_half;
 	}
@@ -214,68 +302,64 @@ uint32_t store_payload_bs(void* payload, uint32_t size, uint32_t message_id) {
 	memcpy(memory + offset, payload, size);
 
 	partition->status = OCCUPIED;
-	partition->lru_timestamp = (unsigned long)time(NULL);
-	partition->occupied_timestamp = (unsigned long)time(NULL);
+	partition->lru_timestamp = (unsigned long) time(NULL);
+	partition->occupied_timestamp = (unsigned long) time(NULL);
 	partition->content_size = size;
 
-	t_log* logger = logger_init_broker();
-	log_info(logger, "Almacenado mensaje con id %d en memoria, posicion de inicio: %d.", message_id, partition->begin);
-	log_destroy(logger);
+	for (int i = 0; i < list_size(memory_partitions); i++) {
+		t_memory_partition *part = list_get(memory_partitions, i);
+		if (part->id == partition->id) {
+			list_replace(memory_partitions, i, partition);
+		}
+	}
+
+	log_info(logger,
+			"Almacenado mensaje con id %d en memoria, posicion de inicio: %d",
+			message_id, partition->begin);
 
 	return partition->id;
 }
 
-uint32_t store_payload_particiones(void* payload, uint32_t size, uint32_t message_id) {
+uint32_t store_payload_particiones(void *payload, uint32_t size,
+		uint32_t message_id) {
 	// Search for partition and return it, if no partition is found return a partition with id=-1
-	t_memory_partition* partition = get_free_partition_particiones(size);
+	t_memory_partition *partition = get_free_partition_particiones(size);
 
 	// Copy into memory
 	int offset = partition->begin;
 	memcpy(memory + offset, payload, size);
 
 	// Create partition to reference the new content
-	t_memory_partition* new_partition = malloc(2 * sizeof(uint64_t) + 4 * sizeof(uint32_t) + sizeof(partition_status));
+	t_memory_partition *new_partition = malloc(sizeof(t_memory_partition));
+	pthread_mutex_init(&(new_partition->mutex_partition), NULL);
 
-	if (size <= TAMANO_MINIMO_PARTICION)
-	{
+	if (size <= TAMANO_MINIMO_PARTICION) {
 		size = TAMANO_MINIMO_PARTICION;
 	}
 	new_partition->begin = partition->begin;
-	partition->begin = partition->begin + size;
-
 	new_partition->partition_size = size;
 	new_partition->content_size = size;
+
+	partition->begin = partition->begin + size;
 	partition->partition_size = partition->partition_size - size;
 
 	new_partition->status = OCCUPIED;
-	new_partition->lru_timestamp = (unsigned long)time(NULL);
-	new_partition->occupied_timestamp = (unsigned long)time(NULL);
+	new_partition->lru_timestamp = (unsigned long) time(NULL);
+	new_partition->occupied_timestamp = (unsigned long) time(NULL);
+	pthread_mutex_lock(&mutex_memory_partition_id);
 	new_partition->id = get_partition_id();
+	pthread_mutex_unlock(&mutex_memory_partition_id);
 	list_add(memory_partitions, new_partition);
 
-	// Update resized free partition in list
-	for (int i = 0; i < list_size(memory_partitions); i++)
-	{
-
-		t_memory_partition* p = list_get(memory_partitions, i);
-
-		if (p->id == partition->id)
-		{
-			list_remove(memory_partitions, i);
-			list_add(memory_partitions, partition);
-		}
-	}
-
-	t_log* logger = logger_init_broker();
-	log_info(logger, "Almacenado mensaje con id %d en memoria, posicion de inicio: %d.", message_id, new_partition->begin);
-	log_destroy(logger);
+	log_info(logger,
+			"Almacenado mensaje con id %d en memoria, posicion de inicio %d",
+			message_id, new_partition->begin);
 
 	return new_partition->id;
 }
 
-t_memory_partition* find_free_partition(uint32_t size) {
-	if (string_equals_ignore_case(ALGORITMO_PARTICION_LIBRE, "FF"))
-	{
+t_memory_partition *find_free_partition(uint32_t size) {
+	if (string_equals_ignore_case(ALGORITMO_PARTICION_LIBRE, "FF")) {
 		return find_free_partition_ff(size);
 	} else {
 		return find_free_partition_bf(size);
@@ -283,8 +367,7 @@ t_memory_partition* find_free_partition(uint32_t size) {
 }
 
 void delete_partition_and_consolidate() {
-	if (string_equals_ignore_case(ALGORITMO_REEMPLAZO, "FIFO"))
-	{
+	if (string_equals_ignore_case(ALGORITMO_REEMPLAZO, "FIFO")) {
 		delete_partition_and_consolidate_fifo();
 	} else {
 		delete_partition_and_consolidate_lru();
@@ -295,132 +378,113 @@ void delete_partition_and_consolidate_fifo() {
 	// Delete partition which ID is the lowest
 	// Because we assign partition IDs incrementally
 	// Causing older partitions to have lower ID values
-	uint32_t smallest_id;
-	uint64_t smallest_ocuppied_timestamp;
+	uint64_t smallest_ocuppied_timestamp = 9999999999;
 	int index_to_free;
 
-	for (int i = 0; i < list_size(memory_partitions); i++)
-	{
-		
-		t_memory_partition* partition = list_get(memory_partitions, i);
+	for (int i = 0; i < list_size(memory_partitions); i++) {
 
-		if ((i == 0) || (partition->occupied_timestamp < smallest_ocuppied_timestamp))
-		{
-			smallest_id = partition->id;
+		t_memory_partition *partition = list_get(memory_partitions, i);
+		if (partition->occupied_timestamp < smallest_ocuppied_timestamp
+				&& partition->status == OCCUPIED) {
 			index_to_free = i;
 			smallest_ocuppied_timestamp = partition->occupied_timestamp;
 		}
 	}
-	
+
 	// Set as FREE the partition which ID is memory_partition_id
-	t_memory_partition* partition = list_get(memory_partitions, index_to_free);
+	t_memory_partition *partition = list_get(memory_partitions, index_to_free);
 	partition->status = FREE;
 	partition->lru_timestamp = 0;
 	partition->occupied_timestamp = 0;
 	partition->content_size = 0;
-	t_log* logger = logger_init_broker();
-	log_info(logger, "Eliminada particion con id %d, cuya posicion de inicio es %d.", partition->id, partition->begin);
-	log_destroy(logger);
-	delete_and_consolidate(smallest_id);
+
+	log_info(logger,
+			"Liberada particion con id %d, cuya posicion de inicio es %d",
+			partition->id, partition->begin);
+	delete_and_consolidate(partition->id);
 }
 
 void delete_partition_and_consolidate_lru() {
 	// Delete partition which lru_timestamp is the lowest
 	// We must update the lru_timestamp with every access to the partition
 	// (Not taking into account when accessing for compacting)
-	uint32_t smallest_id;
 	int index_to_free;
-	uint64_t smallest_lru_timestamp;
+	uint64_t smallest_lru_timestamp = 9999999999;
 
-	for (int i = 0; i < list_size(memory_partitions); i++)
-	{
-		
-		t_memory_partition* partition = list_get(memory_partitions, i);
+	for (int i = 0; i < list_size(memory_partitions); i++) {
 
-		if ((i == 0) || (partition->lru_timestamp < smallest_lru_timestamp))
-		{
+		t_memory_partition *partition = list_get(memory_partitions, i);
+
+		if (partition->lru_timestamp < smallest_lru_timestamp
+				&& partition->status == OCCUPIED) {
 			index_to_free = i;
-			smallest_id = partition->id;
 			smallest_lru_timestamp = partition->lru_timestamp;
 		}
 	}
 
 	// Set as FREE the partition which ID is memory_partition_id
-	t_memory_partition* partition = list_get(memory_partitions, index_to_free);
+	t_memory_partition *partition = list_get(memory_partitions, index_to_free);
 	partition->status = FREE;
-	partition->lru_timestamp = 0;
 	partition->occupied_timestamp = 0;
 	partition->content_size = 0;
-	t_log* logger = logger_init_broker();
-	log_info(logger, "Eliminada particion con id %d, cuya posicion de inicio es %d.", partition->id, partition->begin);
-	log_destroy(logger);
-	delete_and_consolidate(smallest_id);
+	log_info(logger,
+			"Liberada particion con id %d, cuya posicion de inicio es %d y su tiempo de LRU es %d",
+			partition->id, partition->begin, partition->lru_timestamp);
+	partition->lru_timestamp = 0;
+	delete_and_consolidate(partition->id);
 }
 
-void delete_and_consolidate(uint32_t memory_partition_id)
-{
+void delete_and_consolidate(uint32_t memory_partition_id) {
 	// Search for the associated message and delete it
-	for (int i = 0; i < list_size(queue_new_pokemon.messages); i++)
-	{
-		queue_message* message = list_get(queue_new_pokemon.messages, i);
-		if (message->message->memory_partition_id == memory_partition_id)
-		{
-			list_remove(queue_new_pokemon.messages, i);
+	for (int i = 0; i < list_size(queue_new_pokemon->messages); i++) {
+		queue_message *message = list_get(queue_new_pokemon->messages, i);
+		if (message->message->memory_partition_id == memory_partition_id) {
+			list_remove(queue_new_pokemon->messages, i);
 			consolidate(memory_partition_id);
 			return;
 		}
 	}
 
-	for (int i = 0; i < list_size(queue_appeared_pokemon.messages); i++)
-	{
-		queue_message* message = list_get(queue_new_pokemon.messages, i);
-		if (message->message->memory_partition_id == memory_partition_id)
-		{
-			list_remove(queue_new_pokemon.messages, i);
-			consolidate(memory_partition_id);
-			return;
-		}
-	}
-	
-	for (int i = 0; i < list_size(queue_catch_pokemon.messages); i++)
-	{
-		queue_message* message = list_get(queue_new_pokemon.messages, i);
-		if (message->message->memory_partition_id == memory_partition_id)
-		{
-			list_remove(queue_new_pokemon.messages, i);
+	for (int i = 0; i < list_size(queue_appeared_pokemon->messages); i++) {
+		queue_message *message = list_get(queue_appeared_pokemon->messages, i);
+		if (message->message->memory_partition_id == memory_partition_id) {
+			list_remove(queue_appeared_pokemon->messages, i);
 			consolidate(memory_partition_id);
 			return;
 		}
 	}
 
-	for (int i = 0; i < list_size(queue_caught_pokemon.messages); i++)
-	{
-		queue_message* message = list_get(queue_new_pokemon.messages, i);
-		if (message->message->memory_partition_id == memory_partition_id)
-		{
-			list_remove(queue_new_pokemon.messages, i);
+	for (int i = 0; i < list_size(queue_catch_pokemon->messages); i++) {
+		queue_message *message = list_get(queue_catch_pokemon->messages, i);
+		if (message->message->memory_partition_id == memory_partition_id) {
+			list_remove(queue_catch_pokemon->messages, i);
 			consolidate(memory_partition_id);
 			return;
 		}
 	}
-	
-	for (int i = 0; i < list_size(queue_get_pokemon.messages); i++)
-	{
-		queue_message* message = list_get(queue_new_pokemon.messages, i);
-		if (message->message->memory_partition_id == memory_partition_id)
-		{
-			list_remove(queue_new_pokemon.messages, i);
+
+	for (int i = 0; i < list_size(queue_caught_pokemon->messages); i++) {
+		queue_message *message = list_get(queue_caught_pokemon->messages, i);
+		if (message->message->memory_partition_id == memory_partition_id) {
+			list_remove(queue_caught_pokemon->messages, i);
 			consolidate(memory_partition_id);
 			return;
 		}
 	}
-	
-	for (int i = 0; i < list_size(queue_localized_pokemon.messages); i++)
-	{
-		queue_message* message = list_get(queue_new_pokemon.messages, i);
-		if (message->message->memory_partition_id == memory_partition_id)
-		{
-			list_remove(queue_new_pokemon.messages, i);
+
+	for (int i = 0; i < list_size(queue_get_pokemon->messages); i++) {
+		queue_message *message = list_get(queue_get_pokemon->messages, i);
+		if (message->message->memory_partition_id == memory_partition_id) {
+			list_remove(queue_get_pokemon->messages, i);
+			consolidate(memory_partition_id);
+			return;
+		}
+	}
+
+	for (int i = 0; i < list_size(queue_localized_pokemon->messages); i++) {
+		queue_message *message = list_get(queue_localized_pokemon->messages, i);
+		if (message->message->memory_partition_id == memory_partition_id) {
+			list_remove(queue_localized_pokemon->messages, i);
 			consolidate(memory_partition_id);
 			return;
 		}
@@ -428,31 +492,28 @@ void delete_and_consolidate(uint32_t memory_partition_id)
 }
 
 void consolidate(uint32_t memory_partition_to_consolidate_id) {
-	t_memory_partition* memory_partition_to_consolidate;
+	t_memory_partition *memory_partition_to_consolidate;
 	for (int i = 0; i < list_size(memory_partitions); i++) {
-		t_memory_partition* part = list_get(memory_partitions, i);
-		 if (part->id == memory_partition_to_consolidate_id)
-		 {
-			 memory_partition_to_consolidate = part;
-		 }
+		t_memory_partition *part = list_get(memory_partitions, i);
+		if (part->id == memory_partition_to_consolidate_id) {
+			memory_partition_to_consolidate = part;
+		}
 	}
 
-	if (string_equals_ignore_case(ALGORITMO_MEMORIA, "PARTICIONES"))
-	{
-		for (int i = 0; i < list_size(memory_partitions); i++)
-		{
-			t_memory_partition* partition = list_get(memory_partitions, i);
-			if (partition->status == FREE)
-			{
-				if ((partition->begin + partition->partition_size) == memory_partition_to_consolidate->begin)
-				{
-					for (int j = 0; j < list_size(memory_partitions); j++)
-					{
-						t_memory_partition* partition_to_consolidate = list_get(memory_partitions, j);
-						if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
-						{
+	if (string_equals_ignore_case(ALGORITMO_MEMORIA, "PARTICIONES")) {
+		for (int i = 0; i < list_size(memory_partitions); i++) {
+			t_memory_partition *partition = list_get(memory_partitions, i);
+			if (partition->status == FREE) {
+				if ((partition->begin + partition->partition_size)
+						== memory_partition_to_consolidate->begin) {
+					for (int j = 0; j < list_size(memory_partitions); j++) {
+						t_memory_partition *partition_to_consolidate = list_get(
+								memory_partitions, j);
+						if (memory_partition_to_consolidate->id
+								== partition_to_consolidate->id) {
 							list_remove(memory_partitions, j);
-							partition->partition_size += memory_partition_to_consolidate->partition_size;
+							partition->partition_size +=
+									memory_partition_to_consolidate->partition_size;
 							memory_partition_to_consolidate = partition;
 						}
 					}
@@ -460,20 +521,20 @@ void consolidate(uint32_t memory_partition_to_consolidate_id) {
 			}
 		}
 
-		for (int i = 0; i < list_size(memory_partitions); i++)
-		{
-			t_memory_partition* partition = list_get(memory_partitions, i);
-			if (partition->status == FREE)
-			{
-				if ((memory_partition_to_consolidate->begin + memory_partition_to_consolidate->partition_size) == partition->begin)
-				{
-					for (int j = 0; j < list_size(memory_partitions); j++)
-					{
-						t_memory_partition* partition_to_consolidate = list_get(memory_partitions, j);
-						if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
-						{
+		for (int i = 0; i < list_size(memory_partitions); i++) {
+			t_memory_partition *partition = list_get(memory_partitions, i);
+			if (partition->status == FREE) {
+				if ((memory_partition_to_consolidate->begin
+						+ memory_partition_to_consolidate->partition_size)
+						== partition->begin) {
+					for (int j = 0; j < list_size(memory_partitions); j++) {
+						t_memory_partition *partition_to_consolidate = list_get(
+								memory_partitions, j);
+						if (memory_partition_to_consolidate->id
+								== partition_to_consolidate->id) {
 							list_remove(memory_partitions, i);
-							partition_to_consolidate->partition_size += partition->partition_size;
+							partition_to_consolidate->partition_size +=
+									partition->partition_size;
 						}
 					}
 				}
@@ -481,143 +542,164 @@ void consolidate(uint32_t memory_partition_to_consolidate_id) {
 		}
 	} else {
 		int consolidated;
-		do
-		{
+		do {
 			consolidated = 0;
 
-			for (int i = 0; i < list_size(memory_partitions); i++)
-			{
-				t_memory_partition* partition = list_get(memory_partitions, i);
-				if (partition->status == FREE)
-				{
-					if ((partition->begin + partition->partition_size) == memory_partition_to_consolidate->begin && memory_partition_to_consolidate->partition_size == partition->partition_size)
-					{
-						for (int j = 0; j < list_size(memory_partitions); j++)
-						{
-							t_memory_partition* partition_to_consolidate = list_get(memory_partitions, j);
-							if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
-							{
-								t_log* logger = logger_init_broker();
-								log_info(logger, "Asociada particion con id %d, cuya posicion de inicio es %d, con la particion con id %d, cuya posicion de inicio es %d.", partition->id, partition->begin, memory_partition_to_consolidate->id, memory_partition_to_consolidate->begin);
-								log_destroy(logger);
-								list_remove(memory_partitions, j);
-								partition->partition_size += memory_partition_to_consolidate->partition_size;
-								memory_partition_to_consolidate = partition;
-								consolidated = 1;
+			for (int i = 0; i < list_size(memory_partitions); i++) {
+				t_memory_partition *partition = list_get(memory_partitions, i);
+				if (partition->status == FREE) {
+					if (string_equals_ignore_case(
+							memory_partition_to_consolidate->father,
+							partition->father)
+							&& partition->id
+									!= memory_partition_to_consolidate->id
+							&& memory_partition_to_consolidate->partition_size
+									== partition->partition_size) {
+						for (int j = 0; j < list_size(memory_partitions); j++) {
+							t_memory_partition *partition_to_consolidate =
+									list_get(memory_partitions, j);
+							if (memory_partition_to_consolidate->id
+									== partition_to_consolidate->id
+									&& memory_partition_to_consolidate->status
+											== FREE
+									&& partition->status == FREE) {
+								if (partition->begin
+										< memory_partition_to_consolidate->begin) {
+									log_info(logger,
+											"Asociada particion con id %d, cuya posicion de inicio es %d, con su buddy cuyo id es %d, y su posicion de inicio es %d",
+											partition->id, partition->begin,
+											memory_partition_to_consolidate->id,
+											memory_partition_to_consolidate->begin);
+									memory_partition_to_consolidate =
+											list_remove(memory_partitions, j);
+									partition->partition_size +=
+											memory_partition_to_consolidate->partition_size;
+									int father_length =
+											strlen(
+													memory_partition_to_consolidate->father);
+									partition->father =
+											string_substring(
+													memory_partition_to_consolidate->father,
+													0, father_length - 1);
+									partition->side =
+											string_substring(
+													memory_partition_to_consolidate->father,
+													father_length - 1,
+													father_length);
+									memory_partition_to_consolidate = partition;
+									consolidated = 1;
+								} else {
+									log_info(logger,
+											"Asociada particion con id %d, cuya posicion de inicio es %d, con su buddy cuyo id es %d, y su posicion de inicio es %d",
+											partition->id, partition->begin,
+											memory_partition_to_consolidate->id,
+											memory_partition_to_consolidate->begin);
+									partition = list_remove(memory_partitions,
+											i);
+									memory_partition_to_consolidate->partition_size +=
+											partition->partition_size;
+									int father_length = strlen(
+											partition->father);
+									memory_partition_to_consolidate->father =
+											string_substring(partition->father,
+													0, father_length - 1);
+									memory_partition_to_consolidate->side =
+											string_substring(partition->father,
+													father_length - 1,
+													father_length);
+									consolidated = 1;
+								}
 							}
 						}
 					}
 				}
 			}
-
-			for (int i = 0; i < list_size(memory_partitions); i++)
-			{
-				t_memory_partition* partition = list_get(memory_partitions, i);
-				if (partition->status == FREE)
-				{
-					if ((memory_partition_to_consolidate->begin + memory_partition_to_consolidate->partition_size) == partition->begin && memory_partition_to_consolidate->partition_size == partition->partition_size)
-					{
-						for (int j = 0; j < list_size(memory_partitions); j++)
-						{
-							t_memory_partition* partition_to_consolidate = list_get(memory_partitions, j);
-							if (memory_partition_to_consolidate->id == partition_to_consolidate->id)
-							{
-								t_log* logger = logger_init_broker();
-								log_info(logger, "Asociada particion con id %d, cuya posicion de inicio es %d, con la particion con id %d, cuya posicion de inicio es %d.", partition->id, partition->begin, memory_partition_to_consolidate->id, memory_partition_to_consolidate->begin);
-								log_destroy(logger);
-								list_remove(memory_partitions, i);
-								partition_to_consolidate->partition_size += partition->partition_size;
-								memory_partition_to_consolidate = partition_to_consolidate;
-								consolidated = 1;
-							}
-						}
-					}
-				}
-			}
-
 		} while (consolidated == 1);
 	}
 }
 
-t_memory_partition* get_free_partition_particiones(uint32_t size) {
-	int search_count = 0;
-	t_memory_partition* partition_to_return = find_free_partition(size);
-	search_count++;
+t_memory_partition *get_free_partition_particiones(uint32_t size) {
+	int search_count;
+	t_memory_partition *partition_to_return = find_free_partition(size);
 
-	if (partition_to_return->id != -1)
-	{
+	if (partition_to_return->id != -1) {
 		return partition_to_return;
 	}
 
-	while (true)
-	{
-		while (FRECUENCIA_COMPACTACION > search_count)
-		{
+	while (true) {
+		if (FRECUENCIA_COMPACTACION != -1
+				|| list_size(memory_partitions) == 1) {
 			perform_compaction();
+			search_count = 0;
+		}
+
+		while (FRECUENCIA_COMPACTACION > search_count) {
 			partition_to_return = find_free_partition(size);
 			search_count++;
 
-			if (partition_to_return->id != -1)
-			{
+			if (partition_to_return->id != -1) {
 				return partition_to_return;
 			}
+
+			delete_partition_and_consolidate();
 		}
 
-	delete_partition_and_consolidate();
-	search_count = 0;
 	}
 }
 
-t_memory_partition* get_free_partition_bs(uint32_t size) {
-	t_memory_partition* partition_to_return = find_free_partition(size);
+t_memory_partition *get_free_partition_bs(uint32_t size) {
+	uint32_t bs_size = 1;
 
-	if (partition_to_return->id != -1)
-	{
+	while (bs_size < size) {
+		bs_size = bs_size * 2;
+	}
+
+	t_memory_partition *partition_to_return = find_free_partition(bs_size);
+
+	if (partition_to_return->id != -1) {
 		return partition_to_return;
 	}
 
-	while (true)
-	{
+	while (true) {
 		delete_partition_and_consolidate();
-		partition_to_return = find_free_partition(size);
+		partition_to_return = find_free_partition(bs_size);
 
-		if (partition_to_return->id != -1)
-		{
+		if (partition_to_return->id != -1) {
 			return partition_to_return;
 		}
 	}
 }
 
 void perform_compaction() {
-	uint32_t i = list_size(memory_partitions);
-	t_list* occupied_partitions = list_create();
-	t_list* new_partitions = list_create();
+	t_list *occupied_partitions = list_create();
+	t_list *new_partitions = list_create();
 
-	while (i >= 0) {
-		t_memory_partition* partition = list_get(memory_partitions, i);
-		if (partition->status == OCCUPIED)
-		{
+	for (uint32_t i = 0; i < list_size(memory_partitions); i++) {
+		t_memory_partition *partition = list_get(memory_partitions, i);
+		if (partition->status == OCCUPIED) {
 			list_add(occupied_partitions, partition);
 		}
-
-		i--;
 	}
 
 	// Now that we have the list of occupied partitions, we proceed to re-write the partitions into the void* variable
 	int offset = 0;
-	void* compacted_memory = malloc(TAMANO_MEMORIA);
+	void *compacted_memory = malloc(TAMANO_MEMORIA);
 
-	for (uint32_t i = 0; i < list_size(occupied_partitions); i++)
-	{
-		t_memory_partition* partition = list_get(occupied_partitions, i);
-		memcpy(compacted_memory + offset, memory + partition->begin, partition->partition_size);
+	for (uint32_t i = 0; i < list_size(occupied_partitions); i++) {
+		t_memory_partition *partition = list_get(occupied_partitions, i);
+		memcpy(compacted_memory + offset, memory + partition->begin,
+				partition->partition_size);
 		partition->begin = offset;
 		offset += partition->partition_size;
 		list_add(new_partitions, partition);
 	}
 
-	t_memory_partition* free_memory_partition = malloc(sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t) + sizeof(partition_status));
+	t_memory_partition *free_memory_partition = malloc(
+			sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t)
+					+ sizeof(partition_status));
+	pthread_mutex_lock(&mutex_memory_partition_id);
 	free_memory_partition->id = get_partition_id();
+	pthread_mutex_unlock(&mutex_memory_partition_id);
 	free_memory_partition->begin = offset;
 	free_memory_partition->partition_size = TAMANO_MEMORIA - offset;
 	free_memory_partition->lru_timestamp = 0;
@@ -630,60 +712,56 @@ void perform_compaction() {
 	memory_partitions = new_partitions;
 	free(memory);
 	memory = compacted_memory;
-	t_log* logger = logger_init_broker();
 	log_info(logger, "Memoria compactada.");
-	log_destroy(logger);
 }
 
-t_memory_partition* find_free_partition_ff(uint32_t size) {
+t_memory_partition *find_free_partition_ff(uint32_t size) {
 	uint32_t i = 0;
 
-	if (size <= TAMANO_MINIMO_PARTICION)
-	{
+	if (size <= TAMANO_MINIMO_PARTICION) {
 		size = TAMANO_MINIMO_PARTICION;
 	}
 
 	while (i < list_size(memory_partitions)) {
-		t_memory_partition* partition = list_get(memory_partitions, i);
-		if (partition->status == FREE && partition->partition_size >= size)
-		{
+		t_memory_partition *partition = list_get(memory_partitions, i);
+		if (partition->status == FREE && partition->partition_size >= size) {
 			return partition;
 		}
 
 		i++;
 	}
 
-	t_memory_partition* partition_to_return = malloc(sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t) + sizeof(partition_status));
+	t_memory_partition *partition_to_return = malloc(
+			sizeof(t_memory_partition));
 	partition_to_return->id = -1;
 
 	return partition_to_return;
 }
 
-t_memory_partition* find_free_partition_bf(uint32_t size) {
+t_memory_partition *find_free_partition_bf(uint32_t size) {
 	uint32_t i = 0;
-	t_memory_partition* best_partition;
+	t_memory_partition *best_partition;
 
-	if (size <= TAMANO_MINIMO_PARTICION)
-	{
+	if (size <= TAMANO_MINIMO_PARTICION) {
 		size = TAMANO_MINIMO_PARTICION;
 	}
 
 	while (i < list_size(memory_partitions)) {
-		t_memory_partition* partition = list_get(memory_partitions, i);
-		if (best_partition == NULL && partition->status == FREE && partition->partition_size >= size)
-		{
+		t_memory_partition *partition = list_get(memory_partitions, i);
+		if (best_partition == NULL && partition->status == FREE
+				&& partition->partition_size >= size) {
 			best_partition = partition;
-		} else if (partition->status == FREE && partition->partition_size >= size && best_partition->partition_size > partition->partition_size)
-		{
+		} else if (partition->status == FREE
+				&& partition->partition_size >= size
+				&& best_partition->partition_size > partition->partition_size) {
 			best_partition = partition;
 		}
 
 		i++;
 	}
 
-	if (best_partition == NULL)
-	{
-		best_partition = malloc(sizeof(uint64_t) * 2 + 4 * sizeof(uint32_t) + sizeof(partition_status));
+	if (best_partition == NULL) {
+		best_partition = malloc(sizeof(t_memory_partition));
 		best_partition->id = -1;
 	}
 
@@ -691,141 +769,250 @@ t_memory_partition* find_free_partition_bf(uint32_t size) {
 }
 
 void process_request(uint32_t event_code, uint32_t client_socket) {
-	t_message* msg = receive_message(event_code, client_socket);
+	t_message *msg = receive_message(event_code, client_socket);
 	pthread_mutex_lock(&mutex_message_id);
 	msg->id = get_message_id();
 	pthread_mutex_unlock(&mutex_message_id);
 	uint32_t size;
 	uint32_t i;
-	
+	uint32_t bytes_to_send;
+	void* to_send;
 	switch (event_code) {
-	case NEW_POKEMON: ;
-		logger = logger_init();
-		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-
-		t_new_pokemon* new_pokemon = deserialize_new_pokemon_message(client_socket,	&size);
+	case NEW_POKEMON:
+		;
+		t_new_pokemon *new_pokemon = deserialize_new_pokemon_message(
+				client_socket, &size);
 		msg->buffer = serialize_t_new_pokemon_message(new_pokemon);
 
+		log_info(logger, "Llegada de mensaje para la queue %s",
+				event_code_to_string(event_code));
+
 		return_message_id(client_socket, msg->id);
 
-		for (i = 0; i < list_size(queue_new_pokemon.subscriptors); i++) {
-			t_subscriptor* subscriptor = list_get(
-					queue_new_pokemon.subscriptors, i);
-			send_message(subscriptor->socket, event_code, msg->id,
-					msg->correlative_id, msg->buffer);
-			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code, subscriptor->socket);
-		}
+		bytes_to_send = msg->buffer->size + sizeof(uint32_t)
+				+ sizeof(event_code) + sizeof(uint32_t) + sizeof(uint32_t);
+		to_send = serialize_message(msg, &(bytes_to_send));
 
-		log_destroy(logger);
+		pthread_mutex_lock(&queue_new_pokemon->mutex_subscriptors);
+		for (i = 0; i < list_size(queue_new_pokemon->subscriptors); i++) {
+			t_subscriptor *subscriptor = list_get(
+					queue_new_pokemon->subscriptors, i);
+			int bytes_send = send(subscriptor->socket, to_send, bytes_to_send,
+					0);
+			if (bytes_send > 0) {
+				log_info(logger,
+						"Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d",
+						msg->id, event_code_to_string(event_code),
+						subscriptor->socket);
+			} else {
+				log_error(logger,
+						"No se envio el mensaje id %d de tipo %s al subscriptor cuyo socket es %d",
+						msg->id, event_code_to_string(event_code),
+						subscriptor->socket);
+			}
+		}
+		pthread_mutex_unlock(&queue_new_pokemon->mutex_subscriptors);
+
 		//Add message to memory
-		store_message(msg, queue_new_pokemon, queue_new_pokemon.subscriptors);
+		store_message(msg, queue_new_pokemon, queue_new_pokemon->subscriptors);
 
 		break;
-	case APPEARED_POKEMON: ;
-		logger = logger_init_broker();
-		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-
-		t_appeared_pokemon* appeared_pokemon = deserialize_appeared_pokemon_message(client_socket, &size);
+	case APPEARED_POKEMON:
+		;
+		t_appeared_pokemon *appeared_pokemon =
+				deserialize_appeared_pokemon_message(client_socket, &size);
 		msg->buffer = serialize_t_appeared_pokemon_message(appeared_pokemon);
 
+		log_info(logger, "Llegada de mensaje para la queue %s, Pokemon %s",
+				event_code_to_string(event_code), appeared_pokemon->pokemon);
+
 		return_message_id(client_socket, msg->id);
 
-		for (i = 0; i < list_size(queue_appeared_pokemon.subscriptors); i++) {
-			t_subscriptor* subscriptor = list_get(
-					queue_appeared_pokemon.subscriptors, i);
-			send_message(subscriptor->socket, event_code, msg->id,
-					msg->correlative_id, msg->buffer);
-			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code, subscriptor->socket);
+		bytes_to_send = msg->buffer->size + sizeof(uint32_t)
+				+ sizeof(event_code) + sizeof(uint32_t) + sizeof(uint32_t);
+		to_send = serialize_message(msg, &(bytes_to_send));
+
+		pthread_mutex_lock(&queue_appeared_pokemon->mutex_subscriptors);
+		for (i = 0; i < list_size(queue_appeared_pokemon->subscriptors); i++) {
+			t_subscriptor *subscriptor = list_get(
+					queue_appeared_pokemon->subscriptors, i);
+			int bytes_send = send(subscriptor->socket, to_send, bytes_to_send,
+					0);
+			if (bytes_send > 0) {
+				log_info(logger,
+						"Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d",
+						msg->id, event_code_to_string(event_code),
+						subscriptor->socket);
+			} else {
+				log_error(logger,
+						"No se envio el mensaje id %d de tipo %s al subscriptor cuyo socket es %d",
+						msg->id, event_code_to_string(event_code),
+						subscriptor->socket);
+			}
 		}
+		pthread_mutex_unlock(&queue_appeared_pokemon->mutex_subscriptors);
 
-		log_destroy(logger);
 		//Add message to memory
-		store_message(msg, queue_appeared_pokemon, queue_appeared_pokemon.subscriptors);
+		store_message(msg, queue_appeared_pokemon,
+				queue_appeared_pokemon->subscriptors);
 		break;
-	case CATCH_POKEMON: ;
-		logger = logger_init_broker();
-		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-
-		t_catch_pokemon* catch_pokemon = deserialize_catch_pokemon_message(client_socket, &size);
+	case CATCH_POKEMON:
+		;
+		t_catch_pokemon *catch_pokemon = deserialize_catch_pokemon_message(
+				client_socket, &size);
 		msg->buffer = serialize_t_catch_pokemon_message(catch_pokemon);
 
-				return_message_id(client_socket, msg->id);
-
-		for (i = 0; i < list_size(queue_catch_pokemon.subscriptors); i++) {
-			t_subscriptor* subscriptor = list_get(
-					queue_catch_pokemon.subscriptors, i);
-			send_message(subscriptor->socket, event_code, msg->id,
-					msg->correlative_id, msg->buffer);
-			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code, subscriptor->socket);
-		}
-
-		log_destroy(logger);
-		//Add message to memory
-		store_message(msg, queue_catch_pokemon, queue_catch_pokemon.subscriptors);
-		break;
-	case CAUGHT_POKEMON: ;
-		logger = logger_init_broker();
-		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-
-		t_caught_pokemon* caught_pokemon = deserialize_caught_pokemon_message(client_socket, &size);
-		msg->buffer = serialize_t_caught_pokemon_message(catch_pokemon);
+		log_info(logger, "Llegada de mensaje para la queue %s",
+				event_code_to_string(event_code));
 
 		return_message_id(client_socket, msg->id);
 
-		for (i = 0; i < list_size(queue_caught_pokemon.subscriptors); i++) {
-			t_subscriptor* subscriptor = list_get(
-					queue_caught_pokemon.subscriptors, i);
-			send_message(subscriptor->socket, event_code, msg->id,
-					msg->correlative_id, msg->buffer);
-			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code, subscriptor->socket);
+		bytes_to_send = msg->buffer->size + sizeof(uint32_t)
+				+ sizeof(event_code) + sizeof(uint32_t) + sizeof(uint32_t);
+		to_send = serialize_message(msg, &(bytes_to_send));
+
+		pthread_mutex_lock(&queue_catch_pokemon->mutex_subscriptors);
+		for (i = 0; i < list_size(queue_catch_pokemon->subscriptors); i++) {
+			t_subscriptor *subscriptor = list_get(
+					queue_catch_pokemon->subscriptors, i);
+			int bytes_send = send(subscriptor->socket, to_send, bytes_to_send,
+					0);
+			if (bytes_send > 0) {
+				log_info(logger,
+						"Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d",
+						msg->id, event_code_to_string(event_code),
+						subscriptor->socket);
+			} else {
+				log_error(logger,
+						"No se envio el mensaje id %d de tipo %s al subscriptor cuyo socket es %d",
+						msg->id, event_code_to_string(event_code),
+						subscriptor->socket);
+			}
 		}
+		pthread_mutex_unlock(&queue_catch_pokemon->mutex_subscriptors);
 
-		log_destroy(logger);
 		//Add message to memory
-		store_message(msg, queue_caught_pokemon, queue_caught_pokemon.subscriptors);
+		store_message(msg, queue_catch_pokemon,
+				queue_catch_pokemon->subscriptors);
 		break;
-	case GET_POKEMON: ;
-		logger = logger_init_broker();
-		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
+	case CAUGHT_POKEMON:
+		;
+		t_caught_pokemon *caught_pokemon = deserialize_caught_pokemon_message(
+				client_socket, &size);
+		msg->buffer = serialize_t_caught_pokemon_message(caught_pokemon);
 
-		t_get_pokemon* get_pokemon = deserialize_get_pokemon_message(client_socket, &size);
+		log_info(logger, "Llegada de mensaje para la queue %s, result %d",
+				event_code_to_string(event_code), caught_pokemon->result);
+
+		return_message_id(client_socket, msg->id);
+
+		bytes_to_send = msg->buffer->size + sizeof(uint32_t)
+				+ sizeof(event_code) + sizeof(uint32_t) + sizeof(uint32_t);
+		to_send = serialize_message(msg, &(bytes_to_send));
+
+		pthread_mutex_lock(&queue_caught_pokemon->mutex_subscriptors);
+		for (i = 0; i < list_size(queue_caught_pokemon->subscriptors); i++) {
+			t_subscriptor *subscriptor = list_get(
+					queue_caught_pokemon->subscriptors, i);
+			int bytes_send = send(subscriptor->socket, to_send, bytes_to_send,
+					0);
+			if (bytes_send > 0) {
+				log_info(logger,
+						"Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d",
+						msg->id, event_code_to_string(event_code),
+						subscriptor->socket);
+			} else {
+				log_error(logger,
+						"No se envio el mensaje id %d de tipo %s al subscriptor cuyo socket es %d",
+						msg->id, event_code_to_string(event_code),
+						subscriptor->socket);
+			}
+		}
+		pthread_mutex_unlock(&queue_caught_pokemon->mutex_subscriptors);
+
+		//Add message to memory
+		store_message(msg, queue_caught_pokemon,
+				queue_caught_pokemon->subscriptors);
+		break;
+	case GET_POKEMON:
+		;
+		t_get_pokemon *get_pokemon = deserialize_get_pokemon_message(
+				client_socket, &size);
 		msg->buffer = serialize_t_get_pokemon_message(get_pokemon);
 
-		for (i = 0; i < list_size(queue_get_pokemon.subscriptors); i++) {
-			t_subscriptor* subscriptor = list_get(
-					queue_get_pokemon.subscriptors, i);
-			send_message(subscriptor->socket, event_code, msg->id,
-					msg->correlative_id, msg->buffer);
-			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code, subscriptor->socket);
+		log_info(logger, "Llegada de mensaje para la queue %s, Pokemon %s",
+				event_code_to_string(event_code), get_pokemon->pokemon);
+
+		bytes_to_send = msg->buffer->size + sizeof(uint32_t)
+				+ sizeof(event_code) + sizeof(uint32_t) + sizeof(uint32_t);
+		to_send = serialize_message(msg, &(bytes_to_send));
+
+		pthread_mutex_lock(&queue_get_pokemon->mutex_subscriptors);
+		for (i = 0; i < list_size(queue_get_pokemon->subscriptors); i++) {
+			t_subscriptor *subscriptor = list_get(
+					queue_get_pokemon->subscriptors, i);
+			int bytes_send = send(subscriptor->socket, to_send, bytes_to_send,
+					0);
+			if (bytes_send > 0) {
+				log_info(logger,
+						"Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d",
+						msg->id, event_code_to_string(event_code),
+						subscriptor->socket);
+			} else {
+				log_error(logger,
+						"No se envio el mensaje id %d de tipo %s al subscriptor cuyo socket es %d",
+						msg->id, event_code_to_string(event_code),
+						subscriptor->socket);
+			}
 		}
+		pthread_mutex_unlock(&queue_get_pokemon->mutex_subscriptors);
 
-		log_destroy(logger);
 		//Add message to memory
-		store_message(msg, queue_get_pokemon, queue_get_pokemon.subscriptors);
+		store_message(msg, queue_get_pokemon, queue_get_pokemon->subscriptors);
 		break;
-	case LOCALIZED_POKEMON: ;
-		logger = logger_init_broker();
-		log_info(logger, "Llegada de mensaje para la queue %d", event_code);
-
-		t_localized_pokemon* localized_pokemon = deserialize_localized_pokemon_message(client_socket, &size);
+	case LOCALIZED_POKEMON:
+		;
+		t_localized_pokemon *localized_pokemon =
+				deserialize_localized_pokemon_message(client_socket, &size);
 		msg->buffer = serialize_t_localized_pokemon_message(localized_pokemon);
 
-		for (i = 0; i < list_size(queue_localized_pokemon.subscriptors); i++) {
-			t_subscriptor* subscriptor = list_get(
-					queue_localized_pokemon.subscriptors, i);
-			send_message(subscriptor->socket, event_code, msg->id,
-					msg->correlative_id, msg->buffer);
-			log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", msg->id, event_code, subscriptor->socket);
-		}
+		log_info(logger, "Llegada de mensaje para la queue %s, Pokemon %s",
+				event_code_to_string(event_code), localized_pokemon->pokemon);
 
-		log_destroy(logger);
+		bytes_to_send = msg->buffer->size + sizeof(uint32_t)
+				+ sizeof(event_code) + sizeof(uint32_t) + sizeof(uint32_t);
+		to_send = serialize_message(msg, &(bytes_to_send));
+
+		pthread_mutex_lock(&queue_localized_pokemon->mutex_subscriptors);
+		for (i = 0; i < list_size(queue_localized_pokemon->subscriptors); i++) {
+			t_subscriptor *subscriptor = list_get(
+					queue_localized_pokemon->subscriptors, i);
+			int bytes_send = send(subscriptor->socket, to_send, bytes_to_send,
+					0);
+			if (bytes_send > 0) {
+				log_info(logger,
+						"Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d",
+						msg->id, event_code_to_string(event_code),
+						subscriptor->socket);
+			} else {
+				log_error(logger,
+						"No se envio el mensaje id %d de tipo %s al subscriptor cuyo socket es %d",
+						msg->id, event_code_to_string(event_code),
+						subscriptor->socket);
+			}
+		}
+		pthread_mutex_unlock(&queue_localized_pokemon->mutex_subscriptors);
+
 		//Add message to memory
-		store_message(msg, queue_localized_pokemon, queue_localized_pokemon.subscriptors);
+		store_message(msg, queue_localized_pokemon,
+				queue_localized_pokemon->subscriptors);
 		break;
-	case NEW_SUBSCRIPTOR: ;
+	case NEW_SUBSCRIPTOR:
+		;
 		process_new_subscription(client_socket);
 		break;
-	case MESSAGE_RECEIVED: ;
+	case MESSAGE_RECEIVED:
+		;
 		process_message_received(client_socket);
 		break;
 	default:
@@ -833,32 +1020,31 @@ void process_request(uint32_t event_code, uint32_t client_socket) {
 	}
 }
 
-void process_message_ack(queue queue, char* subscriptor_id, uint32_t received_message_id)
-{
-	for (int i = 0; i < list_size(queue.subscriptors); i++)
-	{
-		t_subscriptor* subscriptor = (t_subscriptor*) list_get(queue.subscriptors, i);
-
-		if (string_equals_ignore_case(subscriptor->subscriptor_info->subscriptor_id, subscriptor_id))
-		{
+void process_message_ack(queue* queue, char *subscriptor_id,
+		uint32_t received_message_id) {
+	for (int i = 0; i < list_size(queue->subscriptors); i++) {
+		t_subscriptor *subscriptor = (t_subscriptor *) list_get(
+				queue->subscriptors, i);
+		if (string_equals_ignore_case(
+				subscriptor->subscriptor_info->subscriptor_id,
+				subscriptor_id)) {
 			uint32_t subscriptor_socket = subscriptor->socket;
 
-			for (int j = 0; j < list_size(queue.messages); j++)
-			{
-				queue_message* message = (queue_message*) list_get(queue.messages, j);
+			for (int j = 0; j < list_size(queue->messages); j++) {
+				queue_message *message = (queue_message *) list_get(
+						queue->messages, j);
 
-				if (message->message->id == received_message_id)
-				{
-					for (int k = 0; k < list_size(message->receivers); k++)
-					{
-						receiver* _receiver = (receiver*) list_get(message->receivers, k);
-
-						if (_receiver->receiver_socket == subscriptor_socket)
-						{
+				if (message->message->id == received_message_id) {
+					for (int k = 0; k < list_size(message->receivers); k++) {
+						receiver *_receiver = (receiver *) list_get(
+								message->receivers, k);
+						if (_receiver->receiver_socket == subscriptor_socket) {
 							_receiver->received = 1;
-							logger = logger_init_broker();
-							log_info(logger, "Mensaje con id %d, de tipo %d, recibido por el suscriptor cuyo socket es %d, y su id es %s.", received_message_id, message->message->event_code, subscriptor_socket, subscriptor_id);
-							log_destroy(logger);
+							log_info(logger,
+									"Mensaje con id %d, de tipo %d, recibido por el suscriptor cuyo socket es %d, y su id es %s",
+									received_message_id,
+									message->message->event_code,
+									subscriptor_socket, subscriptor_id);
 							return;
 						}
 					}
@@ -872,7 +1058,7 @@ void process_message_received(uint32_t socket) {
 	uint32_t subscriptor_len;
 	recv(socket, &(subscriptor_len), sizeof(uint32_t), MSG_WAITALL);
 
-	char* subscriptor_id = malloc(subscriptor_len);
+	char *subscriptor_id = malloc(subscriptor_len);
 	recv(socket, subscriptor_id, subscriptor_len,
 	MSG_WAITALL);
 
@@ -883,39 +1069,49 @@ void process_message_received(uint32_t socket) {
 	uint32_t received_message_id;
 	recv(socket, &(received_message_id), sizeof(uint32_t), MSG_WAITALL);
 
-	queue queue;
+	queue* queue;
 
 	switch (message_type) {
-	case NEW_POKEMON: ;
+	case NEW_POKEMON:
+		;
 		queue = queue_new_pokemon;
 		break;
-	case APPEARED_POKEMON: ;
+	case APPEARED_POKEMON:
+		;
 		queue = queue_appeared_pokemon;
 		break;
-	case CATCH_POKEMON: ;
+	case CATCH_POKEMON:
+		;
 		queue = queue_catch_pokemon;
 		break;
-	case CAUGHT_POKEMON: ;
+	case CAUGHT_POKEMON:
+		;
 		queue = queue_caught_pokemon;
 		break;
-	case GET_POKEMON: ;
+	case GET_POKEMON:
+		;
 		queue = queue_get_pokemon;
 		break;
-	case LOCALIZED_POKEMON: ;
+	case LOCALIZED_POKEMON:
+		;
 		queue = queue_localized_pokemon;
 		break;
 	default:
 		pthread_exit(NULL);
 	}
-
+	//log_info(logger, "MESSAGE RECEIVE %s", subscriptor_id);
+	pthread_mutex_lock(&queue->mutex_subscriptors);
+	pthread_mutex_lock(&queue->mutex_messages);
 	process_message_ack(queue, subscriptor_id, received_message_id);
+	pthread_mutex_unlock(&queue->mutex_messages);
+	pthread_mutex_unlock(&queue->mutex_subscriptors);
 }
 
 void process_new_subscription(uint32_t socket) {
 	uint32_t subscriptor_len;
 	recv(socket, &(subscriptor_len), sizeof(uint32_t), MSG_WAITALL);
 
-	char* subscriptor_id = malloc(subscriptor_len);
+	char *subscriptor_id = malloc(subscriptor_len);
 	recv(socket, subscriptor_id, subscriptor_len,
 	MSG_WAITALL);
 
@@ -926,7 +1122,7 @@ void process_new_subscription(uint32_t socket) {
 	uint32_t ip_len;
 	recv(socket, &(ip_len), sizeof(uint32_t), MSG_WAITALL);
 
-	t_subscription_petition* subcription_petition = malloc(
+	t_subscription_petition *subcription_petition = malloc(
 			subscriptor_len + ip_len + 4 * sizeof(uint32_t)
 					+ sizeof(event_code));
 	subcription_petition->subscriptor_len = subscriptor_len;
@@ -944,55 +1140,148 @@ void process_new_subscription(uint32_t socket) {
 	recv(socket, &(subcription_petition->duration), sizeof(uint32_t),
 	MSG_WAITALL);
 
-	t_subscriptor* subscriptor = malloc(
+	t_subscriptor *subscriptor = malloc(
 			sizeof(t_subscription_petition) + sizeof(uint32_t));
 	subscriptor->subscriptor_info = subcription_petition;
 	subscriptor->socket = socket;
 
-	queue queue;
-
+	queue* queue;
+	uint32_t socket_exist;
 	switch (subcription_petition->queue) {
 	case NEW_POKEMON:
-		list_add(queue_new_pokemon.subscriptors, subscriptor);
+		;
+		socket_exist = exist_in_queue(queue_new_pokemon,
+				subscriptor->subscriptor_info->subscriptor_id);
+		pthread_mutex_lock(&queue_new_pokemon->mutex_subscriptors);
+		if (socket_exist == 0) {
+			list_add(queue_new_pokemon->subscriptors, subscriptor);
+		}
+		pthread_mutex_unlock(&queue_new_pokemon->mutex_subscriptors);
 		queue = queue_new_pokemon;
 		break;
 	case APPEARED_POKEMON:
-		list_add(queue_appeared_pokemon.subscriptors, subscriptor);
+		;
+		socket_exist = exist_in_queue(queue_appeared_pokemon,
+				subscriptor->subscriptor_info->subscriptor_id);
+		pthread_mutex_lock(&queue_appeared_pokemon->mutex_subscriptors);
+		if (socket_exist == 0) {
+			list_add(queue_appeared_pokemon->subscriptors, subscriptor);
+		}
+		pthread_mutex_unlock(&queue_appeared_pokemon->mutex_subscriptors);
 		queue = queue_appeared_pokemon;
 		break;
 	case CATCH_POKEMON:
-		list_add(queue_catch_pokemon.subscriptors, subscriptor);
+		;
+		socket_exist = exist_in_queue(queue_catch_pokemon,
+				subscriptor->subscriptor_info->subscriptor_id);
+		pthread_mutex_lock(&queue_catch_pokemon->mutex_subscriptors);
+		if (socket_exist == 0) {
+			list_add(queue_catch_pokemon->subscriptors, subscriptor);
+		}
+		pthread_mutex_unlock(&queue_catch_pokemon->mutex_subscriptors);
 		queue = queue_catch_pokemon;
 		break;
 	case CAUGHT_POKEMON:
-		list_add(queue_caught_pokemon.subscriptors, subscriptor);
+		;
+		socket_exist = exist_in_queue(queue_caught_pokemon,
+				subscriptor->subscriptor_info->subscriptor_id);
+		pthread_mutex_lock(&queue_caught_pokemon->mutex_subscriptors);
+		if (socket_exist == 0) {
+			list_add(queue_caught_pokemon->subscriptors, subscriptor);
+		}
+		pthread_mutex_unlock(&queue_caught_pokemon->mutex_subscriptors);
 		queue = queue_caught_pokemon;
 		break;
 	case GET_POKEMON:
-		list_add(queue_get_pokemon.subscriptors, subscriptor);
+		;
+		socket_exist = exist_in_queue(queue_get_pokemon,
+				subscriptor->subscriptor_info->subscriptor_id);
+		pthread_mutex_lock(&queue_get_pokemon->mutex_subscriptors);
+		if (socket_exist == 0) {
+			list_add(queue_get_pokemon->subscriptors, subscriptor);
+		}
+		pthread_mutex_unlock(&queue_get_pokemon->mutex_subscriptors);
 		queue = queue_get_pokemon;
 		break;
 	case LOCALIZED_POKEMON:
-		list_add(queue_localized_pokemon.subscriptors, subscriptor);
+		;
+		socket_exist = exist_in_queue(queue_localized_pokemon,
+				subscriptor->subscriptor_info->subscriptor_id);
+		pthread_mutex_lock(&queue_localized_pokemon->mutex_subscriptors);
+		if (socket_exist == 0) {
+			list_add(queue_localized_pokemon->subscriptors, subscriptor);
+		}
+		pthread_mutex_unlock(&queue_localized_pokemon->mutex_subscriptors);
 		queue = queue_localized_pokemon;
 		break;
 	default:
 		pthread_exit(NULL);
 	}
 
-	t_log* logger = logger_init_broker();
-	log_info(logger, "Subscripcion recibida de %s al broker para la queue %d", subcription_petition->subscriptor_id, subcription_petition->queue);
-	log_destroy(logger);
+	log_info(logger, "Subscripcion recibida de %s al broker para la queue %s",
+			subcription_petition->subscriptor_id,
+			event_code_to_string(subcription_petition->queue));
 
 	process_subscriptor(&(subscriptor->socket), subcription_petition, queue);
 }
 
-void process_subscriptor(uint32_t* socket, t_subscription_petition* subscription_petition, queue queue) {
-	send_all_messages(socket, subscription_petition, queue);
+uint32_t exist_in_queue(queue* queue, char* id) {
+	bool _compare(t_subscriptor* subscriptor) {
+		return string_equals_ignore_case(
+				subscriptor->subscriptor_info->subscriptor_id, id);
+	}
+	t_subscriptor* find_subscriptor = NULL;
+	uint32_t socket = 0;
+	pthread_mutex_lock(&queue->mutex_subscriptors);
+	find_subscriptor = list_find(queue->subscriptors, _compare);
+	if (find_subscriptor != NULL) {
+		log_info(logger, "El suscriptor esta en la queue, el socket es: %d",
+				find_subscriptor->socket);
+		socket = find_subscriptor->socket;
+	} else {
+		log_info(logger, "El suscriptor no esta en la queue, agregando");
+	}
+	pthread_mutex_unlock(&queue->mutex_subscriptors);
+	return socket;
+}
 
-	uint32_t end_subscription_time = (unsigned long)time(NULL);
-	if (subscription_petition->duration < 0)
-	{
+void replace_socket_in_queue_and_messages(queue* queue,
+		char* subscription_to_add_id, uint32_t socket) {
+	//reemplazar el socket de los subscriptores y reemplazar en cada mensaje del suscriptor el socket
+	pthread_mutex_lock(&queue->mutex_subscriptors);
+	pthread_mutex_lock(&queue->mutex_messages);
+	uint32_t old_socket;
+	for (int i = 0; i < list_size(queue->subscriptors); i++) {
+		t_subscriptor* sub = ((t_subscriptor*) list_get(queue->subscriptors, i));
+		if (string_equals_ignore_case(sub->subscriptor_info->subscriptor_id,
+				subscription_to_add_id)) {
+			old_socket = sub->socket;
+			sub->socket = socket;
+			list_replace(queue->subscriptors, i, sub);
+		}
+	}
+
+	for (int i = 0; i < list_size(queue->messages); i++) {
+		queue_message* mes = ((queue_message*) list_get(queue->messages, i));
+		for (int j = 0; i < list_size(mes->receivers); j++) {
+			receiver* rec = ((receiver*) list_get(mes->receivers, j));
+			uint32_t new_old_socket = rec->receiver_socket;
+			if (new_old_socket == old_socket) {
+				rec->receiver_socket = socket;
+			}
+			list_replace(mes->receivers, j, rec);
+		}
+	}
+	pthread_mutex_unlock(&queue->mutex_messages);
+	pthread_mutex_unlock(&queue->mutex_subscriptors);
+}
+
+void process_subscriptor(uint32_t *socket,
+		t_subscription_petition *subscription_petition, queue* queue_to_use) {
+	send_all_messages(socket, subscription_petition, queue_to_use);
+
+	uint32_t end_subscription_time = (unsigned long) time(NULL);
+	if (subscription_petition->duration < 0) {
 		end_subscription_time += 60000;
 	} else {
 		end_subscription_time += subscription_petition->duration;
@@ -1000,227 +1289,258 @@ void process_subscriptor(uint32_t* socket, t_subscription_petition* subscription
 
 	event_code code;
 
-	while ((unsigned long)time(NULL) < end_subscription_time) {
-		if (recv(*socket, &code, sizeof(event_code), MSG_WAITALL) == -1)
-			code = -1;
+	while ((unsigned long) time(NULL) < end_subscription_time) {
+		int bytes = recv(*socket, &code, sizeof(event_code), MSG_WAITALL);
+		if (bytes == -1 || bytes == 0)
+			break;
 
-		process_request(code, *socket);
+		if ((unsigned long) time(NULL) < end_subscription_time) {
+			process_request(code, *socket);
+		}
 	}
 
 	pthread_exit(NULL);
 }
 
-void send_all_messages(uint32_t* socket, t_subscription_petition* subscription_petition, queue queue) {
+void send_all_messages(uint32_t *socket,
+		t_subscription_petition *subscription_petition, queue *queue_to_use) {
 	uint32_t i;
 	uint32_t old_socket;
 	uint32_t already_subscribed;
+	pthread_mutex_lock(&queue_to_use->mutex_subscriptors);
+	for (int i = 0; i < list_size(queue_to_use->subscriptors); i++) {
+		t_subscriptor *subscriptor = list_get(queue_to_use->subscriptors, i);
 
-
-	for (int i = 0; i < list_size(queue.subscriptors); i++)
-	{
-		t_subscriptor* subscriptor = list_get(queue.subscriptors, i);
-		
-		if (string_equals_ignore_case(subscriptor->subscriptor_info->subscriptor_id, subscription_petition->subscriptor_id))
-		{
+		if (string_equals_ignore_case(
+				subscriptor->subscriptor_info->subscriptor_id,
+				subscription_petition->subscriptor_id)) {
 			old_socket = subscriptor->socket;
 			subscriptor->socket = *socket; // Override existing old socket with newly opened socket
 			already_subscribed = 1;
 		}
 	}
-
-	for (i = 0; i < list_size(queue.messages); i++)
-	{
-		queue_message* message = list_get(queue.messages, i);
+	pthread_mutex_unlock(&queue_to_use->mutex_subscriptors);
+	pthread_mutex_lock(&queue_to_use->mutex_messages);
+	for (i = 0; i < list_size(queue_to_use->messages); i++) {
+		queue_message *message = list_get(queue_to_use->messages, i);
 
 		uint32_t already_received = 0;
 
-		if (already_subscribed)
-		{
-			for (int j = 0; j < list_size(message->receivers); j++)
-			{
-				receiver* receiver = list_get(message->receivers, j);
-				
-				if (receiver->receiver_socket == old_socket && receiver->received == 1)
-				{
+		if (already_subscribed) {
+			for (int j = 0; j < list_size(message->receivers); j++) {
+				receiver *receiver = list_get(message->receivers, j);
+
+				if (receiver->receiver_socket == old_socket
+						&& receiver->received == 1) {
 					already_received = 1;
 				}
 			}
 		}
 
-		if (!already_received)
-		{
+		if (!already_received) {
 			uint32_t partition_id = message->message->memory_partition_id;
 			uint32_t j = 0;
 
-			while (j < list_size(memory_partitions) && (((t_memory_partition*)list_get(memory_partitions, j))->id != partition_id))
-			{
+			pthread_mutex_lock(&mutex_memory_partitions);
+			while (j < list_size(memory_partitions)
+					&& (((t_memory_partition *) list_get(memory_partitions, j))->id
+							!= partition_id)) {
 				j++;
 			}
 
-			if (j >= list_size(memory_partitions))
-			{
+			if (j >= list_size(memory_partitions)) {
+				pthread_mutex_unlock(&mutex_memory_partitions);
 				return; //ERROR, MESSAGE NOT FOUND
 			} else {
-				t_memory_partition* partition = (t_memory_partition*) list_get(memory_partitions, j);
-				void* content = malloc(partition->content_size);
-				memcpy(content, memory + partition->begin, partition->content_size);
+				t_memory_partition *partition = (t_memory_partition *) list_get(
+						memory_partitions, j);
+				void *content = malloc(partition->content_size);
+				memcpy(content, memory + partition->begin,
+						partition->content_size);
 
-				t_buffer* buffer = malloc(sizeof(uint32_t) + partition->content_size);
+				t_buffer *buffer = malloc(
+						sizeof(uint32_t) + partition->content_size);
 				buffer->size = partition->content_size;
 				buffer->payload = content;
-				send_message(*socket, subscription_petition->queue, message->message->id,
-												message->message->correlative_id, buffer);
-				logger = logger_init_broker();
-				log_info(logger, "Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d", message->message->id, subscription_petition->queue, *socket);
-				log_destroy(logger);
+				send_message(*socket, subscription_petition->queue,
+						message->message->id, message->message->correlative_id,
+						buffer);
+				log_info(logger,
+						"Enviado mensaje id %d de tipo %s al subscriptor cuyo socket es %d",
+						message->message->id,
+						event_code_to_string(subscription_petition->queue),
+						*socket);
 
-				partition = list_remove(memory_partitions, j);
-				partition->lru_timestamp = (unsigned long)time(NULL);
-				list_add(memory_partitions, partition);
+				partition->lru_timestamp = (unsigned long) time(NULL);
 
-				if (!already_subscribed)
-				{
-					receiver* receiver = malloc(sizeof(uint32_t) * 2);
+				if (!already_subscribed) {
+					receiver *receiver = malloc(sizeof(uint32_t) * 2);
 					receiver->receiver_socket = *socket;
 					list_add(message->receivers, receiver);
 				} else {
-					for (int n = 0; n < list_size(message->receivers); n++)
-					{
-						receiver* receiver = list_get(message->receivers, n);
-						
-						if (receiver->receiver_socket == old_socket)
-						{
+					for (int n = 0; n < list_size(message->receivers); n++) {
+						receiver *receiver = list_get(message->receivers, n);
+
+						if (receiver->receiver_socket == old_socket) {
 							receiver->receiver_socket = *socket;
 						}
 					}
 				}
 			}
+			pthread_mutex_unlock(&mutex_memory_partitions);
 		}
 	}
+	pthread_mutex_unlock(&queue_to_use->mutex_messages);
 }
 
-static void  err_sys(char* msg) {
-  printf("%s \n", msg);
-  exit(-1);
+static void err_sys(char *msg) {
+	printf("%s \n", msg);
+	exit(-1);
 }
 
-static void dump_memory(){
-	 time_t rawtime;
-	 struct tm * timeinfo;
+static void dump_memory() {
+	time_t rawtime;
+	struct tm *timeinfo;
 
-	 time (&rawtime);
-	 timeinfo = localtime(&rawtime);
+	time(&rawtime);
+	timeinfo = localtime(&rawtime);
 
-	FILE* dump_file;
-	dump_file = fopen("dump.txt","w");
-	if(dump_file == NULL){
-		logger = logger_init_broker();
-		log_info(logger,"Error al crear el dump");
-		log_destroy(logger);
+	FILE *dump_file;
+	dump_file = fopen("dump.txt", "w");
+	if (dump_file == NULL) {
+		log_info(logger, "Error al crear el dump");
 		exit(1);
 	}
 
-		fprintf(dump_file,"Dump: %d/%d/%d %d:%d:%d\n",timeinfo->tm_mday, timeinfo->tm_mon + 1, timeinfo->tm_year + 1900, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+	fprintf(dump_file, "Dump: %d/%d/%d %d:%d:%d\n", timeinfo->tm_mday,
+			timeinfo->tm_mon + 1, timeinfo->tm_year + 1900, timeinfo->tm_hour,
+			timeinfo->tm_min, timeinfo->tm_sec);
 	int i;
-	for(i=0;i<list_size(memory_partitions);i++){
-		uint32_t begin = ((t_memory_partition*)(list_get(memory_partitions,i)))->begin;
-		uint32_t partition_size = ((t_memory_partition*)(list_get(memory_partitions,i)))->partition_size;
-		uint32_t memory_partition_id = ((t_memory_partition*)(list_get(memory_partitions,i)))->id;
-		uint32_t lru_timestamp = ((t_memory_partition*)(list_get(memory_partitions,i)))->lru_timestamp;
-		uint32_t status = ((t_memory_partition*)(list_get(memory_partitions,i)))->status;
+	for (i = 0; i < list_size(memory_partitions); i++) {
+		uint32_t begin =
+				((t_memory_partition *) (list_get(memory_partitions, i)))->begin;
+		uint32_t partition_size = ((t_memory_partition *) (list_get(
+				memory_partitions, i)))->partition_size;
+		uint32_t memory_partition_id = ((t_memory_partition *) (list_get(
+				memory_partitions, i)))->id;
+		uint32_t lru_timestamp = ((t_memory_partition *) (list_get(
+				memory_partitions, i)))->lru_timestamp;
+		uint32_t status = ((t_memory_partition *) (list_get(memory_partitions,
+				i)))->status;
 		event_code queue;
+		uint32_t message_id;
 		uint32_t already_found_queue = 0;
 
-		for (int i = 0; i < list_size(queue_new_pokemon.messages); i++)
-		{
-			queue_message* message = list_get(queue_new_pokemon.messages, i);
-			if (message->message->memory_partition_id == memory_partition_id)
-			{
-				queue = NEW_POKEMON;
-				already_found_queue = 1;
-			}
-		}
+		if (status == FREE) {
+			fprintf(dump_file, "Partition %d: %#05x - %#05x.\t [L]\t Size:%d\n",
+					i, begin, (begin + partition_size), partition_size);
+		} else {
 
-		if (!already_found_queue)
-		{
-			for (int i = 0; i < list_size(queue_appeared_pokemon.messages); i++)
-			{
-				queue_message* message = list_get(queue_new_pokemon.messages, i);
-				if (message->message->memory_partition_id == memory_partition_id)
-				{
-					queue = APPEARED_POKEMON;
+			for (int i = 0; i < list_size(queue_new_pokemon->messages); i++) {
+				queue_message *message = list_get(queue_new_pokemon->messages,
+						i);
+				if (message->message->memory_partition_id
+						== memory_partition_id) {
+					queue = NEW_POKEMON;
+					message_id = message->message->id;
 					already_found_queue = 1;
 				}
 			}
-		}
 
-		if (!already_found_queue)
-		{
-			for (int i = 0; i < list_size(queue_catch_pokemon.messages); i++)
-			{
-				queue_message* message = list_get(queue_new_pokemon.messages, i);
-				if (message->message->memory_partition_id == memory_partition_id)
-				{
-					queue = CATCH_POKEMON;
-					already_found_queue = 1;
+			if (!already_found_queue) {
+				for (int i = 0; i < list_size(queue_appeared_pokemon->messages);
+						i++) {
+					queue_message *message = list_get(
+							queue_appeared_pokemon->messages, i);
+					if (message->message->memory_partition_id
+							== memory_partition_id) {
+						queue = APPEARED_POKEMON;
+						message_id = message->message->id;
+						already_found_queue = 1;
+					}
 				}
 			}
-		}
 
-		if (!already_found_queue)
-		{
-			for (int i = 0; i < list_size(queue_caught_pokemon.messages); i++)
-			{
-				queue_message* message = list_get(queue_new_pokemon.messages, i);
-				if (message->message->memory_partition_id == memory_partition_id)
-				{
-					queue = CAUGHT_POKEMON;
-					already_found_queue = 1;
+			if (!already_found_queue) {
+				for (int i = 0; i < list_size(queue_catch_pokemon->messages);
+						i++) {
+					queue_message *message = list_get(
+							queue_catch_pokemon->messages, i);
+					if (message->message->memory_partition_id
+							== memory_partition_id) {
+						queue = CATCH_POKEMON;
+						message_id = message->message->id;
+						already_found_queue = 1;
+					}
 				}
 			}
-		}
 
-		if (!already_found_queue)
-		{
-			for (int i = 0; i < list_size(queue_get_pokemon.messages); i++)
-			{
-				queue_message* message = list_get(queue_new_pokemon.messages, i);
-				if (message->message->memory_partition_id == memory_partition_id)
-				{
-					queue = GET_POKEMON;
-					already_found_queue = 1;
+			if (!already_found_queue) {
+				for (int i = 0; i < list_size(queue_caught_pokemon->messages);
+						i++) {
+					queue_message *message = list_get(
+							queue_caught_pokemon->messages, i);
+					if (message->message->memory_partition_id
+							== memory_partition_id) {
+						queue = CAUGHT_POKEMON;
+						message_id = message->message->id;
+						already_found_queue = 1;
+					}
 				}
 			}
-		}
 
-		if (!already_found_queue)
-		{
-			for (int i = 0; i < list_size(queue_localized_pokemon.messages); i++)
-			{
-				queue_message* message = list_get(queue_new_pokemon.messages, i);
-				if (message->message->memory_partition_id == memory_partition_id)
-				{
-					queue = LOCALIZED_POKEMON;
-					already_found_queue = 1;
+			if (!already_found_queue) {
+				for (int i = 0; i < list_size(queue_get_pokemon->messages);
+						i++) {
+					queue_message *message = list_get(
+							queue_get_pokemon->messages, i);
+					if (message->message->memory_partition_id
+							== memory_partition_id) {
+						queue = GET_POKEMON;
+						message_id = message->message->id;
+						already_found_queue = 1;
+					}
 				}
 			}
-		}
 
-		fprintf(dump_file,"Partition %d: %X - %X.\t [%d]\t Size:%d b\t LRU:%d\t Queue:%d \t ID:%d\n", i, begin, (begin+partition_size), status, partition_size, lru_timestamp, partition_size, queue, memory_partition_id);
-	 }
+			if (!already_found_queue) {
+				for (int i = 0;
+						i < list_size(queue_localized_pokemon->messages); i++) {
+					queue_message *message = list_get(
+							queue_localized_pokemon->messages, i);
+					if (message->message->memory_partition_id
+							== memory_partition_id) {
+						queue = LOCALIZED_POKEMON;
+						message_id = message->message->id;
+						already_found_queue = 1;
+					}
+				}
+			}
+			fprintf(dump_file,"Partition %d: %#05x - %#05x.\t [X]\t Size:%d b\t LRU:%d\t Queue:%s \t ID:%d\n",i, begin, (begin + partition_size), partition_size,lru_timestamp, event_code_to_string(queue), message_id);
+		}
+	}
 	fclose(dump_file);
 }
 
-static void sig_usr(int signo){
-	if (signo == SIGUSR1){
+static void sig_usr(int signo) {
+	if (signo == SIGUSR1) {
 		dump_memory();
-	} else{
+	} else {
 		err_sys("received unexpected signal");
 	}
 	return;
 }
 
-t_log* logger_init_broker() {
-	return log_create(LOG_FILE, "broker", true,
-			LOG_LEVEL_INFO);
+static void sig_pipe(int signo) {
+	if (signo == SIGPIPE) {
+		log_error(logger,
+				"No se puede enviar mensaje al proceso. Esperando reconexion.");
+	} else {
+		err_sys("received unexpected signal");
+	}
+	return;
+}
+
+t_log *logger_init_broker() {
+	return log_create(LOG_FILE, "broker", true, LOG_LEVEL_INFO);
 }

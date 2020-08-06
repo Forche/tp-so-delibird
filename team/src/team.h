@@ -13,6 +13,7 @@
 #include "matcher.h"
 #include "trainer.h"
 #include "util.h"
+#include "resolver.h"
 
 typedef struct {
 	uint32_t quantity;
@@ -20,9 +21,19 @@ typedef struct {
 	char* pokemon;
 } t_quantity_pokemon;
 
+typedef struct {
+	t_trainer* trainer1;
+	char* pokemon1; //Pokemon que da el trainer1 y recibe el trainer2
+	t_trainer* trainer2;
+	char* pokemon2; //Pokemon que da el trainer2 y recibe el trainer1
+} t_deadlock_matcher;
+
+t_list* matched_deadlocks;
+
 t_list* pokemon_received_to_catch;
 t_list* trainers;
 t_list* matches;
+t_list* queue_deadlock;
 
 pthread_mutex_t mutex_pokemon_received_to_catch;
 pthread_mutex_t mutex_trainers;
@@ -31,10 +42,18 @@ pthread_mutex_t mutex_planning;
 pthread_mutex_t mutex_remaining_pokemons;
 pthread_mutex_t mutex_caught_pokemons;
 pthread_mutex_t mutex_being_caught_pokemons;
+pthread_mutex_t mutex_queue_deadlocks;
+pthread_mutex_t mutex_planning_deadlock;
+pthread_mutex_t mutex_direct_deadlocks;
+pthread_mutex_t mutex_matched_deadlocks;
+pthread_mutex_t mutex_q_ciclos_cpu_totales;
 
 sem_t sem_appeared_pokemon;
 sem_t sem_trainer_available;
 sem_t sem_count_matches;
+sem_t sem_all_pokemons_caught;
+sem_t sem_count_queue_deadlocks;
+uint32_t count_sem_reverse_direct_deadlock;
 
 t_log* logger;
 t_config* config;
@@ -43,6 +62,14 @@ char* PUERTO_TEAM;
 char* IP_BROKER;
 char* PUERTO_BROKER;
 uint32_t TIEMPO_RECONEXION;
+uint32_t RETARDO_CICLO_CPU;
+double ALPHA;
+double ESTIMACION_INICIAL;
+char* ALGORITMO_PLANIFICACION;
+uint32_t QUANTUM;
+uint32_t q_ciclos_cpu_totales;
+uint32_t q_cambios_contexto_totales;
+char* ID;
 
 t_dictionary* global_objective;
 t_dictionary* caught_pokemons;
@@ -51,14 +78,15 @@ t_dictionary* remaining_pokemons;
 
 t_dictionary* build_global_objective(char* objectives);
 void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, char* OBJETIVOS_ENTRENADORES);
-void create_planner();
-void create_matcher();
+pthread_t create_planner();
+pthread_t create_matcher();
 void init_sem();
-void handle_event(uint32_t* socket);
+int handle_event(uint32_t* socket);
 void subscribe_to(event_code code);
 void team_listener();
-void create_thread_open_socket();
+pthread_t create_thread_open_socket();
 void send_get_pokemons();
+void send_message_received_to_broker(t_message_received* message_received, uint32_t id, uint32_t correlative_id);
 void get_pokemon(char* pokemon, uint32_t* cant);
 void handle_localized(t_message* msg);
 void handle_caught(t_message* msg);
@@ -66,5 +94,10 @@ void handle_appeared(t_message* msg);
 void send_get(char* pokemon);
 void* build_remaining_pokemons();
 void* add_remaining(char* pokemon, uint32_t* cant_global);
+void print_pokemons(char* key, int* value);
+void swap_pokemons(t_deadlock_matcher* deadlock_matcher);
+void exchange_pokemons(t_deadlock_matcher* deadlock_matcher, bool with_validate_desalojo);
+void validate_state_trainer(t_trainer* trainer);
+void increment_q_ciclos_cpu(t_trainer* trainer);
 
 #endif /* TEAM_H_ */

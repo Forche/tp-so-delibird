@@ -5,8 +5,6 @@ void* match_pokemon_with_trainer() {
 		sem_wait(&sem_trainer_available);
 		sem_wait(&sem_appeared_pokemon);
 
-
-		//TODO MANEJAR COLA DE VICTIMAS EN MATCHER
 		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
 		pthread_mutex_lock(&mutex_trainers);
 		t_match_pokemon_trainer* match_pokemon_trainer = match_closest_trainer();
@@ -55,7 +53,7 @@ t_match_pokemon_trainer* match_closest_trainer() {
 
 uint32_t check_remaining_minus_vistima(char* pokemon) {
 	pthread_mutex_lock(&mutex_remaining_pokemons);
-	uint32_t cant_global = dictionary_get(remaining_pokemons, pokemon);
+	uint32_t cant_remaining = dictionary_get(remaining_pokemons, pokemon);
 	pthread_mutex_unlock(&mutex_remaining_pokemons);
 	pthread_mutex_lock(&mutex_being_caught_pokemons);
 	bool has_key = dictionary_has_key(being_caught_pokemons, pokemon);
@@ -64,9 +62,9 @@ uint32_t check_remaining_minus_vistima(char* pokemon) {
 		pthread_mutex_lock(&mutex_being_caught_pokemons);
 		uint32_t cant_vistima = dictionary_get(being_caught_pokemons, pokemon);
 		pthread_mutex_unlock(&mutex_being_caught_pokemons);
-		return cant_global - cant_vistima;
+		return cant_remaining - cant_vistima;
 	} else {
-		return cant_global;
+		return cant_remaining;
 	}
 }
 

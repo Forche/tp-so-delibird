@@ -118,6 +118,10 @@ typedef enum
 	EXEC = 3,
 	BLOCK = 4,
 	EXIT = 5,
+	FULL = 6,
+	SWAPPING = 7,
+	EXEC_DEADLOCK = 8,
+	CATCHING = 9,
 } status;
 
 typedef struct {
@@ -125,11 +129,16 @@ typedef struct {
     uint32_t result_catch;
     uint32_t id_message;
     pthread_mutex_t sem_caught;
+    pthread_mutex_t sem_deadlock;
     status status;
     uint32_t msg_connection;
+    void (*do_next)(void*);
+    void* params_do_next;
+    uint32_t quantum;
 } t_pcb_trainer;
 
 typedef struct {
+       int name;
        uint32_t pos_x;
        uint32_t pos_y;
        t_dictionary* objective;
@@ -138,6 +147,11 @@ typedef struct {
        pthread_t thread;
        pthread_mutex_t sem;
        t_pcb_trainer* pcb_trainer;
+       bool sjf_calculado;
+       double estimacion_actual;
+       double estimacion_anterior;
+       double real_anterior;
+       uint32_t q_ciclos_cpu;
 } t_trainer;
 
 uint32_t connect_to(char* ip, char* port);
@@ -145,8 +159,6 @@ uint32_t connect_to(char* ip, char* port);
 t_subscription_petition* build_new_subscription(event_code code, char* my_ip, char* id, uint32_t my_port);
 void make_subscription_to(t_subscription_petition* suscription, char* broker_ip,
 		char* broker_port, uint32_t reconnect_time, t_log* logger, void handle_event(uint32_t*));
-
-void validate_arg_count(uint32_t arg_count, uint32_t payload_args);
 
 void send_message(uint32_t client_socket, event_code event_code, uint32_t id,
 		uint32_t correlative_id, t_buffer* buffer);
@@ -202,6 +214,7 @@ void delete_message(t_message* message);
 void free_connection(uint32_t client_socket);
 
 event_code string_to_event_code(char* code);
+char* event_code_to_string(event_code code);
 t_log* logger_init();
 
 #endif

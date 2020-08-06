@@ -79,6 +79,7 @@ char* remove_last_block_from_array(char* blocks_as_array);
 
 int check_pokemon_directory(char* pokemon, event_code code);
 void check_if_file_is_open(char* path);
+void open_file_to_use(char* path);
 
 int get_available_block();
 char** add_new_actual_blocks(char** actual_blocks, char* new_block);
@@ -103,6 +104,7 @@ t_localized_pokemon* create_localized_pokemon(uint32_t pokemon_len,	char* pokemo
 void send_appeared_to_broker(t_appeared_pokemon* appeared_pokemon, uint32_t id);
 void send_caught_to_broker(t_caught_pokemon* caught_pokemon, uint32_t id);
 void send_localized_to_broker(t_localized_pokemon* localized_pokemon, uint32_t id);
+void send_message_received_to_broker(t_message_received* message_received, uint32_t id, uint32_t correlative_id);
 
 void tall_grass_metadata_info();
 void open_bitmap();
