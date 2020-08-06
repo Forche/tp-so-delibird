@@ -81,7 +81,7 @@ void search_in_backup(t_pcb_trainer* pcb_trainer) {
 		t_appeared_pokemon* pokemon_backup = list_get(appeared_backup, i);
 		if (string_equals_ignore_case(pcb_trainer->pokemon_to_catch->pokemon,
 				pokemon_backup->pokemon)) {
-			list_remove(appeared_backup, pokemon_backup);
+			list_remove(appeared_backup, i);
 			pthread_mutex_lock(&mutex_pokemon_received_to_catch);
 			list_add(pokemon_received_to_catch, pokemon_backup);
 			pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
