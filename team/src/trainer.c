@@ -5,6 +5,14 @@ void move_one_step(uint32_t* pos1, uint32_t pos2);
 void trainer_must_go_on(t_trainer* trainer, t_deadlock_matcher* deadlock_matcher);
 void desalojar(t_trainer* trainer, bool refresh_estimation, t_deadlock_matcher* deadlock_matcher, bool lock_sem_caught);
 
+bool all_trainers_full() {
+	bool all_full(t_trainer* trainer) {
+		return trainer->status == FULL || trainer->status == EXIT;
+	}
+
+	return list_all_satisfy(trainers, all_full);
+}
+
 void handle_trainer(t_trainer* trainer) {
 	trainer->thread = pthread_self();
 	trainer->pcb_trainer->status = NEW;
@@ -18,10 +26,26 @@ void handle_trainer(t_trainer* trainer) {
 	pthread_mutex_init(&trainer->pcb_trainer->sem_deadlock, NULL);
 	pthread_mutex_lock(&trainer->pcb_trainer->sem_deadlock);
 
+	if(is_trainer_full(trainer)) {
+		dictionary_iterator(trainer->caught, print_pokemons);
+		change_status_to(trainer, FULL);
+		validate_deadlock(trainer);
+		log_trace(logger, "Entrenador %d completo", trainer->name);
+
+		pthread_mutex_lock(&mutex_trainers);
+		bool trainers_full = all_trainers_full();
+		pthread_mutex_unlock(&mutex_trainers);
+		if(dictionary_is_empty(remaining_pokemons) && trainers_full) {
+			log_trace(logger, "Todos los entrenadores completos");
+			sem_post(&sem_all_pokemons_caught);
+		}
+	}
 	while(1) {
 		pthread_mutex_lock(&trainer->sem);
 		trainer->pcb_trainer->do_next(trainer->pcb_trainer->params_do_next);
 	}
+
+
 }
 
 void trainer_catch_pokemon(t_trainer* trainer) {
@@ -60,7 +84,14 @@ void handle_catch(t_trainer* trainer) {
 		change_status_to(trainer, FULL);
 		validate_deadlock(trainer);
 
-		if(dictionary_is_empty(remaining_pokemons)) {
+		log_info(logger, "Entrenador %d completo", trainer->name);
+
+		pthread_mutex_lock(&mutex_trainers);
+		bool trainers_full = all_trainers_full();
+		pthread_mutex_unlock(&mutex_trainers);
+
+		if(dictionary_is_empty(remaining_pokemons) && trainers_full) {
+			log_trace(logger, "Todos los entrenadores completos");
 			sem_post(&sem_all_pokemons_caught);
 		}
 	} else {

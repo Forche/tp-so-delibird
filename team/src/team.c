@@ -163,7 +163,7 @@ void handle_localized(t_message* msg) {
 	uint32_t* q_catch = dictionary_get(remaining_pokemons, localized_pokemon->pokemon);
 	pthread_mutex_unlock(&mutex_remaining_pokemons);
 
-	if(*q_catch) {
+	if(q_catch != NULL && *q_catch) {
 		uint32_t q_received = get_q_received(localized_pokemon->pokemon);
 		uint32_t pos_x = 0;
 		uint32_t pos_y = 1;
@@ -224,7 +224,7 @@ void handle_appeared(t_message* msg) {
 	uint32_t* q_catch = dictionary_get(remaining_pokemons, appeared_pokemon->pokemon);
 	pthread_mutex_unlock(&mutex_remaining_pokemons);
 
-	if (*q_catch) {
+	if (q_catch != NULL && *q_catch) {
 		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
 		uint32_t q_received = get_q_received(appeared_pokemon->pokemon);
 
@@ -319,9 +319,10 @@ void* build_remaining_pokemons() {
 void* add_remaining(char* pokemon, uint32_t* cant_global) {
 	if(dictionary_has_key(caught_pokemons, pokemon)) {
 		uint32_t* cant_caught = dictionary_get(caught_pokemons, pokemon);
-		uint32_t* cant_remaining = malloc(sizeof(uint32_t));
+		int* cant_remaining = malloc(sizeof(uint32_t));
 		*cant_remaining = (*cant_global) - (*cant_caught);
 		if(*cant_remaining < 0) {
+			log_error(logger, "Error en la configuracion");
 			exit(-777);
 		} else if(*cant_remaining > 0) {
 			dictionary_put(remaining_pokemons, pokemon, cant_remaining);
