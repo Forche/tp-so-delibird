@@ -160,8 +160,6 @@ t_subscription_petition* build_new_subscription(event_code code, char* my_ip, ch
 void make_subscription_to(t_subscription_petition* suscription, char* broker_ip,
 		char* broker_port, uint32_t reconnect_time, t_log* logger, void handle_event(uint32_t*));
 
-void validate_arg_count(uint32_t arg_count, uint32_t payload_args);
-
 void send_message(uint32_t client_socket, event_code event_code, uint32_t id,
 		uint32_t correlative_id, t_buffer* buffer);
 t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count,

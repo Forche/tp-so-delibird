@@ -20,6 +20,7 @@ pthread_t thread;
 int still_connected;
 t_log* logger;
 void get_payload_content(int argc, char* argv[], char* payload_content[], uint32_t is_new_subscriptor);
+uint32_t validate_arg_count(uint32_t arg_count, uint32_t args);
 int process_message(uint32_t* socket);
 void wait_for_messages(uint32_t socket);
 void received_messages(uint32_t* socket);

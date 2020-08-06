@@ -91,22 +91,43 @@ int handle_event(uint32_t* socket) {
 	if (bytes == -1 || bytes == 0) {
 		return 0;
 	}
+
 		t_message* msg = receive_message(code, *socket);
 		uint32_t size;
 		t_message_received* message_received = malloc(sizeof(t_message_received));
+		char* pokemon_with_empty;
 		switch (code) {
 		case LOCALIZED_POKEMON:
 			msg->buffer->payload = deserialize_localized_pokemon_message(*socket, &size);
+
+			((t_localized_pokemon*)msg->buffer->payload)->pokemon_len +=1;
+			pokemon_with_empty = malloc(((t_localized_pokemon*)msg->buffer->payload)->pokemon_len);
+			for(int i = 0; i < (((t_localized_pokemon*)msg->buffer->payload)->pokemon_len -1); i++) {
+				pokemon_with_empty[i] = (((t_localized_pokemon*)msg->buffer->payload)->pokemon)[i];
+			}
+			pokemon_with_empty[((t_localized_pokemon*)msg->buffer->payload)->pokemon_len -1] = '\0';
+			((t_localized_pokemon*)msg->buffer->payload)->pokemon = pokemon_with_empty;
+
 			create_thread_with_param(handle_localized, msg, "handle_localized");
 			message_received->message_type = LOCALIZED_POKEMON;
 			break;
 		case CAUGHT_POKEMON:
 			msg->buffer->payload = deserialize_caught_pokemon_message(*socket, &size);
+
 			create_thread_with_param(handle_caught, msg, "handle_caught");
 			message_received->message_type = CAUGHT_POKEMON;
 			break;
 		case APPEARED_POKEMON:
 			msg->buffer->payload = deserialize_appeared_pokemon_message(*socket, &size);
+
+			((t_appeared_pokemon*)msg->buffer->payload)->pokemon_len +=1;
+			pokemon_with_empty = malloc(((t_appeared_pokemon*)msg->buffer->payload)->pokemon_len);
+			for(int i = 0; i < (((t_appeared_pokemon*)msg->buffer->payload)->pokemon_len -1); i++) {
+				pokemon_with_empty[i] = (((t_appeared_pokemon*)msg->buffer->payload)->pokemon)[i];
+			}
+			pokemon_with_empty[((t_appeared_pokemon*)msg->buffer->payload)->pokemon_len -1] = '\0';
+			((t_appeared_pokemon*)msg->buffer->payload)->pokemon = pokemon_with_empty;
+
 			create_thread_with_param(handle_appeared, msg, "handle_appeared");
 			message_received->message_type = APPEARED_POKEMON;
 			break;
@@ -151,7 +172,6 @@ void handle_localized(t_message* msg) {
 			appeared_pokemon->pokemon = localized_pokemon->pokemon;
 			appeared_pokemon->pos_x = localized_pokemon->positions[pos_x];
 			appeared_pokemon->pos_y = localized_pokemon->positions[pos_y];
-			log_info(logger, "X:%d-Y:%d", appeared_pokemon->pos_x, appeared_pokemon->pos_y);
 			list_add(localized_appeared_pokemon, appeared_pokemon);
 			pos_y = pos_y + 2;
 		}

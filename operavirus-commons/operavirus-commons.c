@@ -120,31 +120,25 @@ t_buffer* serialize_buffer(event_code event_code, uint32_t arg_count,
 	char* payload_content[], char* sender_id, char* sender_ip,
 	uint32_t sender_port) {
 	switch (event_code) {
-	case NEW_POKEMON:
-		validate_arg_count(arg_count, 4);
+	case NEW_POKEMON: ;
 		return serialize_new_pokemon_message(payload_content);
 
-	case APPEARED_POKEMON:
-		validate_arg_count(arg_count, 4);
+	case APPEARED_POKEMON: ;
 		return serialize_appeared_pokemon_message(payload_content);
 
-	case CATCH_POKEMON:
-		validate_arg_count(arg_count, 3);
+	case CATCH_POKEMON: ;
 		return serialize_catch_pokemon_message(payload_content);
 
-	case CAUGHT_POKEMON:
-		validate_arg_count(arg_count, 1);
+	case CAUGHT_POKEMON: ;
 		return serialize_caught_pokemon_message(payload_content);
 
-	case GET_POKEMON:
-		validate_arg_count(arg_count, 1);
+	case GET_POKEMON: ;
 		return serialize_get_pokemon_message(payload_content);
 
-	case NEW_SUBSCRIPTOR:
-		validate_arg_count(arg_count, 2);
+	case NEW_SUBSCRIPTOR: ;
 		return serialize_new_subscriptor_message(payload_content, sender_id,
 				sender_ip, sender_port);
-	default:
+	default: ;
 		return NULL;
 	}
 

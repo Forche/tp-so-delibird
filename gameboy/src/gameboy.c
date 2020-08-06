@@ -4,7 +4,12 @@
 #include <stdlib.h>
 
 int main(int argc, char* argv[]) {
-
+	if(argc < 3) {
+		logger = log_create("log_gameboy.log", "gameboy", true, LOG_LEVEL_INFO);
+		log_error(logger, "Cantidad de parametros pasados incorrecto");
+		log_destroy(logger);
+		exit(0);
+	}
 	char* string = string_new();
 	string_append(&string, "/home/utnso/tp-2020-1c-Operavirus/gameboy/");
 	if(argc == 2) {
@@ -53,44 +58,88 @@ int main(int argc, char* argv[]) {
 		is_new_subscriptor = 1;
 	}
 
-	get_payload_content(argc, argv, payload_content, is_new_subscriptor);
+	uint32_t arg_is_valid = 0;
 
-	t_buffer* buffer = serialize_buffer(code, argc - 3, payload_content, ID, IP,
-			atoi(PORT));
-
-	if (code == APPEARED_POKEMON
-			&& string_equals_ignore_case(argv[1], "BROKER")) {
-		send_message(connection, code, 0, atoi(payload_content[3]), buffer);
-	} else if (code == CAUGHT_POKEMON) {
-		send_message(connection, code, 0, atoi(payload_content[0]), buffer);
-	} else if (code == NEW_POKEMON
-			&& string_equals_ignore_case(argv[1], "GAMECARD")) {
-		send_message(connection, code, atoi(payload_content[4]), 0, buffer);
-	} else if (code == CATCH_POKEMON
-			&& string_equals_ignore_case(argv[1], "GAMECARD")) {
-		send_message(connection, code, atoi(payload_content[3]), 0, buffer);
-	} else if (code == GET_POKEMON
-			&& string_equals_ignore_case(argv[1], "GAMECARD")) {
-		send_message(connection, code, atoi(payload_content[1]), 0, buffer);
-	} else if (code == NEW_SUBSCRIPTOR) {
-
-		listen(connection, SOMAXCONN);
-
-		send_message(connection, code, 0, 0, buffer);
-		log_info(logger, "Suscripto a cola de mensajes %s", argv[2]);
-		still_connected = 1;
-		pthread_t thread = create_thread_with_param(received_messages, connection, "received_messages");
-
-		sleep(atoi(argv[3]));
-		log_info(logger, "Finalizo el tiempo de conexion");
-		close(connection);
-		config_destroy(config);
-		exit(0);
-	} else {
-		send_message(connection, code, 0, 0, buffer);
+	switch (code) {
+		case NEW_POKEMON: ;
+			if(string_equals_ignore_case(argv[1], "BROKER")){
+				arg_is_valid = validate_arg_count(argc - 3, 4);
+			} else {
+				arg_is_valid = validate_arg_count(argc - 3, 5);
+			}
+		break;
+		case APPEARED_POKEMON: ;
+			if(string_equals_ignore_case(argv[1], "BROKER")){
+				arg_is_valid = validate_arg_count(argc - 3, 4);
+			} else {
+				arg_is_valid = validate_arg_count(argc - 3, 3);
+			}
+		break;
+		case CATCH_POKEMON: ;
+			if(string_equals_ignore_case(argv[1], "BROKER")){
+				arg_is_valid = validate_arg_count(argc - 3, 3);
+			} else {
+				arg_is_valid = validate_arg_count(argc - 3, 4);
+			}
+		break;
+		case CAUGHT_POKEMON: ;
+			arg_is_valid = validate_arg_count(argc - 3, 2);
+		break;
+		case GET_POKEMON: ;
+			if(string_equals_ignore_case(argv[1], "BROKER")){
+				arg_is_valid = validate_arg_count(argc - 3, 1);
+			} else {
+				arg_is_valid = validate_arg_count(argc - 3, 2);
+			}
+		break;
+		case NEW_SUBSCRIPTOR: ;
+			arg_is_valid = validate_arg_count(argc - 2, 2);
+		break;
+		default: ;
+		break;
 	}
 
+	if(arg_is_valid) {
+		get_payload_content(argc, argv, payload_content, is_new_subscriptor);
+		t_buffer* buffer = serialize_buffer(code, argc - 3, payload_content, ID, IP,
+				atoi(PORT));
+
+		if (code == APPEARED_POKEMON
+				&& string_equals_ignore_case(argv[1], "BROKER")) {
+			send_message(connection, code, 0, atoi(payload_content[3]), buffer);
+		} else if (code == CAUGHT_POKEMON) {
+			send_message(connection, code, 0, atoi(payload_content[0]), buffer);
+		} else if (code == NEW_POKEMON
+				&& string_equals_ignore_case(argv[1], "GAMECARD")) {
+			send_message(connection, code, atoi(payload_content[4]), 0, buffer);
+		} else if (code == CATCH_POKEMON
+				&& string_equals_ignore_case(argv[1], "GAMECARD")) {
+			send_message(connection, code, atoi(payload_content[3]), 0, buffer);
+		} else if (code == GET_POKEMON
+				&& string_equals_ignore_case(argv[1], "GAMECARD")) {
+			send_message(connection, code, atoi(payload_content[1]), 0, buffer);
+		} else if (code == NEW_SUBSCRIPTOR) {
+
+			listen(connection, SOMAXCONN);
+
+			send_message(connection, code, 0, 0, buffer);
+			log_info(logger, "Suscripto a cola de mensajes %s", argv[2]);
+			still_connected = 1;
+			pthread_t thread = create_thread_with_param(received_messages, connection, "received_messages");
+
+			sleep(atoi(argv[3]));
+			log_info(logger, "Finalizo el tiempo de conexion");
+			close(connection);
+			config_destroy(config);
+			exit(0);
+		} else {
+			send_message(connection, code, 0, 0, buffer);
+		}
+	} else {
+		log_error(logger, "Cantidad de parametros pasados incorrecto");
+	}
 	config_destroy(config);
+	log_destroy(logger);
 	return EXIT_SUCCESS;
 }
 
@@ -162,5 +211,13 @@ void get_payload_content(int argc, char* argv[], char* payload_content[],
 			payload_content[i - 3] = argv[i];
 		}
 	}
+}
+
+uint32_t validate_arg_count(uint32_t arg_count, uint32_t args){
+ 	if(arg_count == args){
+ 		return 1;
+ 	} else {
+ 		return 0;
+ 	}
 }
 

@@ -122,7 +122,6 @@ int handle_event(uint32_t* client_socket) {
 		}
 		pokemon_with_empty[((t_new_pokemon*)msg->buffer)->pokemon_len -1] = '\0';
 		((t_new_pokemon*)msg->buffer)->pokemon = pokemon_with_empty;
-		log_info(logger, "POKEMON NEW:%s", ((t_new_pokemon*)msg->buffer)->pokemon);
 
 		create_thread_with_param(handle_new_pokemon, msg, "handle_new_pokemon");
 		message_received->message_type = NEW_POKEMON;
