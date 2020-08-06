@@ -413,7 +413,7 @@ void subscribe_to(event_code code) {
 	if(broker_connection == -1) {
 		log_error(logger, "No se pudo conectar al broker, reintentando en %d seg", TIEMPO_RECONEXION);
 		sleep(TIEMPO_RECONEXION);
-		//subscribe_to(code);
+		subscribe_to(code);
 	} else {
 		log_info(logger, "Conectada cola code %s al broker", event_code_to_string(code));
 		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
