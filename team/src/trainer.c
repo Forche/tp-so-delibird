@@ -48,6 +48,7 @@ void handle_catch(t_trainer* trainer) {
 		log_info(logger, "Atrapado pokemon %s, entrenador %d", pcb_trainer->pokemon_to_catch->pokemon, trainer->name);
 	} else {
 		log_info(logger, "Error atrapar pokemon %s, entrenador %d", pcb_trainer->pokemon_to_catch->pokemon, trainer->name);
+		search_in_backup(pcb_trainer);
 	}
 
 	pthread_mutex_lock(&mutex_being_caught_pokemons);
@@ -71,6 +72,24 @@ void handle_catch(t_trainer* trainer) {
 	trainer->real_anterior = trainer->estimacion_anterior - trainer->estimacion_actual;
 	trainer->sjf_calculado = false;
 	trainer->pcb_trainer->quantum = 0;
+}
+
+void search_in_backup(t_pcb_trainer* pcb_trainer) {
+	pthread_mutex_lock(&mutex_appeared_backup);
+	uint32_t i;
+	for (i = 0; i < list_size(appeared_backup); i++) {
+		t_appeared_pokemon* pokemon_backup = list_get(appeared_backup, i);
+		if (string_equals_ignore_case(pcb_trainer->pokemon_to_catch->pokemon,
+				pokemon_backup->pokemon)) {
+			list_remove(appeared_backup, pokemon_backup);
+			pthread_mutex_lock(&mutex_pokemon_received_to_catch);
+			list_add(pokemon_received_to_catch, pokemon_backup);
+			pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
+			sem_post(&sem_appeared_pokemon);
+			break;
+		}
+	}
+	pthread_mutex_unlock(&mutex_appeared_backup);
 }
 
 void find_candidate_to_swap(t_list* remaining, t_list* leftovers, t_trainer* trainer) {

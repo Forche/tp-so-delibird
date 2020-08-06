@@ -34,6 +34,7 @@ t_list* pokemon_received_to_catch;
 t_list* trainers;
 t_list* matches;
 t_list* queue_deadlock;
+t_list* appeared_backup;
 
 pthread_mutex_t mutex_pokemon_received_to_catch;
 pthread_mutex_t mutex_trainers;
@@ -47,6 +48,7 @@ pthread_mutex_t mutex_planning_deadlock;
 pthread_mutex_t mutex_direct_deadlocks;
 pthread_mutex_t mutex_matched_deadlocks;
 pthread_mutex_t mutex_q_ciclos_cpu_totales;
+pthread_mutex_t mutex_appeared_backup;
 
 sem_t sem_appeared_pokemon;
 sem_t sem_trainer_available;
@@ -99,5 +101,6 @@ void swap_pokemons(t_deadlock_matcher* deadlock_matcher);
 void exchange_pokemons(t_deadlock_matcher* deadlock_matcher, bool with_validate_desalojo);
 void validate_state_trainer(t_trainer* trainer);
 void increment_q_ciclos_cpu(t_trainer* trainer);
+uint32_t get_q_received(t_appeared_pokemon* appeared_pokemon);
 
 #endif /* TEAM_H_ */

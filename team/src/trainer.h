@@ -37,5 +37,6 @@ void list_remove_by_value(t_list* list, char* value);
 void trainer_catch_pokemon(t_trainer* trainer);
 void handle_catch(t_trainer* trainer);
 void wait_catch(t_trainer* trainer, bool lock_sem_caught);
+void search_in_backup(t_pcb_trainer* pcb_trainer);
 
 #endif /* SRC_TRAINER_H_ */
