@@ -317,7 +317,11 @@ t_position* ckeck_position_exists_catch_pokemon(char* path_pokemon, t_catch_poke
 
 void handle_new_pokemon(t_message* msg){
 	t_new_pokemon* new_pokemon = msg->buffer;
-	check_pokemon_directory(new_pokemon->pokemon, msg->event_code);
+	int exists = check_pokemon_directory(new_pokemon->pokemon, msg->event_code);
+	if(exists == -1){
+		log_error(logger, "New no procesado.");
+		return;
+	}
 
 	char* path_pokemon = string_from_format("%s/Files/%s/Metadata.bin", PUNTO_MONTAJE_TALLGRASS, new_pokemon->pokemon);
 
@@ -740,12 +744,15 @@ int check_pokemon_directory(char* pokemon, event_code code){
 	//Si no existe el directorio en ese path, si es NEW_POKEMON lo crea, si es CATCH_POKEMON o GET_POKEMON lo informa
 	if(exist == 0){
 		if(code == NEW_POKEMON){
+			int available_block = get_available_block();
+			if(available_block == -1){
+				log_error(logger, "No se puede resolver new por falta de bloques");
+				return -1;
+			}
 			log_info(logger, "Se crea el nuevo directorio con su metadata para %s", pokemon);
 			mkdir(path_pokemon, 0777);
 			string_append(&path_pokemon, "/");
 			string_append(&path_pokemon, "Metadata.bin");
-
-			int available_block = get_available_block();
 
 			FILE* file = fopen(path_pokemon, "wb+");
 			fprintf(file, "DIRECTORY=N\n");
@@ -764,20 +771,24 @@ int check_pokemon_directory(char* pokemon, event_code code){
 
 int get_available_block(){
 	pthread_mutex_lock(&mutexBitmap);
-	bool is_not_available=true;
 	int block=0;
-	while(is_not_available){
-		is_not_available = bitarray_test_bit(bitarray, block);
-		block ++;
+	while(block < (bitarray->size)*8){
+		bool is_available = bitarray_test_bit(bitarray, block);
+		if(is_available){
+			bitarray_set_bit(bitarray, block);
+			blocks_available -= 1;
+			log_info(logger, "Cantidad de bloques disponibles: %d", blocks_available);
+			log_info(logger, "Se ocupa bloque %d", block);
+			msync(bmap, sizeof(bitarray), MS_SYNC);
+			pthread_mutex_unlock(&mutexBitmap);
+			return block;
+		}
+		block++;
 	}
-	block -= 1;
-	bitarray_set_bit(bitarray, block);
-	blocks_available -= 1;
-	log_info(logger, "Cantidad de bloques disponibles: %d", blocks_available);
-	log_info(logger, "Se ocupa bloque %d", block);
-	msync(bmap, sizeof(bitarray), MS_SYNC);
+	
+	log_error(logger, "No hay mas bloques disponibles");
 	pthread_mutex_unlock(&mutexBitmap);
-	return block;
+	return -1;
 }
 
 void tall_grass_metadata_info(){
