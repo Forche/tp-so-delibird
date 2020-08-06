@@ -1,2 +1,6 @@
-Dump: 5/8/2020 0:16:53
-Partition 0: 00000 - 0x040.	 [1]	 Size:64 b	 LRU:1596597397	 Queue:Cola 	 ID:2
+Dump: 6/8/2020 0:57:23
+Partition 0: 0x016 - 0x01b.	 [0]	 Size:5 b	 LRU:0	 Queue:O 	 ID:2
+Partition 1: 0x01b - 0x02f.	 [1]	 Size:20 b	 LRU:1596686049	 Queue:CATCH_POKEMON 	 ID:5
+Partition 2: 0x02f - 0x03f.	 [1]	 Size:16 b	 LRU:1596686050	 Queue:CATCH_POKEMON 	 ID:6
+Partition 3: 0x03f - 0x040.	 [0]	 Size:1 b	 LRU:0	 Queue:CATCH_POKEMON 	 ID:7
+Partition 4: 00000 - 0x016.	 [1]	 Size:22 b	 LRU:1596686184	 Queue:CATCH_POKEMON 	 ID:8

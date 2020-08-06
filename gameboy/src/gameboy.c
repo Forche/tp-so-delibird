@@ -22,13 +22,13 @@ int main(int argc, char* argv[]) {
 	t_config* config = config_create(string);
 	logger = log_create("log_gameboy.log", "gameboy", true, LOG_LEVEL_INFO);
 
-	char* BROKER_IP = config_get_string_value(config, "IP_BROKER");
-	char* BROKER_PORT = config_get_string_value(config, "PORT_BROKER");
+	BROKER_IP = config_get_string_value(config, "IP_BROKER");
+	BROKER_PORT = config_get_string_value(config, "PORT_BROKER");
 	char* TEAM_IP = config_get_string_value(config, "IP_TEAM");
 	char* TEAM_PORT = config_get_string_value(config, "PORT_TEAM");
 	char* GAMECARD_IP = config_get_string_value(config, "IP_GAMECARD");
 	char* GAMECARD_PORT = config_get_string_value(config, "PORT_GAMECARD");
-	char* ID = config_get_string_value(config, "ID");
+	ID = config_get_string_value(config, "ID");
 	char* IP = config_get_string_value(config, "IP");
 	char* PORT = config_get_string_value(config, "PORT");
 
@@ -128,8 +128,8 @@ int main(int argc, char* argv[]) {
 			pthread_t thread = create_thread_with_param(received_messages, connection, "received_messages");
 
 			sleep(atoi(argv[3]));
-			log_info(logger, "Finalizo el tiempo de conexion");
 			close(connection);
+			log_info(logger, "Finalizo el tiempo de conexion");
 			config_destroy(config);
 			exit(0);
 		} else {
@@ -162,31 +162,54 @@ int process_message(uint32_t* socket) {
 		case LOCALIZED_POKEMON:
 			msg->buffer->payload = deserialize_localized_pokemon_message(*socket, &size);
 			log_info(logger, "Recibido LOCALIZED_POKEMON.");
+			message_received->message_type = LOCALIZED_POKEMON;
+
 			break;
 		case CAUGHT_POKEMON:
 			msg->buffer->payload = deserialize_caught_pokemon_message(*socket, &size);
 			log_info(logger, "Recibido CAUGHT_POKEMON.");
+			message_received->message_type = CAUGHT_POKEMON;
 			break;
 		case APPEARED_POKEMON:
 			msg->buffer->payload = deserialize_appeared_pokemon_message(*socket, &size);
 			log_info(logger, "Recibido APPEARED_POKEMON.");
+			message_received->message_type = APPEARED_POKEMON;
 			break;
 		case NEW_POKEMON:
 			msg->buffer->payload = deserialize_new_pokemon_message(*socket, &size);
 			log_info(logger, "Recibido NEW_POKEMON.");
+			message_received->message_type = NEW_POKEMON;
 			break;
 		case CATCH_POKEMON:
 			msg->buffer->payload = deserialize_catch_pokemon_message(*socket, &size);
 			log_info(logger, "Recibido CATCH_POKEMON.");
+			message_received->message_type = CATCH_POKEMON;
 			break;
 		case GET_POKEMON:
 			msg->buffer->payload = deserialize_get_pokemon_message(*socket, &size);
 			log_info(logger, "Recibido GET_POKEMON.");
+			message_received->message_type = GET_POKEMON;
 			break;
 		}
+		message_received->received_message_id = msg->id;
+		message_received->subscriptor_len = string_length(ID) + 1;
+		message_received->subscriptor_id = ID;
+		send_message_received_to_broker(message_received, msg->id, msg->correlative_id);
 		return 1;
 	}
 
+}
+
+void send_message_received_to_broker(t_message_received* message_received, uint32_t id, uint32_t correlative_id){
+	t_buffer* buffer_received = serialize_t_message_received(message_received);
+	uint32_t connection = connect_to(BROKER_IP,BROKER_PORT);
+	if(connection == -1) {
+			log_error(logger, "No se pudo enviar el ACK al broker. No se pudo conectar al broker");
+		} else {
+			log_info(logger, "Se envio el ACK al broker");
+		}
+
+	send_message(connection, MESSAGE_RECEIVED, id, correlative_id, buffer_received);
 }
 
 void wait_for_messages(uint32_t socket) {
@@ -214,10 +237,6 @@ void get_payload_content(int argc, char* argv[], char* payload_content[],
 }
 
 uint32_t validate_arg_count(uint32_t arg_count, uint32_t args){
- 	if(arg_count == args){
- 		return 1;
- 	} else {
- 		return 0;
- 	}
+	return (arg_count == args);
 }
 

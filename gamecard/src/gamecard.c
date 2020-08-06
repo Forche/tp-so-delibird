@@ -177,7 +177,6 @@ void send_message_received_to_broker(t_message_received* message_received, uint3
 		}
 
 	send_message(connection, MESSAGE_RECEIVED, id, correlative_id, buffer_received);
-
 }
 
 void handle_get_pokemon(t_message* msg){
