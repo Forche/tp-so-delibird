@@ -323,6 +323,16 @@ void handle_new_pokemon(t_message* msg){
 		return;
 	}
 
+	/*int available_blocks_quantity = 0;
+	for(int i = 0; i < (bitarray->size)*8;i++){
+		bool is_not_available = bitarray_test_bit(bitarray, i);
+		if(!is_not_available) {
+			available_blocks_quantity++;
+		}
+	}
+	if(available_blocks_quantity){
+
+	}*/
 	char* path_pokemon = string_from_format("%s/Files/%s/Metadata.bin", PUNTO_MONTAJE_TALLGRASS, new_pokemon->pokemon);
 
 	check_if_file_is_open(path_pokemon);
@@ -437,7 +447,9 @@ void write_positions_on_files(t_list* pokemon_positions, char* path_new_file){
 	int size_array_positions = string_length(array_positions);
 	t_list* writed_blocks = write_blocks_and_metadata(size_array_positions, array_positions, path_new_file);
 	free(array_positions);
-	log_info(logger, "Se escribe el archivo %s con cantidad de bloques: %d y size= %d", path_new_file, list_size(writed_blocks), size_array_positions);
+	if(list_size(writed_blocks) != 0) {
+		log_info(logger, "Se escribe el archivo %s con cantidad de bloques: %d y size= %d", path_new_file, list_size(writed_blocks), size_array_positions);
+	}
 	list_destroy(writed_blocks);
 }
 
@@ -460,13 +472,15 @@ t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_po
 	}
 
 	int blocks_are_enough = blocks_needed - quantity_actual_blocks;
-	while(blocks_are_enough > 0){
-		int new_block = get_available_block();
-		blocks_are_enough -= 1;
-		blocks_as_array_of_char = add_block_to_array(blocks_as_array_of_char, string_from_format("%d", new_block));
-		quantity_actual_blocks++;
+	if(blocks_are_enough < blocks_available) {
+		while(blocks_are_enough > 0){
+			int new_block = get_available_block();
+			blocks_are_enough -= 1;
+			blocks_as_array_of_char = add_block_to_array(blocks_as_array_of_char, string_from_format("%d", new_block));
+			quantity_actual_blocks++;
 
-		list_add(blocks_as_char, string_from_format("%d",new_block));
+			list_add(blocks_as_char, string_from_format("%d",new_block));
+		}
 	}
 
 	while(blocks_are_enough < 0){
@@ -556,24 +570,27 @@ void remove_block_from_bitmap(char* block){
 
 t_list* write_blocks_and_metadata(int size_array_positions, char* array_positions, char* metadata_path){
 	int quantity_of_blocks = my_ceil(size_array_positions, block_size);
-	log_info(logger, "Cantidad de bloques a ocupar: [%d] para %s", quantity_of_blocks, metadata_path);
-	t_list* blocks = pokemon_blocks(quantity_of_blocks, metadata_path, size_array_positions);
+		log_info(logger, "Cantidad de bloques a ocupar: [%d] para %s", quantity_of_blocks, metadata_path);
+		t_list* blocks = pokemon_blocks(quantity_of_blocks, metadata_path, size_array_positions);
 
-	for(int i=0; i < quantity_of_blocks; i++){
-		int first_byte = i*block_size;
-		int size_positions_to_write = size_of_content_to_write(i+1, quantity_of_blocks, size_array_positions);
+		int real_size = ((list_size(blocks)) <= (quantity_of_blocks)) ? (list_size(blocks)) : (quantity_of_blocks);
 
-		char* data = string_substring(array_positions, first_byte, size_positions_to_write);
-		string_append(&data,"\0");
-		char* block = list_get(blocks, i);
+		for(int i=0; i < real_size; i++){
+			int first_byte = i*block_size;
+			int size_positions_to_write = size_of_content_to_write(i+1, real_size, size_array_positions);
 
-		log_info(logger, "Se escriben [%d] bytes de registros, en el bloque: [%s] para %s", size_positions_to_write, block, metadata_path);
+			char* data = string_substring(array_positions, first_byte, size_positions_to_write);
+			string_append(&data,"\0");
+			char* block = list_get(blocks, i);
 
-		write_positions_on_block(block, data);
-		//log_info(logger, "Bloque escrito satisfactoriamente");
-		free(data);
-	}
-	return blocks;
+			log_info(logger, "Se escriben [%d] bytes de registros, en el bloque: [%s] para %s", size_positions_to_write, block, metadata_path);
+
+			write_positions_on_block(block, data);
+			//log_info(logger, "Bloque escrito satisfactoriamente");
+			free(data);
+		}
+		log_error(logger, "La cantidad de bloques necesarios:[%d] es mayor a la disponible [%d]",quantity_of_blocks, blocks_available );
+		return blocks;
 }
 
 int my_ceil(int a, int b){
@@ -774,7 +791,7 @@ int get_available_block(){
 	int block=0;
 	while(block < (bitarray->size)*8){
 		bool is_available = bitarray_test_bit(bitarray, block);
-		if(is_available){
+		if(!is_available){
 			bitarray_set_bit(bitarray, block);
 			blocks_available -= 1;
 			log_info(logger, "Cantidad de bloques disponibles: %d", blocks_available);
