@@ -69,8 +69,8 @@ void handle_catch(t_trainer* trainer) {
 		substract_from_dictionary(remaining_pokemons, pcb_trainer->pokemon_to_catch->pokemon);
 		pthread_mutex_unlock(&mutex_remaining_pokemons);
 
-		must_remove_from_backup(pcb_trainer);
 		log_info(logger, "Atrapado pokemon %s, entrenador %d", pcb_trainer->pokemon_to_catch->pokemon, trainer->name);
+		//must_remove_from_backup(pcb_trainer);
 	} else {
 		log_info(logger, "Error atrapar pokemon %s, entrenador %d", pcb_trainer->pokemon_to_catch->pokemon, trainer->name);
 		search_in_backup(pcb_trainer);
@@ -128,21 +128,23 @@ void must_remove_from_backup(t_pcb_trainer* pcb_trainer) {
 	pthread_mutex_lock(&mutex_remaining_pokemons);
 	uint32_t* q_catch = dictionary_get(remaining_pokemons, pcb_trainer->pokemon_to_catch->pokemon);
 	pthread_mutex_unlock(&mutex_remaining_pokemons);
-	if(q_catch != NULL && *q_catch) {
-
+	if(q_catch != NULL && (*q_catch) > 0 ) {
+		log_info(logger, "No saco nada");
 	} else {
 		pthread_mutex_lock(&mutex_appeared_backup);
-		int i;
-		for (i = list_size(appeared_backup) - 1; i >= 0; i--) {
-			t_appeared_pokemon* pokemon_backup = list_get(appeared_backup, i);
-			if (string_equals_ignore_case(pcb_trainer->pokemon_to_catch->pokemon,
-					pokemon_backup->pokemon)) {
-				log_trace(logger, "Liberado del backup %s", pokemon_backup->pokemon);
-				list_remove(appeared_backup, i);
-				free(pokemon_backup->pokemon);
-				free(pokemon_backup);
+			if(list_size(appeared_backup) > 0) {
+				log_info(logger, "Hay pa sacar");
+				int i;
+				for (i = list_size(appeared_backup); i > 0; i--) {
+					t_appeared_pokemon* pokemon_backup = list_get(appeared_backup, i - 1);
+					if (string_equals_ignore_case(pcb_trainer->pokemon_to_catch->pokemon,
+							pokemon_backup->pokemon)) {
+						list_remove(appeared_backup, i);
+						free(pokemon_backup->pokemon);
+						free(pokemon_backup);
+					}
+				}
 			}
-		}
 		pthread_mutex_unlock(&mutex_appeared_backup);
 	}
 }
