@@ -111,6 +111,7 @@ int handle_event(uint32_t* client_socket) {
 			pokemon_with_empty[i] = (((t_new_pokemon*)msg->buffer)->pokemon)[i];
 		}
 		pokemon_with_empty[((t_new_pokemon*)msg->buffer)->pokemon_len -1] = '\0';
+		free(((t_new_pokemon*)msg->buffer)->pokemon);
 		((t_new_pokemon*)msg->buffer)->pokemon = pokemon_with_empty;
 
 		create_thread_with_param(handle_new_pokemon, msg, "handle_new_pokemon");
@@ -126,6 +127,7 @@ int handle_event(uint32_t* client_socket) {
 			pokemon_with_empty[i] = (((t_catch_pokemon*)msg->buffer)->pokemon)[i];
 		}
 		pokemon_with_empty[((t_catch_pokemon*)msg->buffer)->pokemon_len -1] = '\0';
+		free(((t_catch_pokemon*)msg->buffer)->pokemon);
 		((t_catch_pokemon*)msg->buffer)->pokemon = pokemon_with_empty;
 
 		create_thread_with_param(handle_catch_pokemon, msg, "handle_catch");
@@ -141,6 +143,7 @@ int handle_event(uint32_t* client_socket) {
 			pokemon_with_empty[i] = (((t_get_pokemon*)msg->buffer)->pokemon)[i];
 		}
 		pokemon_with_empty[((t_get_pokemon*)msg->buffer)->pokemon_len -1] = '\0';
+		free(((t_get_pokemon*)msg->buffer)->pokemon);
 		((t_get_pokemon*)msg->buffer)->pokemon = pokemon_with_empty;
 
 		create_thread_with_param(handle_get_pokemon, msg, "handle_get");
@@ -152,9 +155,7 @@ int handle_event(uint32_t* client_socket) {
 	message_received->subscriptor_id = "Game Card";
 
 	send_message_received_to_broker(message_received, msg->id, msg->correlative_id);
-
 	return 1;
-	//TODO:free(msg);
 }
 
 void send_message_received_to_broker(t_message_received* message_received, uint32_t id, uint32_t correlative_id){
@@ -187,6 +188,8 @@ void handle_get_pokemon(t_message* msg){
 		close_file_pokemon(path_pokemon);
 		//list_destroy(pokemon_positions);
 	}
+	free(((t_get_pokemon*)msg->buffer)->pokemon);
+	free((t_get_pokemon*)msg->buffer);
 
 }
 
@@ -245,6 +248,7 @@ void handle_catch_pokemon(t_message* msg){
 	}
 
 	send_caught_to_broker(caught_pokemon, msg->id);
+	free((t_caught_pokemon*)msg->buffer);
 }
 
 void send_caught_to_broker(t_caught_pokemon* caught_pokemon, uint32_t correlative_id){
@@ -325,6 +329,8 @@ void handle_new_pokemon(t_message* msg){
 	}
 	t_appeared_pokemon* appeared_pokemon = create_appeared_pokemon(new_pokemon->pokemon_len, new_pokemon->pokemon, new_pokemon->pos_x, new_pokemon->pos_y);
 	send_appeared_to_broker(appeared_pokemon, msg->id);
+	free(((t_new_pokemon*)msg->buffer)->pokemon);
+	free(msg->buffer);
 }
 
 t_list* ckeck_position_exists_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon){
@@ -359,7 +365,7 @@ t_list* ckeck_position_exists_new_pokemon(char* path_pokemon, t_new_pokemon* pok
 		list_add_all(pokemon_positions_copy,pokemon_positions);
 		char* positions_as_char = pokemon_position_to_array_of_position(pokemon_positions_copy);
 		int blocks_needed = my_ceil(string_length(positions_as_char),block_size);
-
+		free(positions_as_char);
 		if((blocks_needed - blocks_have) <= blocks_available) {
 			log_info(logger,"Sumamos %d a %d total: %d del pokemon %s en la posicion x:%d y:%d en %s", pokemon->count, position_count, pokemon->count + position_count, pokemon->pokemon, pokemon->pos_x, pokemon->pos_y, path_pokemon);
 		} else {
@@ -376,6 +382,7 @@ t_list* ckeck_position_exists_new_pokemon(char* path_pokemon, t_new_pokemon* pok
 		list_add_all(pokemon_positions_copy, pokemon_positions);
 		char* positions_as_char = pokemon_position_to_array_of_position(pokemon_positions_copy);
 		int blocks_needed = my_ceil(string_length(positions_as_char),block_size);
+		free(positions_as_char);
 		if((blocks_needed - blocks_have) <= blocks_available) {
 			log_info(logger,"Agregamos %d %s en la posicion x:%d y:%d en %s",pokemon->count, pokemon->pokemon,pokemon->pos_x, pokemon->pos_y, path_pokemon);
 		} else {
@@ -466,8 +473,8 @@ char* pokemon_position_to_array_of_position(t_list* pokemon_positions) {
 		free(string_count);
 		//destroy_position(position);
 	}
-	char* null = "\0";
-	string_append(&array_positions, null);
+	/*char* null = "\0";
+	string_append(&array_positions, null);*/
 	return array_positions;
 }
 
@@ -519,8 +526,8 @@ t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_po
 	}
 	free(actual_blocks);*/
 	config_save(metadata);
+	config_destroy(metadata);
 	pthread_mutex_unlock(&mutexMetadataPath);
-	//config_destroy(metadata);
 	//TODO:free(blocks_as_array_of_char);
 	free(size_array);
 
@@ -728,29 +735,36 @@ void check_if_file_is_open(char* path){
 	pthread_mutex_lock(&mutexMetadataPath);
 	t_config* metadata = config_create(path);
 	char* is_open = config_get_string_value(metadata, "OPEN");
-
+	char* is_open_copy = string_new();
+	is_open_copy = string_from_format("%s", is_open);
 	if(string_equals_ignore_case(is_open, "N")){
 		log_info(logger, "El archivo %s esta cerrado",path);
 		open_file_to_use(path);
 		config_destroy(metadata);
+		free(is_open_copy);
 		pthread_mutex_unlock(&mutexMetadataPath);
 		return;
 	}
+	config_destroy(metadata);
 	pthread_mutex_unlock(&mutexMetadataPath);
 
-	while(string_equals_ignore_case(is_open, "Y")) {
+	while(string_equals_ignore_case(is_open_copy, "Y")) {
 		log_info(logger,"El archivo %s esta abierto reintentando",path);
 		sleep(TIEMPO_DE_REINTENTO_OPERACION);
 		pthread_mutex_lock(&mutexMetadataPath);
+		free(is_open_copy);
 		metadata = config_create(path);
 		is_open = config_get_string_value(metadata, "OPEN");
+		is_open_copy = string_from_format("%s", is_open);
 		if(string_equals_ignore_case(is_open, "N")){
 			log_info(logger, "El archivo %s esta cerrado",path);
 			open_file_to_use(path);
+			free(is_open_copy);
 			config_destroy(metadata);
 			pthread_mutex_unlock(&mutexMetadataPath);
 			return;
 		}
+		config_destroy(metadata);
 		pthread_mutex_unlock(&mutexMetadataPath);
 	}
 }
@@ -790,7 +804,6 @@ int check_pokemon_directory(char* pokemon, event_code code){
 				log_error(logger, "No se pudo crear el directorio con su metadata para %s ya que no hay bloques disponibles en el File System", pokemon);
 				pthread_mutex_unlock(&mutexDirectory);
 				return -1;
-				//TODO: agarrar este -1
 			}
 		} else if(code == CATCH_POKEMON || code == GET_POKEMON){
 			log_error(logger, "No existe el directorio para %s", pokemon);
