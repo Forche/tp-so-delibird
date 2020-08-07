@@ -30,6 +30,7 @@ void proceed_to_finish() {
 		list_iterate(trainers,print_caught);
 		log_info(logger, "Ciclos CPU Totales: %d", q_ciclos_cpu_totales);
 		log_info(logger, "Cambios de Contexto Totales: %d", q_cambios_contexto_totales);
+		kill_everything();
 		//Termino el proceso, finaliza el team
 		exit(0);
 	} else {
@@ -43,6 +44,7 @@ void proceed_to_finish() {
 		list_iterate(trainers,print_caught);
 		log_info(logger, "Ciclos CPU Totales: %d", q_ciclos_cpu_totales);
 		log_info(logger, "Cambios de Contexto Totales: %d", q_cambios_contexto_totales);
+		kill_everything();
 		exit(0);
 	}
 }
@@ -176,5 +178,21 @@ void resolve_deadlock(t_deadlock_matcher* deadlock_matcher) {
 
 	validate_state_trainer(trainer_1);
 	validate_state_trainer(trainer_2);
+}
+
+void kill_everything() {
+	pthread_mutex_destroy(&mutex_pokemon_received_to_catch);
+	pthread_mutex_destroy(&mutex_trainers);
+	pthread_mutex_destroy(&mutex_matches);
+	pthread_mutex_destroy(&mutex_planning);
+	pthread_mutex_destroy(&mutex_remaining_pokemons);
+	pthread_mutex_destroy(&mutex_caught_pokemons);
+	pthread_mutex_destroy(&mutex_being_caught_pokemons);
+	pthread_mutex_destroy(&mutex_queue_deadlocks);
+	pthread_mutex_destroy(&mutex_planning_deadlock);
+	pthread_mutex_destroy(&mutex_direct_deadlocks);
+	pthread_mutex_destroy(&mutex_matched_deadlocks);
+	pthread_mutex_destroy(&mutex_q_ciclos_cpu_totales);
+	pthread_mutex_destroy(&mutex_appeared_backup);
 }
 
