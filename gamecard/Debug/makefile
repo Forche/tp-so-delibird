@@ -25,6 +25,9 @@ endif
 # All Target
 all: gamecard
 
+dependents:
+	-cd /home/utnso/tp-2020-1c-Operavirus/operavirus-commons/Debug && $(MAKE) all
+	
 # Tool invocations
 gamecard: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
@@ -39,5 +42,6 @@ clean:
 	-@echo ' '
 
 .PHONY: all clean dependents
+/home/utnso/tp-2020-1c-Operavirus/operavirus-commons/Debug/liboperavirus-commons.so:
 
 -include ../makefile.targets
