@@ -88,6 +88,7 @@ t_list* get_positions_from_buffer(char* buffer);
 t_position* create_position(int x, int y, int pokemon_quantity);
 void destroy_position(t_position* position);
 t_list* write_blocks_and_metadata(int size_array_positions, char* array_positions, char* metadata_path);
+char* pokemon_position_to_array_of_position(t_list* pokemon_positions);
 char** metadata_blocks_to_actual_blocks(char* metadata_blocks);
 char* add_block_to_array(char* blocks_as_array, char* block_to_add);
 int my_ceil(int a, int b);
