@@ -38,7 +38,7 @@ void read_config() {
 }
 
 void init_loggers() {
-	logger = log_create("/home/utnso/tp-2020-1c-Operavirus/gamecard/gamecard.log", "gamecard", true, LOG_LEVEL_INFO); //true porque escribe tambien la consola
+	logger = log_create("/home/utnso/tp-2020-1c-Operavirus/gamecard/gamecard.log", "gamecard", true, LOG_LEVEL_TRACE); //true porque escribe tambien la consola
 }
 
 void shutdown_gamecard() {
@@ -70,7 +70,9 @@ void subscribe_to(event_code code) {
 		send_message(broker_connection, NEW_SUBSCRIPTOR, NULL, NULL, buffer);
 		int still_connected = 1;
 		while(still_connected) {
+			log_trace(logger, "STILL CONNECTED INICIO");
 			still_connected = handle_event(&broker_connection);
+			log_trace(logger, "STILL CONNECTED FINAL");
 		}
 		log_error(logger, "Se desconecto del broker");
 		close(broker_connection);
@@ -181,12 +183,14 @@ void handle_get_pokemon(t_message* msg){
 		sleep(TIEMPO_RETARDO_OPERACION);
 		t_list* pokemon_positions = get_positions_from_buffer(blocks_content);
 		uint32_t* positions_uint32 = positions_to_uint32(pokemon_positions);
-		if(pokemon_positions != NULL){
+		if(list_size(pokemon_positions) != 0){
 			t_localized_pokemon* localized_pokemon = create_localized_pokemon(get_pokemon->pokemon_len, get_pokemon->pokemon, list_size(pokemon_positions), positions_uint32);
 			send_localized_to_broker(localized_pokemon, msg->id);
+		} else {
+			log_info(logger, "No hay %s disponibles", get_pokemon->pokemon);
 		}
 		close_file_pokemon(path_pokemon);
-		//list_destroy(pokemon_positions);
+		list_destroy_and_destroy_elements(pokemon_positions, destroy_position);
 	}
 	free(((t_get_pokemon*)msg->buffer)->pokemon);
 	free((t_get_pokemon*)msg->buffer);
@@ -240,14 +244,18 @@ void handle_catch_pokemon(t_message* msg){
 			} else {
 				decrease_position(position, path_pokemon);
 			}
+			free(position);
 		}
 		caught_pokemon->result = 1;
 		close_file_pokemon(path_pokemon);
+		free(path_pokemon);
+		//free(position);
 	}else {
 		caught_pokemon->result = 0;
 	}
 
 	send_caught_to_broker(caught_pokemon, msg->id);
+	free(caught_pokemon);
 	free((t_caught_pokemon*)msg->buffer);
 }
 
@@ -277,7 +285,8 @@ void decrease_position(t_position* position, char* path_pokemon){
 
 
 	write_positions_on_files(pokemon_positions, path_pokemon);
-	//list_destroy(pokemon_positions);
+	list_destroy_and_destroy_elements(pokemon_positions, destroy_position);
+	free(blocks_content);
 }
 
 void remove_position(t_position* position, char* path_pokemon){
@@ -286,10 +295,11 @@ void remove_position(t_position* position, char* path_pokemon){
 	t_list* pokemon_positions = get_positions_from_buffer(blocks_content);
 	int position_from_list = position_list(pokemon_positions,position);
 	log_info(logger, "Restamos 1 pokemon de la posicion x:%d y:%d quedan 0, entonces removemos el pokemon de %s", position->pos_x, position->pos_y, path_pokemon);
-	list_remove(pokemon_positions,position_from_list);
-
+	list_remove_and_destroy_element(pokemon_positions,position_from_list,destroy_position);
 	write_positions_on_files(pokemon_positions, path_pokemon);
-	//list_destroy(pokemon_positions);
+
+	list_destroy_and_destroy_elements(pokemon_positions,destroy_position);
+	free(blocks_content);
 }
 
 t_position* ckeck_position_exists_catch_pokemon(char* path_pokemon, t_catch_pokemon* pokemon){
@@ -300,13 +310,17 @@ t_position* ckeck_position_exists_catch_pokemon(char* path_pokemon, t_catch_poke
 		return (pokemon->pos_x == position->pos_x) && (pokemon->pos_y == position->pos_y);
 	}
 	t_position* find_position = NULL;
+	t_position* find_position_copy = NULL;
 	find_position = list_find(pokemon_positions, _compare);
 
 	if(find_position == NULL){
 		log_error(logger, "No existe la posicion %d-%d dentro del archivo de %s", pokemon->pos_x, pokemon->pos_y, path_pokemon);
+	} else {
+		find_position_copy = create_position(find_position->pos_x, find_position->pos_y, find_position->count);
 	}
-	//TODO:list_destroy(pokemon_positions);
-	return find_position;
+	list_destroy_and_destroy_elements(pokemon_positions, destroy_position);
+	free(blocks_content);
+	return find_position_copy;
 }
 
 void handle_new_pokemon(t_message* msg){
@@ -324,11 +338,13 @@ void handle_new_pokemon(t_message* msg){
 		}
 		close_file_pokemon(path_pokemon);
 		free(path_pokemon);
-		list_destroy(pokemon_positions);
+		list_destroy_and_destroy_elements(pokemon_positions, destroy_position);
 		//TODO:free(((t_appeared_pokemon*)appeared_pokemon->pokemon));
 	}
 	t_appeared_pokemon* appeared_pokemon = create_appeared_pokemon(new_pokemon->pokemon_len, new_pokemon->pokemon, new_pokemon->pos_x, new_pokemon->pos_y);
 	send_appeared_to_broker(appeared_pokemon, msg->id);
+	//TODO:free(appeared_pokemon->pokemon);
+	//TODO:free(appeared_pokemon);
 	free(((t_new_pokemon*)msg->buffer)->pokemon);
 	free(msg->buffer);
 }
@@ -355,6 +371,9 @@ t_list* ckeck_position_exists_new_pokemon(char* path_pokemon, t_new_pokemon* pok
 	if(blocks_have == 0){
 		blocks_have++;
 	}
+	pthread_mutex_lock(&mutexBitmap);
+	int blocks_available_copy = blocks_available;
+	pthread_mutex_unlock(&mutexBitmap);
 	if(find_position != NULL){
 		int position_count = find_position->count;
 		find_position->count += pokemon->count;
@@ -366,13 +385,13 @@ t_list* ckeck_position_exists_new_pokemon(char* path_pokemon, t_new_pokemon* pok
 		char* positions_as_char = pokemon_position_to_array_of_position(pokemon_positions_copy);
 		int blocks_needed = my_ceil(string_length(positions_as_char),block_size);
 		free(positions_as_char);
-		if((blocks_needed - blocks_have) <= blocks_available) {
+		if((blocks_needed - blocks_have) <= blocks_available_copy) {
 			log_info(logger,"Sumamos %d a %d total: %d del pokemon %s en la posicion x:%d y:%d en %s", pokemon->count, position_count, pokemon->count + position_count, pokemon->pokemon, pokemon->pos_x, pokemon->pos_y, path_pokemon);
 		} else {
 			log_error(logger, "No se pudo sumar el pokemon %s en el File System porque no hay espacio suficiente", pokemon->pokemon);
 			list_clean_and_destroy_elements(pokemon_positions,destroy_position);
 			//list_clean(pokemon_positions);
-			pokemon_positions = list_create();
+			//pokemon_positions = list_create();
 		}
 
 	} else {
@@ -381,9 +400,10 @@ t_list* ckeck_position_exists_new_pokemon(char* path_pokemon, t_new_pokemon* pok
 		t_list* pokemon_positions_copy = list_create();
 		list_add_all(pokemon_positions_copy, pokemon_positions);
 		char* positions_as_char = pokemon_position_to_array_of_position(pokemon_positions_copy);
+		list_destroy(pokemon_positions_copy);
 		int blocks_needed = my_ceil(string_length(positions_as_char),block_size);
 		free(positions_as_char);
-		if((blocks_needed - blocks_have) <= blocks_available) {
+		if((blocks_needed - blocks_have) <= blocks_available_copy) {
 			log_info(logger,"Agregamos %d %s en la posicion x:%d y:%d en %s",pokemon->count, pokemon->pokemon,pokemon->pos_x, pokemon->pos_y, path_pokemon);
 		} else {
 			log_error(logger, "No se pudo agregar el pokemon %s en el File System porque no hay espacio suficiente", pokemon->pokemon);
@@ -392,7 +412,6 @@ t_list* ckeck_position_exists_new_pokemon(char* path_pokemon, t_new_pokemon* pok
 			//pokemon_positions = list_create();
 		}
 	}
-
 	free(blocks_content);
 	return pokemon_positions;
 }
@@ -406,7 +425,9 @@ void send_appeared_to_broker(t_appeared_pokemon* appeared_pokemon, uint32_t id){
 		log_info(logger, "Se envio el appeared al broker");
 	}
 	send_message(connection, APPEARED_POKEMON, id, 0, buffer);
-	//free(buffer);
+	//TODO:free(appeared_pokemon->pokemon);
+	//TODO:free(appeared_pokemon);
+	//TODO:free(buffer);
 }
 
 t_appeared_pokemon* create_appeared_pokemon(uint32_t pokemon_len, char* pokemon, uint32_t pos_x, uint32_t pos_y){
@@ -455,12 +476,14 @@ void write_positions_on_files(t_list* pokemon_positions, char* path_new_file){
 	t_list* writed_blocks = write_blocks_and_metadata(size_array_positions, array_positions, path_new_file);
 	free(array_positions);
 	log_info(logger, "Se escribe el archivo %s con size= %d", path_new_file, size_array_positions);
-	list_destroy(writed_blocks);
+	list_destroy_and_destroy_elements(pokemon_positions_copy, destroy_position);
+	list_destroy_and_destroy_elements(writed_blocks, free);
 }
 
 char* pokemon_position_to_array_of_position(t_list* pokemon_positions) {
 	char* array_positions = string_new();
 	while(!list_is_empty(pokemon_positions)){
+		log_trace(logger, "POKEMON_POSITION_TO_ARRAY_OF_POSITION INICIO");
 		t_position* position = list_remove(pokemon_positions, 0);
 		char* string_x = string_from_format("%d-", position->pos_x);
 		char* string_y = string_from_format("%d=", position->pos_y);
@@ -472,6 +495,7 @@ char* pokemon_position_to_array_of_position(t_list* pokemon_positions) {
 		free(string_y);
 		free(string_count);
 		//destroy_position(position);
+		log_trace(logger, "POKEMON_POSITION_TO_ARRAY_OF_POSITION FINAL");
 	}
 	/*char* null = "\0";
 	string_append(&array_positions, null);*/
@@ -491,28 +515,34 @@ t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_po
 	t_list* blocks_as_char =  list_create();
 
 	while(actual_blocks[quantity_actual_blocks]!=NULL){
+		log_trace(logger, "POKEMON_BLOCKS1 INICIO");
 		list_add(blocks_as_char, actual_blocks[quantity_actual_blocks]);
 		blocks_as_array_of_char = add_block_to_array(blocks_as_array_of_char, actual_blocks[quantity_actual_blocks]);
 		quantity_actual_blocks++;
+		log_trace(logger, "POKEMON_BLOCKS1 FINAL");
 	}
 
 	int blocks_are_enough = blocks_needed - quantity_actual_blocks;
 	while(blocks_are_enough > 0){
+		log_trace(logger, "POKEMON_BLOCKS2 INICIO");
 		int new_block = get_available_block();
 		blocks_are_enough -= 1;
 		blocks_as_array_of_char = add_block_to_array(blocks_as_array_of_char, string_from_format("%d", new_block));
 		quantity_actual_blocks++;
 
 		list_add(blocks_as_char, string_from_format("%d",new_block));
+		log_trace(logger, "POKEMON_BLOCKS2 FINAL");
 	}
 
 	while(blocks_are_enough < 0){
+		log_trace(logger, "POKEMON_BLOCKS3 INICIO");
 		remove_block_from_bitmap(actual_blocks[quantity_actual_blocks-1]);
 		blocks_are_enough++;
 		actual_blocks[quantity_actual_blocks-1] = '\0';
 		blocks_as_array_of_char = remove_last_block_from_array(blocks_as_array_of_char);
-		list_remove(blocks_as_char,quantity_actual_blocks-1);
+		list_remove_and_destroy_element(blocks_as_char,quantity_actual_blocks-1, free);
 		quantity_actual_blocks--;
+		log_trace(logger, "POKEMON_BLOCKS3 FINAL");
 	}
 
 	log_info(logger,"Bloques a guardar para el archivo %s:%s",metadata_path, blocks_as_array_of_char);
@@ -523,8 +553,8 @@ t_list* pokemon_blocks(int blocks_needed, char* metadata_path, int size_array_po
 	//TODO:
 	/*for(int i = 0;actual_blocks[i]!=NULL;i++){
 		free(actual_blocks[i]);
-	}
-	free(actual_blocks);*/
+	}*/
+	free(actual_blocks);
 	config_save(metadata);
 	config_destroy(metadata);
 	pthread_mutex_unlock(&mutexMetadataPath);
@@ -568,6 +598,7 @@ char* remove_last_block_from_array(char* blocks_as_array){
 	blocks_as_array[length-2] = '\0';
 	blocks_as_array[length-3] = '\0';
 	if(length == 3){
+		//TODO:remueve el ultimo bloque y elimina el directorio
 		int available_block = get_available_block();
 		char* next_available_block = string_from_format("[%d]", available_block);
 		string_append(&blocks_as_array,next_available_block);
@@ -661,6 +692,8 @@ char* read_blocks_content(char* path_pokemon){
 
 	if (content_size!=0){
 		while(blocks[ind_blocks]!=NULL){
+			log_trace(logger, "READ_BLOCKS_CONTENT INICIO");
+			free(buffer);
 			if (rest_to_read-block_size > 0){
 				size_to_read = block_size;
 				rest_to_read = rest_to_read-block_size;
@@ -681,6 +714,7 @@ char* read_blocks_content(char* path_pokemon){
 			free(blocks[ind_blocks]);
 
 			ind_blocks += 1;
+			log_trace(logger, "READ_BLOCKS_CONTENT FINAL");
 		}
 	}
 	free(blocks);
@@ -697,6 +731,7 @@ t_list* get_positions_from_buffer(char* buffer){
 		char **array_buffer_positions = string_split(buffer, "\n");
 		int index_position=0;
 		while (array_buffer_positions[index_position]!=NULL){
+			log_trace(logger, "GET_POSITIONS_FROM_BUFFER INICIO");
 			char** string_position = string_split(array_buffer_positions[index_position], "=");
 			char** only_positions = string_split(string_position[0], "-");
 			t_position* new_position = create_position(atoi(only_positions[0]), atoi(only_positions[1]), atoi(string_position[1]));
@@ -710,6 +745,7 @@ t_list* get_positions_from_buffer(char* buffer){
 			free(string_position);
 			free(array_buffer_positions[index_position]);
 			index_position += 1;
+			log_trace(logger, "GET_POSITIONS_FROM_BUFFER FINAL");
 		}
 
 		free(array_buffer_positions);
@@ -749,6 +785,7 @@ void check_if_file_is_open(char* path){
 	pthread_mutex_unlock(&mutexMetadataPath);
 
 	while(string_equals_ignore_case(is_open_copy, "Y")) {
+		log_trace(logger, "CHECK_IF_FILE_IS_OPEN INICIO");
 		log_info(logger,"El archivo %s esta abierto reintentando",path);
 		sleep(TIEMPO_DE_REINTENTO_OPERACION);
 		pthread_mutex_lock(&mutexMetadataPath);
@@ -762,10 +799,12 @@ void check_if_file_is_open(char* path){
 			free(is_open_copy);
 			config_destroy(metadata);
 			pthread_mutex_unlock(&mutexMetadataPath);
+			log_trace(logger, "CHECK_IF_FILE_IS_OPEN INICIO");
 			return;
 		}
 		config_destroy(metadata);
 		pthread_mutex_unlock(&mutexMetadataPath);
+		log_trace(logger, "CHECK_IF_FILE_IS_OPEN FINAL");
 	}
 }
 
@@ -821,6 +860,7 @@ int get_available_block(){
 	bool is_not_available=true;
 	int block=0;
 	while(block < (bitarray->size)*8) {
+		log_trace(logger, "GET_AVAILABLE_BLOCK INICIO");
 		is_not_available = bitarray_test_bit(bitarray, block);
 		if(!is_not_available) {
 			bitarray_set_bit(bitarray, block);
@@ -829,9 +869,11 @@ int get_available_block(){
 			log_info(logger, "Se ocupa bloque %d", block);
 			msync(bmap, sizeof(bitarray), MS_SYNC);
 			pthread_mutex_unlock(&mutexBitmap);
+			log_trace(logger, "GET_AVAILABLE_BLOCK FINAL");
 			return block;
 		}
 		block ++;
+		log_trace(logger, "GET_AVAILABLE_BLOCK FINAL");
 	}
 	log_error(logger, "No se puede obtener un bloque, ya que el File System está lleno");
 	pthread_mutex_unlock(&mutexBitmap);

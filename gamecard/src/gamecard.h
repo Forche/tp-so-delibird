@@ -20,6 +20,8 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <thread.h>
+#include <unistd.h>
+
 
 
 // ******* DEFINICION DE ESTRUCTURAS A UTILIZAR ******* //
@@ -72,6 +74,7 @@ void add_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon);
 t_position* ckeck_position_exists_catch_pokemon(char* path_pokemon, t_catch_pokemon* pokemon);
 t_list* ckeck_position_exists_new_pokemon(char* path_pokemon, t_new_pokemon* pokemon);
 void remove_position(t_position* position, char* path_pokemon);
+void remove_pokemon_directory(char* path_pokemon);
 void decrease_position(t_position* position, char* path_pokemon);
 
 void remove_block_from_bitmap(char* block);
