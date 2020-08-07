@@ -159,9 +159,3 @@ char *replace_word(const char *s, const char *oldW,
     return result;
 }
 
-void* get_from_dictionary_with_mutex(pthread_mutex_t mutex, t_dictionary* dictionary, void* key) {
-	pthread_mutex_lock(&mutex);
-	uint32_t value = dictionary_get(dictionary, key);
-	pthread_mutex_unlock(&mutex);
-	return value;
-}

@@ -28,6 +28,7 @@ int main(int argc, char* argv[]) {
 	matched_deadlocks = list_create();
 	to_deadlock = list_create();
 	queue_deadlock = list_create();
+	appeared_backup = list_create();
 
 	ID = config_get_string_value(config, "ID");
 	char* POSICIONES_ENTRENADORES = config_get_string_value(config, "POSICIONES_ENTRENADORES");
@@ -159,29 +160,46 @@ void handle_localized(t_message* msg) {
 			localized_pokemon->pokemon, localized_pokemon->positions_count);
 
 	pthread_mutex_lock(&mutex_remaining_pokemons);
-	uint32_t q_catch = dictionary_get(remaining_pokemons, localized_pokemon->pokemon);
+	uint32_t* q_catch = dictionary_get(remaining_pokemons, localized_pokemon->pokemon);
 	pthread_mutex_unlock(&mutex_remaining_pokemons);
 
-	if(q_catch) {
-		uint32_t pos_x;
+	if(q_catch != NULL && *q_catch) {
+		uint32_t q_received = get_q_received(localized_pokemon->pokemon);
+		uint32_t pos_x = 0;
 		uint32_t pos_y = 1;
+		uint32_t i;
 		t_list* localized_appeared_pokemon = list_create();
-		for(pos_x = 0; pos_x < (localized_pokemon->positions_count * 2); pos_x = pos_x + 2) {
+		t_list* localized_appeared_pokemon_to_backup = list_create();
+		for(i = 0; i < localized_pokemon->positions_count; i++) {
 			t_appeared_pokemon* appeared_pokemon = malloc(sizeof(t_appeared_pokemon));
 			appeared_pokemon->pokemon_len = localized_pokemon->pokemon_len;
 			appeared_pokemon->pokemon = localized_pokemon->pokemon;
 			appeared_pokemon->pos_x = localized_pokemon->positions[pos_x];
 			appeared_pokemon->pos_y = localized_pokemon->positions[pos_y];
-			list_add(localized_appeared_pokemon, appeared_pokemon);
-			pos_y = pos_y + 2;
+
+			if(i < ((*q_catch) - q_received)) {
+				list_add(localized_appeared_pokemon, appeared_pokemon);
+			} else {
+				list_add(localized_appeared_pokemon_to_backup, appeared_pokemon);
+			}
+			pos_x += 2;
+			pos_y += 2;
 		}
 
-		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
-		list_add_all(pokemon_received_to_catch, localized_appeared_pokemon);
-		pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
-		uint32_t aux;
-		for(aux = 0; aux < localized_pokemon->positions_count; aux++) {
-			sem_post(&sem_appeared_pokemon);
+		if(list_size(localized_appeared_pokemon) > 0) {
+			pthread_mutex_lock(&mutex_pokemon_received_to_catch);
+			list_add_all(pokemon_received_to_catch, localized_appeared_pokemon);
+			pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
+			uint32_t aux;
+			for(aux = 0; aux < list_size(localized_appeared_pokemon); aux++) {
+				sem_post(&sem_appeared_pokemon);
+			}
+		}
+
+		if(list_size(localized_appeared_pokemon_to_backup) > 0) {
+			pthread_mutex_lock(&mutex_appeared_backup);
+			list_add(appeared_backup, localized_appeared_pokemon_to_backup);
+			pthread_mutex_unlock(&mutex_appeared_backup);
 		}
 	}
 }
@@ -196,21 +214,55 @@ void handle_caught(t_message* msg) {
 	}
 }
 
+
 void handle_appeared(t_message* msg) {
 	t_appeared_pokemon* appeared_pokemon = msg->buffer->payload;
 	log_info(logger, "Recibido APPEARED_POKEMON. Pokemon: %s. Posicion x: %d, y: %d",
 			appeared_pokemon->pokemon, appeared_pokemon->pos_x, appeared_pokemon->pos_y);
 
 	pthread_mutex_lock(&mutex_remaining_pokemons);
-	uint32_t q_catch = dictionary_get(remaining_pokemons, appeared_pokemon->pokemon);
+	uint32_t* q_catch = dictionary_get(remaining_pokemons, appeared_pokemon->pokemon);
 	pthread_mutex_unlock(&mutex_remaining_pokemons);
 
-	if (q_catch) {
+	if (q_catch != NULL && *q_catch) {
 		pthread_mutex_lock(&mutex_pokemon_received_to_catch);
-		list_add(pokemon_received_to_catch, appeared_pokemon);
+		uint32_t q_received = get_q_received(appeared_pokemon->pokemon);
+
+		if(((*q_catch) - q_received) > 0) {
+			list_add(pokemon_received_to_catch, appeared_pokemon);
+			sem_post(&sem_appeared_pokemon);
+		} else {
+			log_trace(logger, "Agregado pokemon %s al backup", appeared_pokemon->pokemon);
+			pthread_mutex_lock(&mutex_appeared_backup);
+			list_add(appeared_backup, appeared_pokemon);
+			pthread_mutex_unlock(&mutex_appeared_backup);
+		}
 		pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
-		sem_post(&sem_appeared_pokemon);
 	}
+}
+
+uint32_t get_q_received(char* pokemon) {
+	uint32_t q_received = 0;
+	uint32_t i;
+	for (i = 0; i < list_size(pokemon_received_to_catch); i++) {
+		t_appeared_pokemon* appeared_pokemon_received_before = list_get(
+				pokemon_received_to_catch, i);
+		if (string_equals_ignore_case(appeared_pokemon_received_before->pokemon,
+				pokemon)) {
+			q_received += 1;
+		}
+	}
+	pthread_mutex_lock(&mutex_being_caught_pokemons);
+	bool has_key = dictionary_has_key(being_caught_pokemons, pokemon);
+	pthread_mutex_unlock(&mutex_being_caught_pokemons);
+	if (has_key) {
+		pthread_mutex_lock(&mutex_being_caught_pokemons);
+		uint32_t* cant_vistima = dictionary_get(being_caught_pokemons,
+				pokemon);
+		pthread_mutex_unlock(&mutex_being_caught_pokemons);
+		q_received += *cant_vistima;
+	}
+	return q_received;
 }
 
 void init_sem() {
@@ -229,6 +281,7 @@ void init_sem() {
 	pthread_mutex_init(&mutex_planning_deadlock, NULL);
 	pthread_mutex_init(&mutex_matched_deadlocks, NULL);
 	pthread_mutex_init(&mutex_q_ciclos_cpu_totales, NULL);
+	pthread_mutex_init(&mutex_appeared_backup, NULL);
 }
 
 void send_get_pokemons() {
@@ -267,9 +320,10 @@ void* build_remaining_pokemons() {
 void* add_remaining(char* pokemon, uint32_t* cant_global) {
 	if(dictionary_has_key(caught_pokemons, pokemon)) {
 		uint32_t* cant_caught = dictionary_get(caught_pokemons, pokemon);
-		uint32_t* cant_remaining = malloc(sizeof(uint32_t));
+		int* cant_remaining = malloc(sizeof(uint32_t));
 		*cant_remaining = (*cant_global) - (*cant_caught);
 		if(*cant_remaining < 0) {
+			log_error(logger, "Error en la configuracion");
 			exit(-777);
 		} else if(*cant_remaining > 0) {
 			dictionary_put(remaining_pokemons, pokemon, cant_remaining);
@@ -313,6 +367,8 @@ void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, 
 		t_dictionary* pokemons = get_dictionary_if_has_value(list_pokemons_by_trainer, i);
 		t_dictionary* objectives = get_dictionary_if_has_value(list_objectives_by_trainer, i);
 
+		validate_pokemons_in_objectives(pokemons, objectives);
+
 		t_trainer* trainer = malloc(sizeof(t_trainer));
 		trainer->name = i;
 		trainer->pos_x = atoi(positions[0]);
@@ -343,6 +399,21 @@ void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, 
 	free(pokemons_by_trainer);
 	free(objectives_by_trainer);
 
+}
+
+void validate_pokemons_in_objectives(t_dictionary* pokemons, t_dictionary* objectives) {
+	bool in_objectives(char* pokemon, uint32_t* quantity) {
+		if(dictionary_has_key(objectives, pokemon)) {
+			uint32_t* quantity_objectives = dictionary_get(objectives, pokemon);
+			if(quantity_objectives == NULL || (*quantity_objectives) - (*quantity) < 0) {
+				log_error(logger, "Error en la configuracion");
+			}
+		} else {
+			log_error(logger, "Error en la configuracion");
+			exit(-777);
+		}
+	}
+	dictionary_iterator(pokemons, in_objectives);
 }
 
 void subscribe_to(event_code code) {
