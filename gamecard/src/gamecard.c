@@ -38,7 +38,7 @@ void read_config() {
 }
 
 void init_loggers() {
-	logger = log_create("/home/utnso/tp-2020-1c-Operavirus/gamecard/gamecard.log", "gamecard", true, LOG_LEVEL_TRACE); //true porque escribe tambien la consola
+	logger = log_create("/home/utnso/tp-2020-1c-Operavirus/gamecard/gamecard.log", "gamecard", true, LOG_LEVEL_INFO); //true porque escribe tambien la consola
 }
 
 void shutdown_gamecard() {
