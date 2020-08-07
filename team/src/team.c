@@ -201,12 +201,6 @@ void handle_localized(t_message* msg) {
 			list_add(appeared_backup, localized_appeared_pokemon_to_backup);
 			pthread_mutex_unlock(&mutex_appeared_backup);
 		}
-		free(msg->buffer);
-		free(msg);
-	} else {
-		free(msg->buffer->payload);
-		free(msg->buffer);
-		free(msg);
 	}
 }
 
@@ -218,9 +212,6 @@ void handle_caught(t_message* msg) {
 		trainer->pcb_trainer->result_catch = caught_pokemon->result;
 		pthread_mutex_unlock(&trainer->pcb_trainer->sem_caught);
 	}
-	free(msg->buffer->payload);
-	free(msg->buffer);
-	free(msg);
 }
 
 
@@ -247,12 +238,6 @@ void handle_appeared(t_message* msg) {
 			pthread_mutex_unlock(&mutex_appeared_backup);
 		}
 		pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
-		free(msg->buffer);
-		free(msg);
-	} else {
-		free(msg->buffer->payload);
-		free(msg->buffer);
-		free(msg);
 	}
 }
 
