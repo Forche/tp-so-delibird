@@ -26,10 +26,10 @@ endif
 all: gamecard
 
 dependents:
-	-cd /home/utnso/tp-2020-1c-Operavirus/operavirus-commons/Debug && $(MAKE) all
-	
+	-cd /home/utnso/tp-2020-1c-Operavirus/operavirus-commons/Debug && $(MAKE) clean all
+
 # Tool invocations
-gamecard: $(OBJS) $(USER_OBJS)
+gamecard: $(OBJS) $(USER_OBJS) /home/utnso/tp-2020-1c-Operavirus/operavirus-commons/Debug/liboperavirus-commons.so
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C Linker'
 	gcc -L"/home/utnso/tp-2020-1c-Operavirus/operavirus-commons/Debug" -o "gamecard" $(OBJS) $(USER_OBJS) $(LIBS)
