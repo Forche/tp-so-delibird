@@ -232,6 +232,7 @@ void handle_appeared(t_message* msg) {
 			list_add(pokemon_received_to_catch, appeared_pokemon);
 			sem_post(&sem_appeared_pokemon);
 		} else {
+			log_trace(logger, "Agregado pokemon %s al backup", appeared_pokemon->pokemon);
 			pthread_mutex_lock(&mutex_appeared_backup);
 			list_add(appeared_backup, appeared_pokemon);
 			pthread_mutex_unlock(&mutex_appeared_backup);
@@ -366,6 +367,8 @@ void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, 
 		t_dictionary* pokemons = get_dictionary_if_has_value(list_pokemons_by_trainer, i);
 		t_dictionary* objectives = get_dictionary_if_has_value(list_objectives_by_trainer, i);
 
+		validate_pokemons_in_objectives(pokemons, objectives);
+
 		t_trainer* trainer = malloc(sizeof(t_trainer));
 		trainer->name = i;
 		trainer->pos_x = atoi(positions[0]);
@@ -396,6 +399,21 @@ void create_trainers(char* POSICIONES_ENTRENADORES, char* POKEMON_ENTRENADORES, 
 	free(pokemons_by_trainer);
 	free(objectives_by_trainer);
 
+}
+
+void validate_pokemons_in_objectives(t_dictionary* pokemons, t_dictionary* objectives) {
+	bool in_objectives(char* pokemon, uint32_t* quantity) {
+		if(dictionary_has_key(objectives, pokemon)) {
+			uint32_t* quantity_objectives = dictionary_get(objectives, pokemon);
+			if(quantity_objectives == NULL || (*quantity_objectives) - (*quantity) < 0) {
+				log_error(logger, "Error en la configuracion");
+			}
+		} else {
+			log_error(logger, "Error en la configuracion");
+			exit(-777);
+		}
+	}
+	dictionary_iterator(pokemons, in_objectives);
 }
 
 void subscribe_to(event_code code) {
