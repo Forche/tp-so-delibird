@@ -14,7 +14,7 @@ void listener(char* ip, char* port, void* handle_event) {
 		if ((sv_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol))== -1)
 			continue;
 		
-		setsockopt(socket_servidor,SOL_SOCKET,SO_REUSEADDR,&activate,sizeof(activate));
+		setsockopt(sv_socket,SOL_SOCKET,SO_REUSEADDR,&activate,sizeof(activate));
 
 		if (bind(sv_socket, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sv_socket);
