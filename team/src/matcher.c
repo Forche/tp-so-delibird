@@ -43,6 +43,7 @@ t_match_pokemon_trainer* match_closest_trainer() {
 		}
 	}
 
+
 	pthread_mutex_lock(&mutex_being_caught_pokemons);
 	add_to_dictionary(being_caught_pokemons, match_pokemon_trainer->closest_pokemon->pokemon);
 	pthread_mutex_unlock(&mutex_being_caught_pokemons);
@@ -53,18 +54,24 @@ t_match_pokemon_trainer* match_closest_trainer() {
 
 uint32_t check_remaining_minus_vistima(char* pokemon) {
 	pthread_mutex_lock(&mutex_remaining_pokemons);
-	uint32_t cant_remaining = dictionary_get(remaining_pokemons, pokemon);
-	pthread_mutex_unlock(&mutex_remaining_pokemons);
-	pthread_mutex_lock(&mutex_being_caught_pokemons);
-	bool has_key = dictionary_has_key(being_caught_pokemons, pokemon);
-	pthread_mutex_unlock(&mutex_being_caught_pokemons);
-	if(has_key) {
+	bool has_key_remaining = dictionary_has_key(remaining_pokemons, pokemon);
+	if(has_key_remaining) {
+		uint32_t* cant_remaining = dictionary_get(remaining_pokemons, pokemon);
+		pthread_mutex_unlock(&mutex_remaining_pokemons);
 		pthread_mutex_lock(&mutex_being_caught_pokemons);
-		uint32_t cant_vistima = dictionary_get(being_caught_pokemons, pokemon);
+		bool has_key = dictionary_has_key(being_caught_pokemons, pokemon);
 		pthread_mutex_unlock(&mutex_being_caught_pokemons);
-		return cant_remaining - cant_vistima;
+		if(has_key) {
+			pthread_mutex_lock(&mutex_being_caught_pokemons);
+			uint32_t* cant_vistima = dictionary_get(being_caught_pokemons, pokemon);
+			pthread_mutex_unlock(&mutex_being_caught_pokemons);
+			return (*cant_remaining) - (*cant_vistima);
+		} else {
+			return *cant_remaining;
+		}
 	} else {
-		return cant_remaining;
+		pthread_mutex_unlock(&mutex_remaining_pokemons);
+		return 0;
 	}
 }
 
@@ -85,7 +92,7 @@ t_trainer* get_closest_trainer(t_appeared_pokemon* appeared_pokemon) {
 }
 
 bool not_exec(t_trainer* trainer) {
-	return trainer->status != EXEC && trainer->status != READY && trainer->pcb_trainer->status == NEW;
+	return trainer->status != EXIT && trainer->status != FULL && trainer->status != EXEC && trainer->status != READY && trainer->pcb_trainer->status == NEW;
 }
 
 int get_distance(t_trainer* trainer, t_appeared_pokemon* pokemon) {

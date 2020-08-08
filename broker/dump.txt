@@ -1,9 +1,6 @@
-Dump: 25/7/2020 15:12:12
-Partition 0: 00000 - 0x020.	 [0]	 Size:32 b	 LRU:0	 Queue:Cola 	 ID:2
-Partition 1: 0x020 - 0x040.	 [0]	 Size:32 b	 LRU:0	 Queue:Cola 	 ID:3
-Partition 2: 00000 - 0x010.	 [0]	 Size:16 b	 LRU:0	 Queue:Cola 	 ID:4
-Partition 3: 0x010 - 0x020.	 [0]	 Size:16 b	 LRU:0	 Queue:Cola 	 ID:5
-Partition 4: 00000 - 0x008.	 [0]	 Size:8 b	 LRU:0	 Queue:Cola 	 ID:6
-Partition 5: 0x008 - 0x010.	 [0]	 Size:8 b	 LRU:0	 Queue:Cola 	 ID:7
-Partition 6: 00000 - 0x004.	 [1]	 Size:4 b	 LRU:1595700518	 Queue:Cola 	 ID:8
-Partition 7: 0x004 - 0x008.	 [0]	 Size:4 b	 LRU:0	 Queue:Cola 	 ID:9
+Dump: 6/8/2020 0:57:23
+Partition 0: 0x016 - 0x01b.	 [0]	 Size:5 b	 LRU:0	 Queue:O 	 ID:2
+Partition 1: 0x01b - 0x02f.	 [1]	 Size:20 b	 LRU:1596686049	 Queue:CATCH_POKEMON 	 ID:5
+Partition 2: 0x02f - 0x03f.	 [1]	 Size:16 b	 LRU:1596686050	 Queue:CATCH_POKEMON 	 ID:6
+Partition 3: 0x03f - 0x040.	 [0]	 Size:1 b	 LRU:0	 Queue:CATCH_POKEMON 	 ID:7
+Partition 4: 00000 - 0x016.	 [1]	 Size:22 b	 LRU:1596686184	 Queue:CATCH_POKEMON 	 ID:8

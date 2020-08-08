@@ -30,6 +30,8 @@ typedef struct
 	t_list* receivers; // Type: receiver*
 } queue_message;
 
+t_subscriptor* sub;
+
 typedef struct
 {
 	t_list* messages; // Type: queue_message*
@@ -46,7 +48,7 @@ typedef enum
 
 typedef struct {
 	uint32_t begin;
-	uint32_t id;
+	int id;
 	partition_status status;
 	uint32_t content_size;
 	uint32_t partition_size;
@@ -64,7 +66,6 @@ pthread_t thread;
 t_log *logger;
 uint32_t message_count;
 uint32_t partition_count;
-t_list* threads;
 queue* queue_new_pokemon;
 queue* queue_appeared_pokemon;
 queue* queue_catch_pokemon;

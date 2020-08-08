@@ -5,6 +5,14 @@ void move_one_step(uint32_t* pos1, uint32_t pos2);
 void trainer_must_go_on(t_trainer* trainer, t_deadlock_matcher* deadlock_matcher);
 void desalojar(t_trainer* trainer, bool refresh_estimation, t_deadlock_matcher* deadlock_matcher, bool lock_sem_caught);
 
+bool all_trainers_full() {
+	bool all_full(t_trainer* trainer) {
+		return trainer->status == FULL || trainer->status == EXIT;
+	}
+
+	return list_all_satisfy(trainers, all_full);
+}
+
 void handle_trainer(t_trainer* trainer) {
 	trainer->thread = pthread_self();
 	trainer->pcb_trainer->status = NEW;
@@ -18,10 +26,26 @@ void handle_trainer(t_trainer* trainer) {
 	pthread_mutex_init(&trainer->pcb_trainer->sem_deadlock, NULL);
 	pthread_mutex_lock(&trainer->pcb_trainer->sem_deadlock);
 
+	if(is_trainer_full(trainer)) {
+		dictionary_iterator(trainer->caught, print_pokemons);
+		change_status_to(trainer, FULL);
+		validate_deadlock(trainer);
+		log_trace(logger, "Entrenador %d completo", trainer->name);
+
+		pthread_mutex_lock(&mutex_trainers);
+		bool trainers_full = all_trainers_full();
+		pthread_mutex_unlock(&mutex_trainers);
+		if(dictionary_is_empty(remaining_pokemons) && trainers_full) {
+			log_trace(logger, "Todos los entrenadores completos");
+			sem_post(&sem_all_pokemons_caught);
+		}
+	}
 	while(1) {
 		pthread_mutex_lock(&trainer->sem);
 		trainer->pcb_trainer->do_next(trainer->pcb_trainer->params_do_next);
 	}
+
+
 }
 
 void trainer_catch_pokemon(t_trainer* trainer) {
@@ -46,8 +70,10 @@ void handle_catch(t_trainer* trainer) {
 		pthread_mutex_unlock(&mutex_remaining_pokemons);
 
 		log_info(logger, "Atrapado pokemon %s, entrenador %d", pcb_trainer->pokemon_to_catch->pokemon, trainer->name);
+		//must_remove_from_backup(pcb_trainer);
 	} else {
 		log_info(logger, "Error atrapar pokemon %s, entrenador %d", pcb_trainer->pokemon_to_catch->pokemon, trainer->name);
+		search_in_backup(pcb_trainer);
 	}
 
 	pthread_mutex_lock(&mutex_being_caught_pokemons);
@@ -59,7 +85,14 @@ void handle_catch(t_trainer* trainer) {
 		change_status_to(trainer, FULL);
 		validate_deadlock(trainer);
 
-		if(dictionary_is_empty(remaining_pokemons)) {
+		log_info(logger, "Entrenador %d completo", trainer->name);
+
+		pthread_mutex_lock(&mutex_trainers);
+		bool trainers_full = all_trainers_full();
+		pthread_mutex_unlock(&mutex_trainers);
+
+		if(dictionary_is_empty(remaining_pokemons) && trainers_full) {
+			log_trace(logger, "Todos los entrenadores completos");
 			sem_post(&sem_all_pokemons_caught);
 		}
 	} else {
@@ -71,6 +104,49 @@ void handle_catch(t_trainer* trainer) {
 	trainer->real_anterior = trainer->estimacion_anterior - trainer->estimacion_actual;
 	trainer->sjf_calculado = false;
 	trainer->pcb_trainer->quantum = 0;
+}
+
+void search_in_backup(t_pcb_trainer* pcb_trainer) {
+	pthread_mutex_lock(&mutex_appeared_backup);
+	uint32_t i;
+	for (i = 0; i < list_size(appeared_backup); i++) {
+		t_appeared_pokemon* pokemon_backup = list_get(appeared_backup, i);
+		if (string_equals_ignore_case(pcb_trainer->pokemon_to_catch->pokemon,
+				pokemon_backup->pokemon)) {
+			list_remove(appeared_backup, i);
+			pthread_mutex_lock(&mutex_pokemon_received_to_catch);
+			list_add(pokemon_received_to_catch, pokemon_backup);
+			pthread_mutex_unlock(&mutex_pokemon_received_to_catch);
+			sem_post(&sem_appeared_pokemon);
+			break;
+		}
+	}
+	pthread_mutex_unlock(&mutex_appeared_backup);
+}
+
+void must_remove_from_backup(t_pcb_trainer* pcb_trainer) {
+	pthread_mutex_lock(&mutex_remaining_pokemons);
+	uint32_t* q_catch = dictionary_get(remaining_pokemons, pcb_trainer->pokemon_to_catch->pokemon);
+	pthread_mutex_unlock(&mutex_remaining_pokemons);
+	if(q_catch != NULL && (*q_catch) > 0 ) {
+		log_info(logger, "No saco nada");
+	} else {
+		pthread_mutex_lock(&mutex_appeared_backup);
+			if(list_size(appeared_backup) > 0) {
+				log_info(logger, "Hay pa sacar");
+				int i;
+				for (i = list_size(appeared_backup); i > 0; i--) {
+					t_appeared_pokemon* pokemon_backup = list_get(appeared_backup, i - 1);
+					if (string_equals_ignore_case(pcb_trainer->pokemon_to_catch->pokemon,
+							pokemon_backup->pokemon)) {
+						list_remove(appeared_backup, i);
+						free(pokemon_backup->pokemon);
+						free(pokemon_backup);
+					}
+				}
+			}
+		pthread_mutex_unlock(&mutex_appeared_backup);
+	}
 }
 
 void find_candidate_to_swap(t_list* remaining, t_list* leftovers, t_trainer* trainer) {
