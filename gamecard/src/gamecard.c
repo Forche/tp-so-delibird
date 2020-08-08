@@ -187,7 +187,7 @@ void handle_get_pokemon(t_message* msg){
 			t_localized_pokemon* localized_pokemon = create_localized_pokemon(get_pokemon->pokemon_len, get_pokemon->pokemon, list_size(pokemon_positions), positions_uint32);
 			send_localized_to_broker(localized_pokemon, msg->id);
 		} else {
-			log_info(logger, "No hay %s disponibles", get_pokemon->pokemon);
+			log_error(logger, "No hay %s disponibles", get_pokemon->pokemon);
 		}
 		close_file_pokemon(path_pokemon);
 		list_destroy_and_destroy_elements(pokemon_positions, destroy_position);
@@ -245,8 +245,11 @@ void handle_catch_pokemon(t_message* msg){
 				decrease_position(position, path_pokemon);
 			}
 			free(position);
+			caught_pokemon->result = 1;
+		} else {
+			caught_pokemon->result = 0;
 		}
-		caught_pokemon->result = 1;
+
 		close_file_pokemon(path_pokemon);
 		free(path_pokemon);
 		//free(position);

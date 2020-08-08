@@ -167,7 +167,7 @@ void handle_localized(t_message* msg) {
 		uint32_t q_received = get_q_received(localized_pokemon->pokemon);
 		uint32_t pos_x = 0;
 		uint32_t pos_y = 1;
-		uint32_t i;
+		int i = 0;
 		t_list* localized_appeared_pokemon = list_create();
 		t_list* localized_appeared_pokemon_to_backup = list_create();
 		for(i = 0; i < localized_pokemon->positions_count; i++) {

@@ -1396,6 +1396,7 @@ static void err_sys(char *msg) {
 }
 
 static void dump_memory() {
+	log_info(logger, "Se solicito el Dump de cache");
 	time_t rawtime;
 	struct tm *timeinfo;
 
