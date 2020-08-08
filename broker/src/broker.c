@@ -1235,12 +1235,9 @@ uint32_t exist_in_queue(queue* queue, char* id) {
 	pthread_mutex_lock(&queue->mutex_subscriptors);
 	find_subscriptor = list_find(queue->subscriptors, _compare);
 	if (find_subscriptor != NULL) {
-		log_info(logger, "El suscriptor esta en la queue, el socket es: %d",
-				find_subscriptor->socket);
 		socket = find_subscriptor->socket;
-	} else {
-		log_info(logger, "El suscriptor no esta en la queue, agregando");
 	}
+	
 	pthread_mutex_unlock(&queue->mutex_subscriptors);
 	return socket;
 }
