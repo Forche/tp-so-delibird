@@ -48,7 +48,7 @@ typedef enum
 
 typedef struct {
 	uint32_t begin;
-	uint32_t id;
+	int id;
 	partition_status status;
 	uint32_t content_size;
 	uint32_t partition_size;

@@ -1338,7 +1338,7 @@ void send_all_messages(uint32_t *socket,
 		}
 
 		if (!already_received) {
-			uint32_t partition_id = message->message->memory_partition_id;
+			int partition_id = message->message->memory_partition_id;
 			uint32_t j = 0;
 
 			pthread_mutex_lock(&mutex_memory_partitions);
@@ -1421,7 +1421,7 @@ static void dump_memory() {
 				((t_memory_partition *) (list_get(memory_partitions, i)))->begin;
 		uint32_t partition_size = ((t_memory_partition *) (list_get(
 				memory_partitions, i)))->partition_size;
-		uint32_t memory_partition_id = ((t_memory_partition *) (list_get(
+		int memory_partition_id = ((t_memory_partition *) (list_get(
 				memory_partitions, i)))->id;
 		uint32_t lru_timestamp = ((t_memory_partition *) (list_get(
 				memory_partitions, i)))->lru_timestamp;
