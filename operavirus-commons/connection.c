@@ -9,10 +9,12 @@ void listener(char* ip, char* port, void* handle_event) {
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
 	getaddrinfo(ip, port, &hints, &servinfo);
+	int activate = 1;
 	for (p = servinfo; p != NULL; p = p->ai_next) {
-		if ((sv_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol))
-				== -1)
+		if ((sv_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol))== -1)
 			continue;
+		
+		setsockopt(socket_servidor,SOL_SOCKET,SO_REUSEADDR,&activate,sizeof(activate));
 
 		if (bind(sv_socket, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sv_socket);
